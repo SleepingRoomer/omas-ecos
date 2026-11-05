@@ -80,6 +80,28 @@ p { margin: .5rem 0; }
 .plate.c-r { background: var(--surface); color: var(--r); box-shadow: inset 0 0 0 2px var(--r); }
 .plate.c-p { background: var(--p); }
 .plate.c-x { background: var(--ink-3); }
+.aplate { position: relative; display: inline-grid; place-items: center; flex: none; width: 34px; height: 34px; border-radius: var(--r-sm);
+  background: #f3e8f2; box-shadow: inset 0 0 0 2px var(--p); }
+.aplate .emo { font-size: 1.15rem; line-height: 1; }
+.aplate .no { position: absolute; right: -6px; bottom: -6px; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 9px; background: var(--p); color: #fff;
+  font: 800 .7rem/18px var(--display); text-align: center; box-shadow: 0 0 0 2px var(--surface); }
+.aplate.sm { width: 30px; height: 30px; border-radius: 6px; }
+.aplate.sm .emo { font-size: 1rem; }
+.aplate.sm .no { min-width: 15px; height: 15px; line-height: 15px; font-size: .62rem; right: -5px; bottom: -5px; }
+.aplate.lg { width: 56px; height: 56px; border-radius: 10px; }
+.aplate.lg .emo { font-size: 1.9rem; }
+.aplate.lg .no { min-width: 22px; height: 22px; line-height: 22px; font-size: .8rem; border-radius: 11px; }
+.aplate.xl { width: 96px; height: 96px; border-radius: 14px; }
+.aplate.xl .emo { font-size: 3.3rem; }
+.aplate.xl .no { min-width: 30px; height: 30px; line-height: 30px; font-size: 1.05rem; border-radius: 15px; right: -8px; bottom: -8px; }
+.emoji-pick { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+.emoji-pick button { min-height: 38px; width: 42px; padding: 0; font-size: 1.25rem; font-weight: 400; }
+.emoji-pick button.on { box-shadow: inset 0 0 0 2px var(--p); background: #f3e8f2; }
+.poster { display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; gap: 6mm; }
+.poster .big-emo { font-size: 70mm; line-height: 1; }
+.poster .big-no { font: 800 26pt/1 var(--display); color: #fff; background: var(--p); padding: 3mm 9mm; border-radius: 30mm; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.poster .big-title { font: 800 48pt/1.05 var(--display); letter-spacing: -.02em; color: #14163a; max-width: 240mm; }
+.poster .big-sub { font-size: 18pt; color: #555; }
 .plate.sm { width: 28px; height: 28px; font-size: .8rem; border-radius: 5px; }
 .plate.lg { width: 56px; height: 56px; font-size: 1.5rem; border-radius: 9px; }
 .plate.xl { width: 96px; height: 96px; font-size: 2.6rem; border-radius: 14px; }

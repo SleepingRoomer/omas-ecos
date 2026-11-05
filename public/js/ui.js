@@ -101,3 +101,10 @@ export function rail(status, mini = false) {
 // Domaine et discipline précédés de leur pictogramme
 export const dom = (d) => (d ? `<span class="tag-ico" aria-hidden="true">${domainIcon(d)}</span>${esc(d)}` : '');
 export const disc = (d) => (d ? `<span style="white-space:nowrap"><span class="tag-ico" aria-hidden="true">${disciplineIcon(d)}</span>${esc(d)}</span>` : '');
+
+// Plaque d'atelier : le pictogramme de l'atelier, avec son numéro en pastille
+export function atelierPlate(code, emoji, size = '') {
+  const n = String(code || '').replace(/\D/g, '') || esc(code || '?');
+  if (!emoji) return plate(code, size);
+  return `<span class="aplate ${size}" role="img" aria-label="Atelier ${esc(n)}"><span class="emo">${esc(emoji)}</span><span class="no">${esc(n)}</span></span>`;
+}

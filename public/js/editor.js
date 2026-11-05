@@ -1,4 +1,4 @@
-import { api, esc, nl, toast, setTitle, plate, rail, FLOW_ORDER, FLOW_SHORT, dom, disc } from './ui.js';
+import { api, esc, nl, toast, setTitle, plate, atelierPlate, rail, FLOW_ORDER, FLOW_SHORT, dom, disc } from './ui.js';
 import { state } from './app.js';
 import { TYPES, TYPES_SHORT, TYPE_LINE, STATUSES, COM_ATTENDUS, GLOBAL_LEVELS, COM_LEVELS, DISCIPLINES, uid } from './shared.js';
 
@@ -40,7 +40,7 @@ export async function myStations(app) {
     ${other.length ? `<h2>${todo.length ? 'Les autres' : 'Tes stations'}</h2>${list(other, false)}` : ''}
     ${ats.length ? `<h2>Mes ateliers de journée procédure</h2>${ats.map((a) => { const urgent = (a.status === 'redaction' && a.author_id === me) || (a.status === 'relecture' && a.reviewer_id === me);
       return `<a class="panel row" href="#/atelier/${a.id}" style="text-decoration:none;color:inherit;margin:8px 0;flex-wrap:nowrap;${urgent ? 'border-color:var(--r)' : ''}">
-      ${plate(a.code, 'lg')}<div style="flex:1;min-width:0"><strong>${esc(a.title || 'Atelier sans titre')}</strong>
+      ${atelierPlate(a.code, a.emoji, 'lg')}<div style="flex:1;min-width:0"><strong>${esc(a.title || 'Atelier sans titre')}</strong>
         <div class="tags small" style="margin-top:2px">${a.discipline ? `<span>${disc(a.discipline)}</span>` : ''}<span class="faint">${esc(a.jp_name)}</span></div></div>
       <div style="text-align:right"><span class="pill ${a.status === 'validee' ? 'ok' : a.status === 'relecture' ? 'warn' : 's-redaction'}">${{ redaction: 'Rédaction', relecture: 'Relecture', validee: 'Validée' }[a.status]}</span>
         <div class="small muted" style="margin-top:4px">${a.author_id === me ? 'Référent' : 'Relecture'}</div></div></a>`; }).join('')}` : ''}

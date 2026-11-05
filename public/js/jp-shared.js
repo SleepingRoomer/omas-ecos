@@ -2,8 +2,13 @@
 
 export const JP_STATUSES = { redaction: 'Rédaction', relecture: 'Relecture', validee: 'Validée' };
 
+// Pictogrammes proposés pour illustrer un atelier
+export const ATELIER_EMOJIS = ['🪡', '🧤', '💉', '👂', '👁️', '🎀', '♂️', '🫀', '⚡', '🫁', '🧠', '🦴', '🩸', '🩺', '🩻', '🧪', '💊', '🌡️', '🩹', '🧷', '👶', '🤰', '🦷', '🚑'];
+export const atelierNo = (code) => String(code || '').replace(/\D/g, '') || String(code || '');
+
 export function emptyAtelier() {
   return {
+    emoji: '',
     objectif: '',
     ecos: '',
     deroule: { brief: '', demo: '', pratique: '', debrief: '' },
@@ -63,7 +68,7 @@ export function rotation(nAteliers, startTime, minutes, transition) {
 // Brouillons des ateliers de la JP1 : à relire et valider par les animateurs
 export const JP1_DRAFTS = [
   {
-    code: 'P1', title: 'Suture cutanée', discipline: 'Médecine d\'urgence',
+    code: 'P1', emoji: '🪡', title: 'Suture cutanée', discipline: 'Médecine d\'urgence',
     content: {
       objectif: 'Réaliser une suture cutanée par points simples sur un carré de suture, en verbalisant chaque étape comme dans une station sans PS.',
       ecos: 'Station « procédure » sur matériel de simulation : la suture figure dans la liste du matériel des ECOS-N 2025.',
@@ -78,7 +83,7 @@ export const JP1_DRAFTS = [
     },
   },
   {
-    code: 'P2', title: 'Palpation mammaire', discipline: 'Gynécologie-obstétrique',
+    code: 'P2', emoji: '🎀', title: 'Palpation mammaire', discipline: 'Gynécologie-obstétrique',
     content: {
       objectif: 'Conduire un examen des seins complet et méthodique sur buste de simulation, et décrire une anomalie.',
       ecos: 'Station « examen clinique » sur matériel de simulation : la palpation mammaire figure dans la liste des ECOS-N 2025.',
@@ -93,7 +98,7 @@ export const JP1_DRAFTS = [
     },
   },
   {
-    code: 'P3', title: 'Toucher rectal', discipline: 'Urologie',
+    code: 'P3', emoji: '🧤', title: 'Toucher rectal', discipline: 'Urologie',
     content: {
       objectif: 'Réaliser un toucher rectal sur mannequin en respectant la pudeur et l\'information du patient, et décrire la prostate.',
       ecos: 'Station « examen clinique » sur matériel de simulation : le toucher rectal masculin figure dans la liste des ECOS-N 2025.',
@@ -108,7 +113,7 @@ export const JP1_DRAFTS = [
     },
   },
   {
-    code: 'P4', title: 'Otoscopie', discipline: 'ORL',
+    code: 'P4', emoji: '👂', title: 'Otoscopie', discipline: 'ORL',
     content: {
       objectif: 'Manipuler l\'otoscope correctement, reconnaître un tympan normal et les principales anomalies.',
       ecos: 'Station « examen clinique » ou « iconographie » : l\'examen de l\'oreille figure dans la liste des ECOS-N 2025.',
@@ -123,7 +128,7 @@ export const JP1_DRAFTS = [
     },
   },
   {
-    code: 'P5', title: 'Gants stériles et injection IM', discipline: 'Médecine générale',
+    code: 'P5', emoji: '💉', title: 'Gants stériles et injection IM', discipline: 'Médecine générale',
     content: {
       objectif: 'Enfiler des gants stériles sans faute et réaliser une injection intramusculaire sur pad, en sécurité.',
       ecos: 'Station « procédure » : gants stériles et matériel d\'injection IM figurent dans la liste des ECOS-N 2025.',
@@ -138,7 +143,7 @@ export const JP1_DRAFTS = [
     },
   },
   {
-    code: 'P6', title: 'Palpation testiculaire', discipline: 'Urologie',
+    code: 'P6', emoji: '♂️', title: 'Palpation testiculaire', discipline: 'Urologie',
     content: {
       objectif: 'Examiner les bourses de façon méthodique sur mannequin et décrire une anomalie.',
       ecos: 'Station « examen clinique » : examen des organes génitaux externes sur matériel de simulation.',
@@ -153,7 +158,7 @@ export const JP1_DRAFTS = [
     },
   },
   {
-    code: 'P7', title: 'Arrêt cardio-respiratoire', discipline: 'Médecine d\'urgence',
+    code: 'P7', emoji: '🫀', title: 'Arrêt cardio-respiratoire', discipline: 'Médecine d\'urgence',
     content: {
       objectif: 'Reconnaître un arrêt cardiaque, alerter et réaliser une réanimation de base de qualité avec un défibrillateur.',
       ecos: 'Station « urgence » ou « procédure » : le mannequin de massage cardiaque figure dans la liste des ECOS-N 2025.',

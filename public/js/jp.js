@@ -1,6 +1,6 @@
-import { api, esc, nl, toast, fmt, frDate, setTitle, downloadCsv, parseTable, confirmBox, plate, disc } from './ui.js';
+import { api, esc, nl, toast, fmt, frDate, setTitle, downloadCsv, parseTable, confirmBox, plate, atelierPlate, disc } from './ui.js';
 import { DISCIPLINES } from './shared.js';
-import { JP_STATUSES, normalizeAtelier } from './jp-shared.js';
+import { JP_STATUSES, ATELIER_EMOJIS, atelierNo } from './jp-shared.js';
 import { state } from './app.js';
 
 const link = (code) => `${location.origin}/#/?role=etudiant&code=${code}`;
@@ -59,6 +59,7 @@ const TABS = [['ateliers', 'Ateliers'], ['inscrits', 'Créneaux et inscrits'], [
 export async function jpView(app, id, tab) {
   const jp = await api(`/jp/${id}`);
   if (tab === 'imprimer') return printPlanning(app, jp);
+  if (tab === 'affiches') return printPosters(app, jp);
   setTitle(jp.name);
   app.innerHTML = `
     <a class="back" href="#/admin">Toutes les sessions</a>
@@ -82,18 +83,20 @@ async function ateliersTab(box, jp) {
     </div>
     <div class="row" style="margin:0 0 12px"><span class="spacer"></span><button id="add" class="small">Ajouter un atelier</button></div>
     <div class="table-wrap"><table>
-      <thead><tr><th>Atelier</th><th>Fiche</th><th>Référent</th><th>Relecture</th><th>Étape</th><th></th></tr></thead>
+      <thead><tr><th>Atelier</th><th>Pictogramme</th><th>Fiche</th><th>Référent</th><th>Relecture</th><th>Étape</th><th></th></tr></thead>
       <tbody>${ats.map((a) => `<tr data-id="${a.id}" ${a.active ? '' : 'style="opacity:.5"'}>
-        <td><div class="row" style="flex-wrap:nowrap">${plate(a.code, 'lg')}<label class="check small" style="margin:0;font-weight:400"><input type="checkbox" data-f="active" ${a.active ? 'checked' : ''}> actif</label></div></td>
+        <td><div class="row" style="flex-wrap:nowrap">${atelierPlate(a.code, a.emoji, 'lg')}<label class="check small" style="margin:0;font-weight:400"><input type="checkbox" data-f="active" ${a.active ? 'checked' : ''}> actif</label></div></td>
+        <td><input type="text" data-f="emoji" value="${esc(a.emoji || '')}" maxlength="8" style="width:64px;font-size:1.3rem;text-align:center" aria-label="Pictogramme de l'atelier ${esc(atelierNo(a.code))}"></td>
         <td style="min-width:220px"><strong>${esc(a.title || 'Sans titre')}</strong>${a.discipline ? `<div class="small muted">${disc(a.discipline)}</div>` : ''}</td>
         <td>${sel('author_id', a.author_id, 'Référent')}</td><td>${sel('reviewer_id', a.reviewer_id, 'Relecteur')}</td>
         <td style="min-width:140px"><select data-f="status" aria-label="Étape">${Object.entries(JP_STATUSES).map(([k, l]) => `<option value="${k}" ${k === a.status ? 'selected' : ''}>${l}</option>`).join('')}</select>${jpRail(a.status)}</td>
         <td><a class="btn small" href="#/atelier/${a.id}">Ouvrir</a></td></tr>`).join('')}</tbody></table></div>
-    <p class="small muted">Le référent est l'un des animateurs de l'atelier : il prépare la fiche avec les autres, puis l'envoie en relecture. Un atelier inactif sort de la rotation.</p>`;
+    <div class="row" style="margin-top:12px"><a class="btn" href="#/admin/jp/${jp.id}/affiches" target="_blank">Imprimer les affiches des ateliers</a></div>
+    <p class="small muted">Le pictogramme s'affiche partout à la place du code, avec le numéro de l'atelier. Le référent est l'un des animateurs de l'atelier : il prépare la fiche avec les autres, puis l'envoie en relecture. Un atelier inactif sort de la rotation.</p>`;
   box.querySelectorAll('tr[data-id] [data-f]').forEach((i) => i.addEventListener('change', async () => {
     const f = i.dataset.f;
     const v = i.type === 'checkbox' ? (i.checked ? 1 : 0) : i.value;
-    try { await api(`/ateliers/${i.closest('tr').dataset.id}`, { method: 'PATCH', body: { [f]: f.endsWith('_id') ? (v ? Number(v) : null) : v } }); toast('Modification enregistrée'); if (f !== 'author_id' && f !== 'reviewer_id') ateliersTab(box, jp); } catch (err) { toast(err.message, 'error'); }
+    try { await api(`/ateliers/${i.closest('tr').dataset.id}`, { method: 'PATCH', body: { [f]: f.endsWith('_id') ? (v ? Number(v) : null) : v } }); toast('Modification enregistrée'); if (!['author_id', 'reviewer_id'].includes(f)) ateliersTab(box, jp); } catch (err) { toast(err.message, 'error'); }
   }));
   box.querySelector('#add').addEventListener('click', async () => {
     const title = prompt('Titre du nouvel atelier :'); if (!title) return;
@@ -192,7 +195,7 @@ async function inscritsTab(box, jp) {
 function rotationTable(P, s) {
   return `<div class="table-wrap"><table class="rot"><thead><tr><th>Horaire</th>${s.groups.map((g) => `<th class="num">Groupe ${g.group}</th>`).join('')}</tr></thead><tbody>
     ${s.turns.map((t) => `<tr><td class="num"><strong>${hm(t.start)}</strong><span class="faint"> à ${hm(t.end)}</span></td>
-      ${t.by_group.map((ai) => `<td class="num">${plate(P.ateliers[ai]?.code || '?', 'sm')}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+      ${t.by_group.map((ai) => `<td class="num">${atelierPlate(P.ateliers[ai]?.code || '?', P.ateliers[ai]?.emoji)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
 }
 
 async function planningTab(box, jp) {
@@ -203,14 +206,14 @@ async function planningTab(box, jp) {
       <button class="${missing ? 'primary' : ''}" id="form">${missing ? `Former les groupes (${missing} inscrits sans groupe)` : 'Reformer les groupes'}</button>
       <a class="btn" href="#/admin/jp/${jp.id}/imprimer" target="_blank">Imprimer les plannings</a>
       <span class="small muted">${P.ateliers.length} groupes par créneau, répartis par ordre alphabétique et à effectifs égaux.</span></div>
-    <div class="panel" style="padding:14px 18px"><div class="tags">${P.ateliers.map((a) => `<span class="row" style="gap:8px;flex-wrap:nowrap">${plate(a.code, 'sm')}${esc(a.title || '')}</span>`).join('')}</div></div>
+    <div class="panel" style="padding:14px 18px"><div class="tags">${P.ateliers.map((a) => `<span class="row" style="gap:10px;flex-wrap:nowrap">${atelierPlate(a.code, a.emoji, 'sm')}${esc(a.title || '')}</span>`).join('')}</div></div>
     ${P.slots.map((s) => `<section class="panel">
       <div class="row between"><h2 style="margin:0">${frDate(s.day)}, ${hm(s.start_time)} à ${hm(s.end)}</h2>
         <span class="muted">Convocation à ${hm(s.convocation)}, ${s.groups.reduce((a, g) => a + g.members.length, 0)} inscrits</span></div>
       ${s.unassigned ? `<p class="alert warn">${s.unassigned} inscrits de ce créneau n'ont pas encore de groupe.</p>` : ''}
       <h3>Rotation</h3>${rotationTable(P, s)}
       <h3>Animateurs</h3>
-      <div class="grid cols-4" style="gap:8px">${P.ateliers.map((a) => `<div><label class="row" style="gap:8px;margin:6px 0">${plate(a.code, 'sm')}${esc(a.title || '')}</label>
+      <div class="grid cols-4" style="gap:8px">${P.ateliers.map((a) => `<div><label class="row" style="gap:10px;margin:6px 0;flex-wrap:nowrap">${atelierPlate(a.code, a.emoji, 'sm')}${esc(a.title || '')}</label>
         <input type="text" data-anim="${esc(a.code)}" data-slot="${s.id}" value="${esc(s.animators[a.code] || '')}" placeholder="Nom de l'animateur" aria-label="Animateur ${esc(a.code)}"></div>`).join('')}</div>
       <details style="margin-top:14px"><summary style="cursor:pointer"><strong>Composition des groupes</strong></summary>
         <div class="grid cols-4" style="margin-top:10px">${s.groups.map((g) => `<div><strong>Groupe ${g.group}</strong> <span class="faint">(${g.members.length})</span>
@@ -235,10 +238,22 @@ async function printPlanning(app, jp) {
     ${P.slots.map((s) => `<div class="sheet landscape">
       <div class="print-head"><span>${esc(jp.name)}</span><span>${frDate(s.day)}, ${hm(s.start_time)} à ${hm(s.end)}, convocation ${hm(s.convocation)}</span></div>
       <table class="paper-grid" style="width:100%"><thead><tr><th>Horaire</th>${s.groups.map((g) => `<th>Groupe ${g.group}</th>`).join('')}</tr></thead><tbody>
-      ${s.turns.map((t) => `<tr><td><strong>${hm(t.start)}</strong> à ${hm(t.end)}</td>${t.by_group.map((ai) => `<td>${esc(P.ateliers[ai]?.code || '')} ${esc(P.ateliers[ai]?.title || '')}</td>`).join('')}</tr>`).join('')}</tbody></table>
-      <h2>Animateurs</h2><p>${P.ateliers.map((a) => `<strong>${esc(a.code)}</strong> ${esc(a.title || '')} : ${esc(s.animators[a.code] || '…………')}`).join(' &nbsp;·&nbsp; ')}</p>
+      ${s.turns.map((t) => `<tr><td><strong>${hm(t.start)}</strong> à ${hm(t.end)}</td>${t.by_group.map((ai) => `<td>${esc(P.ateliers[ai]?.emoji || '')} <strong>${esc(atelierNo(P.ateliers[ai]?.code))}</strong> ${esc(P.ateliers[ai]?.title || '')}</td>`).join('')}</tr>`).join('')}</tbody></table>
+      <h2>Animateurs</h2><p>${P.ateliers.map((a) => `<strong>${esc(a.emoji || '')} ${esc(atelierNo(a.code))}.</strong> ${esc(a.title || '')} : ${esc(s.animators[a.code] || '…………')}`).join('<br>')}</p>
       <h2>Groupes</h2><table class="paper-grid" style="width:100%"><tr>${s.groups.map((g) => `<td style="vertical-align:top"><strong>Groupe ${g.group}</strong><br>${g.members.map(esc).join('<br>')}</td>`).join('')}</tr></table>
     </div>`).join('')}`;
+}
+
+async function printPosters(app, jp) {
+  const ats = (await api(`/jp/${jp.id}/ateliers`)).filter((a) => a.active);
+  setTitle(`Affiches, ${jp.name}`);
+  app.innerHTML = `<div class="row no-print" style="margin-bottom:10px"><button class="primary" onclick="window.print()">Imprimer les ${ats.length} affiches</button>
+    <span class="small muted">Une affiche A4 paysage par atelier, à coller sur la porte ou sur la table.</span></div>
+    ${ats.map((a) => `<div class="sheet landscape poster">
+      ${a.emoji ? `<div class="big-emo">${esc(a.emoji)}</div>` : ''}
+      <div class="big-no">Atelier ${esc(atelierNo(a.code))}</div>
+      <div class="big-title">${esc(a.title || '')}</div>
+      <div class="big-sub">${esc(jp.name)}</div></div>`).join('')}`;
 }
 
 async function materielTab(box, jp) {
@@ -256,7 +271,7 @@ async function materielTab(box, jp) {
     <div class="table-wrap"><table><thead><tr><th>Article</th><th class="num">À installer</th><th class="num">Consommables</th></tr></thead><tbody>
     ${Object.values(totals).sort((a, b) => a.article.localeCompare(b.article, 'fr')).map((t) => `<tr><td>${esc(t.article)}</td><td class="num">${t.fixe || ''}</td><td class="num">${t.conso || ''}</td></tr>`).join('') || '<tr><td colspan="3" class="muted">Les fiches ne listent pas encore de matériel.</td></tr>'}</tbody></table></div>
     <h2>Par atelier</h2>
-    ${P.material.map((a) => `<div class="panel" style="padding:14px 18px"><div class="row">${plate(a.code)}<strong>${esc(a.title || '')}</strong><span class="muted small">${a.postes} poste(s)</span></div>
+    ${P.material.map((a) => `<div class="panel" style="padding:14px 18px"><div class="row">${atelierPlate(a.code, a.emoji)}<strong>${esc(a.title || '')}</strong><span class="muted small">${a.postes} poste(s)</span></div>
       <div class="grid cols-2" style="margin-top:8px"><div><h3 style="margin-top:4px">À installer</h3><ul class="small">${a.fixe.map((m) => `<li>${m.qte} × ${esc(m.article)}</li>`).join('') || '<li class="faint">rien</li>'}</ul></div>
       <div><h3 style="margin-top:4px">Consommables</h3><ul class="small">${a.conso.map((m) => `<li>${m.qte} × ${esc(m.article)} <span class="faint">(${fmt(m.par_etudiant, 0)} par étudiant)</span></li>`).join('') || '<li class="faint">aucun</li>'}</ul></div></div></div>`).join('')}`;
   box.querySelector('#mexp').addEventListener('click', () => downloadCsv(`materiel-${jp.id}.csv`, [['Article', 'À installer', 'Consommables'], ...Object.values(totals).map((t) => [t.article, t.fixe, t.conso])]));
@@ -330,6 +345,9 @@ export async function atelierEditor(app, id) {
         ${DISCIPLINES.map(([n, e]) => `<option value="${esc(n)}" ${n === meta.discipline && !otherDisc ? 'selected' : ''}>${e}  ${esc(n)}</option>`).join('')}
         <option value="__autre" ${otherDisc ? 'selected' : ''}>➕  Autre discipline</option></select>
         ${otherDisc ? `<input id="m-disc" type="text" data-meta="discipline" value="${esc(meta.discipline)}" ${dis} placeholder="Nom de la discipline" style="margin-top:6px" aria-label="Autre discipline">` : ''}</div></div>
+      <label for="a-emoji">Pictogramme <span class="hint">(affiché à la place du code, avec le numéro de l'atelier)</span></label>
+      <div class="row"><input id="a-emoji" type="text" data-path="emoji" value="${esc(content.emoji || '')}" ${dis} maxlength="8" style="width:72px;font-size:1.5rem;text-align:center"></div>
+      ${ro ? '' : `<div class="emoji-pick">${ATELIER_EMOJIS.map((e) => `<button type="button" data-emo="${e}" class="${e === content.emoji ? 'on' : ''}" aria-label="Choisir ${e}">${e}</button>`).join('')}</div>`}
       ${field('objectif', 'Objectif', { area: true, rows: 2, ph: 'Ce que l\'étudiant saura faire en sortant' })}
       ${field('ecos', 'Comment ce geste tombe en ECOS', { area: true, rows: 2 })}
     </section>
@@ -369,7 +387,7 @@ export async function atelierEditor(app, id) {
     const idx = JP_FLOW.indexOf(a.status);
     app.innerHTML = `
       <a class="back" href="${back}">${rights.isAdmin ? 'Ateliers de la journée' : 'Mes stations et ateliers'}</a>
-      <div class="page-head">${plate(a.code, 'xl')}<div style="flex:1;min-width:240px"><h1>${esc(meta.title || 'Atelier sans titre')}</h1>
+      <div class="page-head">${atelierPlate(a.code, content.emoji, 'xl')}<div style="flex:1;min-width:240px"><h1>${esc(meta.title || 'Atelier sans titre')}</h1>
         <div class="tags" style="margin-top:6px">${meta.discipline ? `<span>${disc(meta.discipline)}</span>` : ''}<span class="faint">${esc(a.jp_name)}</span></div></div>
         <div class="save-state" id="ss">${ro ? 'Lecture seule à cette étape' : 'Enregistrement automatique'}</div></div>
       <div class="panel">
@@ -406,6 +424,9 @@ export async function atelierEditor(app, id) {
       app.querySelectorAll('[data-add],[data-del]').forEach((b) => b.addEventListener('click', () => {
         if (b.dataset.add) get(content, b.dataset.add).push(NEW[b.dataset.kind]()); else get(content, b.dataset.del).splice(Number(b.dataset.i), 1);
         schedule(); app.removeEventListener('input', onInput); draw();
+      }));
+      app.querySelectorAll('[data-emo]').forEach((b) => b.addEventListener('click', () => {
+        content.emoji = b.dataset.emo; schedule(); app.removeEventListener('input', onInput); draw();
       }));
       app.querySelector('#m-disc-sel')?.addEventListener('change', (e) => {
         otherDisc = e.target.value === '__autre'; meta.discipline = otherDisc ? '' : e.target.value;
@@ -449,10 +470,10 @@ export async function participantView(app) {
     ${R.parcours ? `<h2>Ton parcours</h2>
       <p class="small muted">Chaque atelier dure ${R.jp.atelier_minutes} minutes. Entre deux ateliers, tu as quelques minutes pour changer de salle.</p>
       ${R.parcours.map((t) => `<div class="st-res" style="margin:8px 0"><div style="display:grid;grid-template-columns:90px auto minmax(0,1fr);gap:14px;align-items:center;padding:12px 14px">
-        <span class="num"><strong>${hm(t.start)}</strong><br><span class="faint small">à ${hm(t.end)}</span></span>${plate(t.code, 'lg')}
+        <span class="num"><strong>${hm(t.start)}</strong><br><span class="faint small">à ${hm(t.end)}</span></span>${atelierPlate(t.code, t.emoji, 'lg')}
         <span class="what"><strong>${esc(t.title || '')}</strong>${t.discipline ? `<span>${disc(t.discipline)}</span>` : ''}</span></div></div>`).join('')}` : ''}
     <h2>${R.jp.keypoints_published ? 'Les points clés de chaque atelier' : 'Les ateliers'}</h2>
-    ${R.ateliers.map((a) => `<details class="st-res" ${R.jp.keypoints_published ? '' : ''}><summary>${plate(a.code, 'lg')}<span class="what"><strong>${esc(a.title || '')}</strong>${a.discipline ? `<span>${disc(a.discipline)}</span>` : ''}</span><span></span></summary>
+    ${R.ateliers.map((a) => `<details class="st-res" ${R.jp.keypoints_published ? '' : ''}><summary>${atelierPlate(a.code, a.emoji, 'lg')}<span class="what"><strong>${esc(a.title || '')}</strong>${a.discipline ? `<span>${disc(a.discipline)}</span>` : ''}</span><span></span></summary>
       <div class="body"><p>${nl(a.objectif)}</p>
         ${a.points_cles ? `<h3>Points clés</h3><p>${nl(a.points_cles)}</p>` : ''}
         ${a.grille?.length ? `<h3>Les gestes à maîtriser</h3><ul>${a.grille.map((g) => `<li>${esc(g)}</li>`).join('')}</ul>` : ''}

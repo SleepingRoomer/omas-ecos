@@ -25,7 +25,7 @@ export function registerJp(app, h) {
     if (b.prefill) {
       for (const [i, a] of JP1_DRAFTS.entries()) {
         await run(db, 'INSERT INTO jp_ateliers (jp_id, code, position, title, discipline, content) VALUES (?,?,?,?,?,?)',
-          id, a.code, i, a.title, a.discipline, JSON.stringify(normalizeAtelier(a.content)));
+          id, a.code, i, a.title, a.discipline, JSON.stringify(normalizeAtelier({ ...a.content, emoji: a.emoji })));
       }
     }
     // deux créneaux par jour, à 9 h et à 14 h
@@ -58,6 +58,7 @@ export function registerJp(app, h) {
 
   // ---------- ateliers ----------
   const ATELIER_LIST = `SELECT a.id, a.jp_id, a.code, a.position, a.active, a.title, a.discipline, a.author_id, a.reviewer_id, a.status, a.updated_at,
+    json_extract(a.content, '$.emoji') AS emoji,
     p.name AS author_name, r.name AS reviewer_name, j.name AS jp_name,
     (SELECT COUNT(*) FROM jp_reviews x WHERE x.atelier_id = a.id AND x.action = 'comment') AS n_comments
     FROM jp_ateliers a JOIN jp_days j ON j.id = a.jp_id
@@ -82,6 +83,7 @@ export function registerJp(app, h) {
     for (const f of ['code', 'position', 'active', 'title', 'discipline', 'author_id', 'reviewer_id', 'status']) {
       if (f in b) { sets.push(`${f} = ?`); vals.push(b[f] === '' ? null : b[f]); }
     }
+    if ('emoji' in b) { sets.push("content = json_set(content, '$.emoji', ?)"); vals.push(String(b.emoji || '').trim()); }
     if (sets.length) await run(c.env.DB, `UPDATE jp_ateliers SET ${sets.join(', ')}, updated_at = datetime('now') WHERE id = ?`, ...vals, c.req.param('id'));
     return c.json({ ok: true });
   });
@@ -275,11 +277,11 @@ export function registerJp(app, h) {
     // matériel : postes fixes + consommables × inscrits × 1,2
     const total = parts.filter((p) => p.slot_id).length;
     const material = ateliers.map((a) => ({
-      code: a.code, title: a.title, postes: a.content.postes,
+      code: a.code, emoji: a.content.emoji, title: a.title, postes: a.content.postes,
       fixe: a.content.materiel.filter((m) => m.article).map((m) => ({ article: m.article, qte: (Number(m.qte) || 0) * a.content.postes })),
       conso: a.content.consommables.filter((m) => m.article).map((m) => ({ article: m.article, par_etudiant: Number(m.qte) || 0, qte: Math.ceil((Number(m.qte) || 0) * total * 1.2) })),
     }));
-    return { jp, ateliers: ateliers.map(({ content, ...a }) => a), slots: out, material, participants: total };
+    return { jp, ateliers: ateliers.map(({ content, ...a }) => ({ ...a, emoji: content.emoji })), slots: out, material, participants: total };
   }
 
   app.get('/jp/:id/plan', need('admin'), async (c) => c.json(await plan(c.env.DB, c.req.param('id'))));
@@ -298,8 +300,8 @@ export function registerJp(app, h) {
       participant: { first_name: p.first_name, last_name: p.last_name, group: p.group_no },
       jp: { name: P.jp.name, keypoints_published: !!P.jp.keypoints_published, atelier_minutes: P.jp.atelier_minutes },
       slot: slot ? { day: slot.day, start_time: slot.start_time, end: slot.end, convocation: slot.convocation } : null,
-      parcours: showPlan ? slot.turns.map((t) => { const a = full[t.by_group[p.group_no - 1]]; return { start: t.start, end: t.end, code: a.code, title: a.title, discipline: a.discipline }; }) : null,
-      ateliers: full.map((a) => ({ code: a.code, title: a.title, discipline: a.discipline, objectif: a.content.objectif,
+      parcours: showPlan ? slot.turns.map((t) => { const a = full[t.by_group[p.group_no - 1]]; return { start: t.start, end: t.end, code: a.code, emoji: a.content.emoji, title: a.title, discipline: a.discipline }; }) : null,
+      ateliers: full.map((a) => ({ code: a.code, emoji: a.content.emoji, title: a.title, discipline: a.discipline, objectif: a.content.objectif,
         ...(P.jp.keypoints_published ? { points_cles: a.content.points_cles, grille: a.content.grille.filter(Boolean), references: a.content.references } : {}) })),
     });
   });
