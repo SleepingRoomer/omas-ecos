@@ -33,7 +33,9 @@ export async function examsView(app) {
           <span>Préparer les 12 stations du guide : A1 à A5, B1 à B5 et deux réserves, avec leurs domaines</span></label>
         <button class="primary" style="margin-top:16px">Créer la session</button>
       </form>
-    </div>`;
+    </div>
+    <div id="jpbox"></div>`;
+  (await import('./jp.js')).jpSection(app.querySelector('#jpbox'));
   app.querySelector('#new').addEventListener('submit', async (e) => {
     e.preventDefault();
     const f = new FormData(e.target);

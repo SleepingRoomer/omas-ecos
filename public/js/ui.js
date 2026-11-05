@@ -84,8 +84,8 @@ export function confirmBox(msg) { return window.confirm(msg); }
 // Plaque de porte d'une station : la couleur dit le circuit (A, B ou réserve)
 export function plate(slot, size = '') {
   const s = String(slot || '?');
-  const c = /^A/i.test(s) ? 'c-a' : /^B/i.test(s) ? 'c-b' : /^R/i.test(s) ? 'c-r' : 'c-x';
-  return `<span class="plate ${c} ${size}" aria-label="Station ${esc(s)}">${esc(s)}</span>`;
+  const c = /^A/i.test(s) ? 'c-a' : /^B/i.test(s) ? 'c-b' : /^R/i.test(s) ? 'c-r' : /^P/i.test(s) ? 'c-p' : 'c-x';
+  return `<span class="plate ${c} ${size}" aria-label="${/^P/i.test(s) ? 'Atelier' : 'Station'} ${esc(s)}">${esc(s)}</span>`;
 }
 
 // Ordre du circuit de validation (pour les rails de progression)

@@ -19,8 +19,8 @@ const ROLE_LABEL = { author: 'Rédaction', peer: 'Relecture pair', expert: 'Rele
 // ---------- « Mes stations » ----------
 
 export async function myStations(app) {
-  setTitle('Mes stations');
-  const rows = await api('/redaction/stations');
+  setTitle('Mes stations et ateliers');
+  const [rows, ats] = await Promise.all([api('/redaction/stations'), api('/redaction/ateliers')]);
   const me = state.me.subject_id;
   const myRoles = (s) => [s.author_id === me && 'author', s.peer_id === me && 'peer', s.expert_id === me && 'expert'].filter(Boolean);
   const mustAct = (s) => myRoles(s).includes(NEXT[s.status]?.who);
@@ -38,7 +38,13 @@ export async function myStations(app) {
     <p class="lede">Bonjour ${esc(state.me.name.split(' ')[0])}.${todo.length ? ` ${todo.length === 1 ? 'Une station attend' : `${todo.length} stations attendent`} ton passage.` : ' Rien ne t\'attend pour l\'instant.'}</p>
     ${todo.length ? `<h2>À toi de jouer</h2>${list(todo, true)}` : ''}
     ${other.length ? `<h2>${todo.length ? 'Les autres' : 'Tes stations'}</h2>${list(other, false)}` : ''}
-    ${rows.length ? '' : '<p class="alert info">Aucune station ne t\'est encore attribuée. L\'équipe d\'organisation s\'en occupe.</p>'}</div>`;
+    ${ats.length ? `<h2>Mes ateliers de journée procédure</h2>${ats.map((a) => { const urgent = (a.status === 'redaction' && a.author_id === me) || (a.status === 'relecture' && a.reviewer_id === me);
+      return `<a class="panel row" href="#/atelier/${a.id}" style="text-decoration:none;color:inherit;margin:8px 0;flex-wrap:nowrap;${urgent ? 'border-color:var(--r)' : ''}">
+      ${plate(a.code, 'lg')}<div style="flex:1;min-width:0"><strong>${esc(a.title || 'Atelier sans titre')}</strong>
+        <div class="tags small" style="margin-top:2px">${a.discipline ? `<span>${disc(a.discipline)}</span>` : ''}<span class="faint">${esc(a.jp_name)}</span></div></div>
+      <div style="text-align:right"><span class="pill ${a.status === 'validee' ? 'ok' : a.status === 'relecture' ? 'warn' : 's-redaction'}">${{ redaction: 'Rédaction', relecture: 'Relecture', validee: 'Validée' }[a.status]}</span>
+        <div class="small muted" style="margin-top:4px">${a.author_id === me ? 'Référent' : 'Relecture'}</div></div></a>`; }).join('')}` : ''}
+    ${rows.length || ats.length ? '' : '<p class="alert info">Rien ne t\'est encore attribué. L\'équipe d\'organisation s\'en occupe.</p>'}</div>`;
 }
 
 // ---------- éditeur ----------

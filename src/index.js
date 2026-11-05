@@ -3,6 +3,7 @@ import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
 import {
   DEFAULT_SLOTS, STATUSES, normalizeContent, qualityChecks, computeScore, missingAnswers, rankMap,
 } from '../public/js/shared.js';
+import { registerJp } from './jp.js';
 
 const app = new Hono().basePath('/api');
 const COOKIE = 'omas_s';
@@ -36,7 +37,10 @@ async function uniqueCode(db, table) {
   for (let i = 0; i < 20; i++) {
     const code = genCode();
     const col = table === 'stations' ? 'eval_code' : 'code';
-    if (!(await one(db, `SELECT 1 FROM ${table} WHERE ${col} = ?`, code))) return code;
+    if (await one(db, `SELECT 1 FROM ${table} WHERE ${col} = ?`, code)) continue;
+    if ((table === 'candidates' || table === 'jp_participants')
+      && await one(db, `SELECT 1 FROM ${table === 'candidates' ? 'jp_participants' : 'candidates'} WHERE code = ?`, code)) continue;
+    return code;
   }
   throw httpError(500, 'Impossible de générer un code unique');
 }
@@ -89,9 +93,14 @@ app.post('/login', async (c) => {
   const upper = clean.toUpperCase().replace(/\s+/g, '');
   if (role === 'etudiant') {
     const cand = await one(db, "SELECT * FROM candidates WHERE code = ? AND status != 'annule'", upper);
-    if (!cand) throw httpError(401, 'Code inconnu');
-    await createSession(c, 'etudiant', cand.id, `${cand.first_name} ${cand.last_name}`);
-    return c.json({ kind: 'etudiant' });
+    if (cand) {
+      await createSession(c, 'etudiant', cand.id, `${cand.first_name} ${cand.last_name}`);
+      return c.json({ kind: 'etudiant' });
+    }
+    const part = await one(db, "SELECT * FROM jp_participants WHERE code = ? AND status != 'annule'", upper);
+    if (!part) throw httpError(401, 'Code inconnu');
+    await createSession(c, 'participant', part.id, `${part.first_name} ${part.last_name}`);
+    return c.json({ kind: 'participant' });
   }
   if (role === 'redaction') {
     const p = await one(db, 'SELECT * FROM people WHERE code = ? AND active = 1', upper);
@@ -614,6 +623,8 @@ app.delete('/evaluations/:id', need('admin'), async (c) => {
   await run(c.env.DB, 'DELETE FROM evaluations WHERE id = ?', c.req.param('id'));
   return c.json({ ok: true });
 });
+
+registerJp(app, { need, httpError, all, one, run, uniqueCode, parse });
 
 app.all('*', () => { throw httpError(404, 'Route inconnue'); });
 

@@ -4,15 +4,16 @@ const app = document.getElementById('app');
 const nav = document.getElementById('nav');
 export const state = { me: null };
 
-const HOME = { admin: '#/admin', auteur: '#/redaction', evaluateur: '#/eval', etudiant: '#/resultats' };
+const HOME = { admin: '#/admin', auteur: '#/redaction', evaluateur: '#/eval', etudiant: '#/resultats', participant: '#/journee' };
 
 function renderNav() {
   const k = state.me?.kind;
   const links = {
     admin: [['#/admin', 'Sessions'], ['#/admin/personnes', 'Rédacteurs et relecteurs']],
-    auteur: [['#/redaction', 'Mes stations']],
+    auteur: [['#/redaction', 'Mes stations et ateliers']],
     evaluateur: [['#/eval', 'Ma salle']],
     etudiant: [['#/resultats', 'Mes résultats']],
+    participant: [['#/journee', 'Ma journée']],
   }[k] || [];
   const here = location.hash || '#/';
   nav.innerHTML = links.map(([h, l]) => `<a href="${h}" class="${here === h ? 'active' : ''}">${esc(l)}</a>`).join('')
@@ -31,7 +32,7 @@ function loginView() {
     ['etudiant', 'Étudiant'], ['evaluateur', 'Évaluateur'], ['redaction', 'Rédaction'], ['admin', 'Équipe'],
   ];
   const help = {
-    etudiant: 'Entre le code reçu avec ta convocation. Tes notes et ton rang s\'affichent dès que tes grilles sont saisies.',
+    etudiant: 'Entre le code reçu avec ta convocation, pour les ECOS blancs comme pour une journée procédure.',
     evaluateur: 'Entre le code affiché sur la porte de ta salle, puis ton nom.',
     redaction: 'Entre ton code de rédacteur ou de relecteur pour retrouver tes stations.',
     admin: 'Réservé à l\'équipe d\'organisation.',
@@ -45,7 +46,7 @@ function loginView() {
         <div class="intro">
           <div class="circuit" aria-hidden="true">${circuit('A')}${circuit('B')}</div>
           <h1>ECOS blancs OMAS</h1>
-          <p class="lede">Dix stations, deux circuits, huit minutes chacune. Ici, on rédige les stations, on saisit les grilles le jour J et on suit ses résultats en direct.</p>
+          <p class="lede">Dix stations, deux circuits, huit minutes chacune. Ici, on rédige les stations et les ateliers, on saisit les grilles le jour J et on suit ses résultats en direct.</p>
         </div>
         <div class="door">
           <h2>Se connecter</h2>
@@ -56,7 +57,7 @@ function loginView() {
             <input id="code" ${role === 'admin' ? 'type="password"' : 'type="text" class="code-input" autocapitalize="characters" autocomplete="off" spellcheck="false" maxlength="12"'}
               value="${esc(params.get('code') || '')}" placeholder="${role === 'admin' ? '' : 'A93K7XPQ'}" required>
             ${role === 'evaluateur' ? '<label for="name">Ton nom</label><input id="name" type="text" required autocomplete="name" placeholder="Prénom Nom">' : ''}
-            <button class="primary" style="width:100%;margin-top:18px">${role === 'etudiant' ? 'Voir mes résultats' : role === 'evaluateur' ? 'Ouvrir ma salle' : role === 'redaction' ? 'Voir mes stations' : 'Entrer'}</button>
+            <button class="primary" style="width:100%;margin-top:18px">${role === 'etudiant' ? 'Accéder à mon espace' : role === 'evaluateur' ? 'Ouvrir ma salle' : role === 'redaction' ? 'Voir mes stations' : 'Entrer'}</button>
           </form>
         </div>
       </div>`;
@@ -76,6 +77,9 @@ function loginView() {
 const routes = [
   [/^#\/admin\/session\/(\d+)\/candidat\/(\d+)$/, 'admin', async (m) => (await import('./student.js')).adminReport(app, m[2], m[1])],
   [/^#\/admin\/session\/(\d+)(?:\/(\w+))?$/, 'admin', async (m) => (await import('./admin.js')).examView(app, m[1], m[2] || 'stations')],
+  [/^#\/admin\/jp\/(\d+)(?:\/(\w+))?$/, 'admin', async (m) => (await import('./jp.js')).jpView(app, m[1], m[2] || 'ateliers')],
+  [/^#\/atelier\/(\d+)$/, ['admin', 'auteur'], async (m) => (await import('./jp.js')).atelierEditor(app, m[1])],
+  [/^#\/journee$/, 'participant', async () => (await import('./jp.js')).participantView(app)],
   [/^#\/admin\/personnes$/, 'admin', async () => (await import('./admin.js')).peopleView(app)],
   [/^#\/admin$/, 'admin', async () => (await import('./admin.js')).examsView(app)],
   [/^#\/redaction$/, 'auteur', async () => (await import('./editor.js')).myStations(app)],

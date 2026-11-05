@@ -22,6 +22,7 @@
   --a-soft: #ebebf8;
   --b: #0c8577;         /* circuit B */
   --b-soft: #dcf1ee;
+  --p: #8a3c86;         /* ateliers des journées procédure */
   --r: #c98410;         /* réserve, actions attendues */
   --r-soft: #fcf0d6;
   --ok: #13804f;
@@ -77,6 +78,7 @@ p { margin: .5rem 0; }
   background: var(--a); border-radius: var(--r-sm); width: 34px; height: 34px; font-size: 1rem; font-weight: 800; letter-spacing: -.03em; line-height: 1; }
 .plate.c-b { background: var(--b); }
 .plate.c-r { background: var(--surface); color: var(--r); box-shadow: inset 0 0 0 2px var(--r); }
+.plate.c-p { background: var(--p); }
 .plate.c-x { background: var(--ink-3); }
 .plate.sm { width: 28px; height: 28px; font-size: .8rem; border-radius: 5px; }
 .plate.lg { width: 56px; height: 56px; font-size: 1.5rem; border-radius: 9px; }

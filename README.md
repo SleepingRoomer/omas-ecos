@@ -6,6 +6,8 @@ Une seule application pour les trois temps des ECOS blancs :
 2. **Saisie des grilles le jour J** : l'évaluateur se connecte sur son téléphone avec le code de sa salle et son nom, choisit le candidat et coche la grille. Chaque item se coche « observé » ou « non observé », avec un commentaire possible. La communication se note sur 5 niveaux, de 0 à 1. La performance globale va de 0 à 4. Une grille papier de secours est générée pour chaque station.
 3. **Résultats en direct** : chaque étudiant a un code personnel. Il voit sa note par station, son rang par station, sa moyenne et son rang provisoire, recalculés à chaque grille saisie. Le détail des items et les commentaires sont affichés selon les réglages. Les corrections apparaissent quand l'équipe les publie.
 
+4. **Journées procédure** : les fiches atelier (objectif, déroulé, matériel par poste et consommables, mini-grille, points clés) passent par un circuit court : rédaction par le référent, relecture, validation. La plateforme répartit les inscrits de chaque créneau en groupes équilibrés et calcule la rotation (un groupe par atelier). Elle sort aussi la liste de courses et les plannings imprimables. Chaque inscrit voit son groupe et son parcours horaire, puis les points clés quand l'équipe les publie.
+
 Accès : `Étudiant` (code personnel), `Évaluateur` (code de la salle + nom), `Rédaction` (code personnel du rédacteur ou relecteur), `Admin` (mot de passe).
 
 ## Calcul des notes
@@ -33,7 +35,7 @@ npx wrangler d1 create omas-ecos        # affiche un "database_id"
 ```
 
 1. Copier le `database_id` affiché dans `wrangler.jsonc` (déjà fait pour la base actuelle).
-2. Créer les tables et choisir le mot de passe admin :
+2. Créer les tables (fichiers du dossier `migrations/`, dans l'ordre) et choisir le mot de passe admin :
 
 ```bash
 npm run db:migrate:prod
@@ -44,6 +46,10 @@ npm run deploy
 Le site est alors en ligne à une adresse du type `https://omas-ecos.<compte>.workers.dev`. Pour le brancher sur `ecosblancsomas.com`, aller dans Cloudflare, puis Workers & Pages, puis omas-ecos, puis Settings, puis Domains & Routes. Le domaine doit être géré par Cloudflare.
 
 Pour les mises à jour suivantes, il suffit de lancer `npm run deploy`. On peut aussi relier le dépôt GitHub dans Cloudflare (Workers & Pages, puis Create, puis Import a repository) pour que chaque modification soit déployée automatiquement.
+
+## Mettre à jour la base après une évolution
+
+Quand un nouveau fichier apparaît dans `migrations/`, il faut l'appliquer à la base de production, une seule fois : soit avec `npm run db:migrate:prod`, soit en collant son contenu dans la console D1 de Cloudflare.
 
 ## Développement local
 
