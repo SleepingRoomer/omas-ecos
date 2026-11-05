@@ -1,6 +1,6 @@
-import { api, esc, nl, toast, setTitle, plate, rail, FLOW_ORDER, FLOW_SHORT } from './ui.js';
+import { api, esc, nl, toast, setTitle, plate, rail, FLOW_ORDER, FLOW_SHORT, dom, disc } from './ui.js';
 import { state } from './app.js';
-import { TYPES, TYPES_SHORT, TYPE_LINE, STATUSES, COM_ATTENDUS, GLOBAL_LEVELS, COM_LEVELS, uid } from './shared.js';
+import { TYPES, TYPES_SHORT, TYPE_LINE, STATUSES, COM_ATTENDUS, GLOBAL_LEVELS, COM_LEVELS, DISCIPLINES, uid } from './shared.js';
 
 // Qui doit agir à chaque étape
 const NEXT = {
@@ -29,7 +29,7 @@ export async function myStations(app) {
   const list = (items, urgent) => items.map((s) => `<a class="panel row" href="#/station/${s.id}" style="text-decoration:none;color:inherit;margin:8px 0;flex-wrap:nowrap;${urgent ? 'border-color:var(--r)' : ''}">
       ${plate(s.slot, 'lg')}
       <div style="flex:1;min-width:0"><strong>${esc(s.title || 'Station sans titre')}</strong>
-        <div class="small muted">${esc(s.domain || '')}, ${esc(TYPES_SHORT[s.type] || '')}. ${esc(s.exam_name)}</div>
+        <div class="tags small" style="margin-top:2px">${dom(s.domain)}${s.discipline ? `<span>${disc(s.discipline)}</span>` : ''}<span class="faint">${esc(s.exam_name)}</span></div>
         ${rail(s.status, true)}</div>
       <div style="text-align:right"><span class="pill s-${s.status}">${STATUSES[s.status]}</span>
         <div class="small muted" style="margin-top:4px">${myRoles(s).map((r) => ROLE_LABEL[r]).join(', ')}</div></div></a>`).join('');
@@ -63,6 +63,7 @@ export async function stationEditor(app, id) {
   const content = data.content;
   let checks = data.checks;
   const meta = { title: st.title || '', discipline: st.discipline || '' };
+  let otherDisc = !!meta.discipline && !DISCIPLINES.some(([n]) => n === meta.discipline);
   const ro = !rights.editable;
   setTitle(`${st.slot}, ${st.title || 'station'}`);
 
@@ -97,14 +98,18 @@ export async function stationEditor(app, id) {
       <div class="grid cols-2">
         <div><label for="m-title">Titre <span class="hint">(interne, jamais montré au candidat)</span></label>
           <input id="m-title" type="text" data-meta="title" value="${esc(meta.title)}" ${dis} placeholder="Hémoptysie de grande abondance"></div>
-        <div><label for="m-disc">Discipline</label><input id="m-disc" type="text" data-meta="discipline" value="${esc(meta.discipline)}" ${dis} placeholder="Pneumologie"></div>
+        <div><label for="m-disc-sel">Discipline</label>
+          <select id="m-disc-sel" ${dis}><option value="">Choisir une discipline</option>
+            ${DISCIPLINES.map(([n, e]) => `<option value="${esc(n)}" ${n === meta.discipline && !otherDisc ? 'selected' : ''}>${e}  ${esc(n)}</option>`).join('')}
+            <option value="__autre" ${otherDisc ? 'selected' : ''}>➕  Autre discipline</option></select>
+          ${otherDisc ? `<input id="m-disc" type="text" data-meta="discipline" value="${esc(meta.discipline)}" ${dis} placeholder="Nom de la discipline" style="margin-top:6px" aria-label="Autre discipline">` : ''}</div>
       </div>
       <div class="grid cols-2">
         <div>${field('identite.sdd', 'Situation de départ', { ph: '178. Hémoptysie' })}</div>
         <div>${field('identite.item', 'Item de connaissance', { ph: '204' })}</div>
       </div>
       ${isPS ? field('identite.age', 'Tranche d\'âge du personnage', { ph: '50 à 65 ans' }) : ''}
-      <p class="small muted" style="margin-top:14px">Domaine et type sont fixés par l'équipe : <strong>${esc(st.domain || 'non défini')}</strong>, ${esc(TYPES_SHORT[st.type] || '')}.</p>
+      <p class="small muted" style="margin-top:14px">Domaine et type sont fixés par l'équipe : <strong>${st.domain ? dom(st.domain) : 'non défini'}</strong>, ${esc(TYPES_SHORT[st.type] || '')}.</p>
     </section>
 
     <section id="sec-vignette" class="panel">${head('vignette', 2, 'Vignette du candidat', 'Affichée sur la porte et posée sur la table. Elle doit se lire en une minute environ. Le candidat y est toujours interne.')}
@@ -245,7 +250,7 @@ export async function stationEditor(app, id) {
       <a class="back no-print" href="${back}">${rights.isAdmin ? 'Stations de la session' : 'Mes stations'}</a>
       <div class="page-head">${plate(st.slot, 'xl')}
         <div style="flex:1;min-width:240px"><h1>${esc(meta.title || 'Station sans titre')}</h1>
-          <div class="meta">${esc(st.domain || '')}, ${esc(TYPES_SHORT[st.type] || '')}. ${esc(st.exam_name)}</div></div>
+          <div class="tags" style="margin-top:6px">${dom(st.domain)}${meta.discipline ? `<span>${disc(meta.discipline)}</span>` : ''}<span>${esc(TYPES_SHORT[st.type] || '')}</span><span class="faint">${esc(st.exam_name)}</span></div></div>
         <div style="text-align:right"><div class="save-state" id="save-state">${ro ? 'Lecture seule à cette étape' : 'Enregistrement automatique'}</div>
           <div class="row" style="margin-top:8px;justify-content:flex-end">
           <a class="btn small" href="#/apercu/${st.id}/vignette" target="_blank">Vignette</a>
@@ -291,7 +296,16 @@ export async function stationEditor(app, id) {
         set(content, t.dataset.path, t.dataset.num !== undefined ? (t.value === '' ? '' : Number(t.value)) : t.value);
         schedule();
       });
-      form.addEventListener('change', (e) => { if (e.target.tagName === 'SELECT' && e.target.dataset.path?.startsWith('grille.com')) flush().then(draw); });
+      form.addEventListener('change', (e) => {
+        if (e.target.id === 'm-disc-sel') {
+          otherDisc = e.target.value === '__autre';
+          meta.discipline = otherDisc ? '' : e.target.value;
+          schedule(); draw();
+          if (otherDisc) app.querySelector('#m-disc')?.focus();
+          return;
+        }
+        if (e.target.tagName === 'SELECT' && e.target.dataset.path?.startsWith('grille.com')) flush().then(draw);
+      });
       form.addEventListener('click', (e) => {
         const b = e.target.closest('button');
         if (!b) return;

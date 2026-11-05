@@ -1,5 +1,5 @@
-import { api, esc, toast, fmt, pct, frDate, setTitle, downloadCsv, parseTable, confirmBox, plate, rail } from './ui.js';
-import { DOMAINS, TYPES, STATUSES } from './shared.js';
+import { api, esc, toast, fmt, pct, frDate, setTitle, downloadCsv, parseTable, confirmBox, plate, rail, disc } from './ui.js';
+import { DOMAINS, TYPES, STATUSES, domainIcon } from './shared.js';
 
 const link = (role, code) => `${location.origin}/#/?role=${role}&code=${code}`;
 const dates = (e) => (e.starts_on ? `${frDate(e.starts_on)} au ${frDate(e.ends_on || e.starts_on)}` : 'Dates à fixer');
@@ -90,9 +90,9 @@ async function stationsTab(box, exam) {
       <tbody>${stations.map((s) => `<tr data-id="${s.id}">
         <td><div class="row" style="flex-wrap:nowrap">${plate(s.slot, 'lg')}
           <label class="check small" style="margin:0;font-weight:400"><input type="checkbox" data-f="played" ${s.played ? 'checked' : ''}> jouée</label></div></td>
-        <td style="min-width:230px"><strong>${esc(s.title || 'Sans titre')}</strong>${s.discipline ? `<span class="muted">, ${esc(s.discipline)}</span>` : ''}
+        <td style="min-width:240px"><strong>${esc(s.title || 'Sans titre')}</strong>${s.discipline ? `<div class="small muted">${disc(s.discipline)}</div>` : ''}
           <div class="grid" style="grid-template-columns:1fr 1fr;gap:6px;margin-top:6px">
-          <select data-f="domain" aria-label="Domaine"><option value="">Domaine</option>${DOMAINS.map((d) => `<option ${d === s.domain ? 'selected' : ''}>${esc(d)}</option>`).join('')}</select>
+          <select data-f="domain" aria-label="Domaine"><option value="">Domaine</option>${DOMAINS.map((d) => `<option value="${esc(d)}" ${d === s.domain ? 'selected' : ''}>${domainIcon(d)} ${esc(d)}</option>`).join('')}</select>
           <select data-f="type" aria-label="Type">${Object.entries(TYPES).map(([k, l]) => `<option value="${k}" ${k === s.type ? 'selected' : ''}>${l}</option>`).join('')}</select></div></td>
         <td>${sel('author_id', s.author_id, 'Rédacteur')}</td><td>${sel('peer_id', s.peer_id, 'Relecteur pair')}</td><td>${sel('expert_id', s.expert_id, 'Relecteur expert')}</td>
         <td style="min-width:150px"><select data-f="status" aria-label="Étape">${Object.entries(STATUSES).map(([k, l]) => `<option value="${k}" ${k === s.status ? 'selected' : ''}>${l}</option>`).join('')}</select>
@@ -313,7 +313,7 @@ async function resultsTab(box, exam) {
       const gap = ev.length > 1 ? Math.max(...ev.map((e) => e.mean)) - Math.min(...ev.map((e) => e.mean)) : 0;
       const alerts = s.items.filter((i) => i.rate !== null && (i.rate < 0.1 || i.rate > 0.95)).length;
       return `<details class="panel" style="margin:8px 0;padding:14px 18px"><summary class="row" style="cursor:pointer">${plate(s.slot)}
-        <strong>${esc(s.title || s.domain || '')}</strong><span class="spacer"></span>
+        <strong>${esc(s.title || s.domain || '')}</strong><span class="tags small"><span>${domainIcon(s.domain)} ${esc(s.domain || '')}</span>${s.discipline ? `<span>${disc(s.discipline)}</span>` : ''}</span><span class="spacer"></span>
         <span class="pill ${flag ? 'warn' : ''}">moyenne ${fmt(s.mean, 1)}</span><span class="pill">${s.n} grilles</span>
         ${alerts ? `<span class="pill warn">${alerts} item(s) à revoir</span>` : ''}
         ${gap > 3 ? `<span class="pill warn">écart de ${fmt(gap, 1)} pts entre évaluateurs</span>` : ''}</summary>

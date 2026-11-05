@@ -1,4 +1,5 @@
 // Petits utilitaires d'interface
+import { domainIcon, disciplineIcon } from './shared.js';
 
 export const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (ch) => ({
   '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
@@ -96,3 +97,7 @@ export function rail(status, mini = false) {
   return `<span class="rail ${mini ? 'mini' : ''}" aria-hidden="true">${FLOW_ORDER.map((_, k) =>
     `<i class="${status === 'validee' || k < i ? 'done' : k === i ? 'now' : ''}"></i>`).join('')}</span>`;
 }
+
+// Domaine et discipline précédés de leur pictogramme
+export const dom = (d) => (d ? `<span class="tag-ico" aria-hidden="true">${domainIcon(d)}</span>${esc(d)}` : '');
+export const disc = (d) => (d ? `<span style="white-space:nowrap"><span class="tag-ico" aria-hidden="true">${disciplineIcon(d)}</span>${esc(d)}</span>` : '');

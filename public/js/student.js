@@ -1,4 +1,4 @@
-import { api, esc, nl, fmt, setTitle, plate } from './ui.js';
+import { api, esc, nl, fmt, setTitle, plate, dom, disc } from './ui.js';
 import { COM_LEVELS } from './shared.js';
 
 let timer = null;
@@ -34,16 +34,16 @@ function render(R, opts = {}) {
   return `${head}${hero}
     <p class="small muted">Le classement bouge à chaque série, jusqu'au dernier jour de la session : ${S.registered} candidats sont inscrits. La page se met à jour toute seule chaque minute.</p>
     ${gaps.length >= 4 ? `<div class="duo">
-      <div><h3>Tes points forts</h3><ul>${gaps.slice(0, 2).map((s) => `<li><span>${esc(s.domain || s.title)}</span><b>+${fmt(s.gap, 1)}</b></li>`).join('')}</ul>
+      <div><h3>Tes points forts</h3><ul>${gaps.slice(0, 2).map((s) => `<li><span>${s.domain ? dom(s.domain) : esc(s.title)}</span><b>+${fmt(s.gap, 1)}</b></li>`).join('')}</ul>
         <p class="small faint" style="margin:6px 0 0">Écart avec la moyenne de la station</p></div>
-      <div><h3>À travailler en priorité</h3><ul>${gaps.slice(-2).reverse().map((s) => `<li><span>${esc(s.domain || s.title)}</span><b>${fmt(s.gap, 1)}</b></li>`).join('')}</ul>
+      <div><h3>À travailler en priorité</h3><ul>${gaps.slice(-2).reverse().map((s) => `<li><span>${s.domain ? dom(s.domain) : esc(s.title)}</span><b>${fmt(s.gap, 1)}</b></li>`).join('')}</ul>
         <p class="small faint" style="margin:6px 0 0">Écart avec la moyenne de la station</p></div></div>` : ''}
     <h2>Station par station</h2>
     ${R.stations.map((s) => {
       const has = s.score !== undefined && s.score !== null;
       return `<details class="st-res" ${opts.open ? 'open' : ''}>
         <summary>${plate(s.slot, 'lg')}
-          <span class="what"><strong>${esc(s.domain || '')}</strong>${s.title ? `<span>${esc(s.title)}</span>` : ''}</span>
+          <span class="what"><strong>${dom(s.domain)}</strong><span>${esc(s.title || '')}${s.discipline ? `${s.title ? ', ' : ''}${disc(s.discipline)}` : ''}</span></span>
           <span class="score">${has ? `<b>${fmt(s.score, 1)}</b><small> / 20</small>${s.rank ? `<span class="rk">${s.rank}${ord(s.rank)} sur ${s.n}</span>` : ''}`
             : s.absent ? '<span class="pill warn">Absent</span>' : '<span class="pill">En attente</span>'}</span></summary>
         <div class="body">

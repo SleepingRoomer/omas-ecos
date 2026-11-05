@@ -15,6 +15,37 @@ export const DOMAINS = [
   'Urgence',
 ];
 
+// Pictogrammes des domaines de compétence
+export const DOMAIN_ICONS = {
+  'Annonce': '🗨️',
+  'Communication interprofessionnelle': '📞',
+  'Éducation / prévention': '🛡️',
+  'Entretien / interrogatoire': '❓',
+  'Examen clinique': '🩺',
+  'Iconographie': '🖼️',
+  'Procédure': '🧤',
+  'Stratégie diagnostique': '🔎',
+  'Stratégie pertinente de prise en charge': '🧭',
+  'Synthèse des résultats paracliniques': '🧪',
+  'Urgence': '🚨',
+};
+
+// Disciplines proposées dans l'éditeur, avec leur pictogramme
+export const DISCIPLINES = [
+  ['Addictologie', '🚬'], ['Anesthésie-réanimation', '💉'], ['Cardiologie', '🫀'], ['Chirurgie orthopédique', '🦵'],
+  ['Chirurgie viscérale', '✂️'], ['Dermatologie', '🧴'], ['Endocrinologie', '🦋'], ['Gastro-entérologie', '🍽️'],
+  ['Génétique', '🧬'], ['Gériatrie', '🧓'], ['Gynécologie-obstétrique', '🤰'], ['Hématologie', '🩸'],
+  ['Infectiologie', '🦠'], ['Médecine du travail', '👷'], ['Médecine générale', '🩺'], ['Médecine d\'urgence', '🚑'],
+  ['Médecine interne', '🔍'], ['Médecine légale', '⚖️'], ['Médecine physique et réadaptation', '🏃'], ['Néphrologie', '🫘'],
+  ['Neurologie', '🧠'], ['Nutrition', '🥗'], ['Oncologie', '🎗️'], ['Ophtalmologie', '👁️'], ['ORL', '👂'],
+  ['Pédiatrie', '🧸'], ['Pharmacologie', '💊'], ['Pneumologie', '🫁'], ['Psychiatrie', '💭'], ['Radiologie', '🩻'],
+  ['Rhumatologie', '🦴'], ['Santé publique', '📊'], ['Soins palliatifs', '🕊️'], ['Urologie', '💧'],
+];
+const DISC_ICON = Object.fromEntries(DISCIPLINES);
+
+export const domainIcon = (d) => DOMAIN_ICONS[d] || '';
+export const disciplineIcon = (d) => DISC_ICON[d] || (d ? '➕' : '');
+
 export const TYPES = {
   PS: 'Avec PS',
   PSS: 'Avec PSS',

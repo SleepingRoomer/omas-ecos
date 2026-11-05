@@ -1,4 +1,4 @@
-import { api, esc, nl, toast, fmt, frDate, setTitle, plate } from './ui.js';
+import { api, esc, nl, toast, fmt, frDate, setTitle, plate, dom, disc } from './ui.js';
 import { COM_LEVELS, GLOBAL_LEVELS, TYPE_LINE, missingAnswers, computeScore } from './shared.js';
 
 let ctx = null;
@@ -25,7 +25,8 @@ export async function roomView(app) {
     app.innerHTML = `
       <div class="room-head">${plate(s.slot, 'xl')}
         <div style="flex:1"><h1>${esc(s.title || s.domain || `Salle ${s.slot}`)}</h1>
-          <div class="muted">${esc(ctx.evaluator)}, ${esc(ctx.exam.name)}</div></div></div>
+          <div class="tags" style="margin-top:6px">${dom(s.domain)}${s.discipline ? `<span>${disc(s.discipline)}</span>` : ''}</div>
+          <div class="muted small" style="margin-top:4px">${esc(ctx.evaluator)}, ${esc(ctx.exam.name)}</div></div></div>
       ${ctx.exam.eval_open ? '' : '<p class="alert warn">La saisie n\'est pas encore ouverte. L\'équipe l\'ouvre le matin du passage.</p>'}
       <details class="panel" style="padding:14px 18px"><summary style="cursor:pointer"><strong>Relire la vignette et les consignes</strong></summary>
         <div style="margin-top:10px"><p>${esc(v.role)}, ${esc(v.lieu)}</p><p>${nl(v.contexte)}</p>${v.infos ? `<p>${nl(v.infos)}</p>` : ''}

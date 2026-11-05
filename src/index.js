@@ -428,7 +428,7 @@ app.post('/exams/:id/candidates/renumber', need('admin'), async (c) => {
 async function examResults(db, examId) {
   const exam = await one(db, 'SELECT * FROM exams WHERE id = ?', examId);
   if (!exam) throw httpError(404, 'Session introuvable');
-  const stations = (await all(db, 'SELECT id, slot, domain, type, title, played, content FROM stations WHERE exam_id = ? ORDER BY slot', examId))
+  const stations = (await all(db, 'SELECT id, slot, domain, type, title, discipline, played, content FROM stations WHERE exam_id = ? ORDER BY slot', examId))
     .map((s) => ({ ...s, content: normalizeContent(parse(s.content, {})) }));
   const candidates = await all(db, "SELECT * FROM candidates WHERE exam_id = ? AND status != 'annule'", examId);
   const evals = (await all(db, 'SELECT * FROM evaluations WHERE exam_id = ?', examId))
@@ -491,7 +491,7 @@ app.get('/exams/:id/results', need('admin'), async (c) => {
       return { name, n: x.length, mean: x.length ? x.reduce((a, e) => a + e.score, 0) / x.length : null };
     });
     return {
-      id: s.id, slot: s.slot, title: s.title, domain: s.domain, played: s.played,
+      id: s.id, slot: s.slot, title: s.title, domain: s.domain, discipline: s.discipline, played: s.played,
       n: st.n, mean: st.mean, sd: st.sd, min: st.min, max: st.max, items, com, byGlobal, evaluators,
     };
   });
@@ -524,7 +524,7 @@ async function candidateReport(db, candidateId, asAdmin) {
   const stations = R.played.map((s) => {
     const e = me?.ev.find((x) => x.station_id === s.id);
     const st = R.stationStats[s.id];
-    const out = { slot: s.slot, title: s.title, domain: s.domain, evaluated: !!e, absent: !!e?.absent };
+    const out = { slot: s.slot, title: s.title, domain: s.domain, discipline: s.discipline, evaluated: !!e, absent: !!e?.absent };
     if (e && !e.absent && showResults) {
       out.score = e.score; out.points = e.points; out.max_points = e.max_points;
       out.rank = st.ranks.get(cand.id) ?? null; out.n = st.n; out.mean = st.mean;
@@ -572,7 +572,7 @@ app.get('/eval/context', need('evaluateur'), async (c) => {
   return c.json({
     evaluator: c.get('session').name,
     exam,
-    station: { id: st.id, slot: st.slot, title: st.title, domain: st.domain, type: st.type },
+    station: { id: st.id, slot: st.slot, title: st.title, domain: st.domain, discipline: st.discipline, type: st.type },
     vignette: content.vignette, examinateur: content.examinateur, grille: content.grille,
     candidates,
   });

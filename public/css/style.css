@@ -165,6 +165,8 @@ td select { min-width: 112px; padding: 7px 8px; font-size: .9rem; }
 .steps .st.done { border-top-color: var(--b); color: var(--ink-2); }
 .steps .st.now { border-top-color: var(--a); color: var(--ink); font-weight: 700; }
 
+.tag-ico { display: inline-block; width: 1.35em; text-align: center; margin-right: .2em; font-style: normal; }
+.tags { display: flex; flex-wrap: wrap; gap: 6px 14px; color: var(--ink-2); font-size: .92rem; }
 .code { font-family: var(--display); font-weight: 700; font-size: 1em; letter-spacing: .06em; color: var(--ink); font-variant-numeric: tabular-nums; }
 .cand-no { font-family: var(--display); font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
 
