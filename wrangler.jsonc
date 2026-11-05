@@ -13,7 +13,7 @@
     {
       "binding": "DB",
       "database_name": "omas-ecos",
-      "database_id": "A_REMPLACER_PAR_L_ID_DE_LA_BASE",
+      "database_id": "f2bcd0e2-5690-4cf5-8b78-15a1b98b6797",
       "migrations_dir": "migrations"
     }
   ]

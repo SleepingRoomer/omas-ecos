@@ -32,7 +32,7 @@ npx wrangler login                      # ouvre le navigateur pour se connecter 
 npx wrangler d1 create omas-ecos        # affiche un "database_id"
 ```
 
-1. Copier le `database_id` affiché dans `wrangler.jsonc`, à la place de `A_REMPLACER_PAR_L_ID_DE_LA_BASE`.
+1. Copier le `database_id` affiché dans `wrangler.jsonc` (déjà fait pour la base actuelle).
 2. Créer les tables et choisir le mot de passe admin :
 
 ```bash
