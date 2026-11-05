@@ -18,9 +18,10 @@ export async function jpSection(box) {
     <h1 style="margin-top:44px">Journées procédure</h1>
     <p class="lede">Des ateliers de gestes en petits groupes, avec une rotation calculée pour chaque créneau.</p>
     ${list.length ? `<div class="table-wrap" style="margin-top:20px"><table>
-      <thead><tr><th>Journée</th><th>Dates</th><th class="num">Ateliers</th><th class="num">Inscrits</th></tr></thead>
+      <thead><tr><th>Journée</th><th>Dates</th><th class="num">Ateliers</th><th class="num">Inscrits</th><th></th></tr></thead>
       <tbody>${list.map((j) => `<tr class="clickable" data-jp="${j.id}"><td><strong>${esc(j.name)}</strong></td><td>${dates(j)}</td>
-        <td class="num">${j.n_ateliers}</td><td class="num">${j.n_participants}</td></tr>`).join('')}</tbody></table></div>` : ''}
+        <td class="num">${j.n_ateliers}</td><td class="num">${j.n_participants}</td>
+        <td><div class="row" style="flex-wrap:nowrap;gap:4px"><button class="small" data-edit>Modifier</button><button class="small danger" data-del>Supprimer</button></div></td></tr>`).join('')}</tbody></table></div>` : ''}
     <div class="panel"><h2>Créer une journée procédure</h2>
       <form id="newjp"><div class="grid cols-2">
         <div><label for="jn">Nom</label><input id="jn" name="name" required placeholder="Journée procédure 1, décembre 2026"></div>
@@ -30,7 +31,19 @@ export async function jpSection(box) {
           <span>Préremplir les 7 ateliers de la JP1 (suture, palpation mammaire, toucher rectal, otoscopie, gants stériles et injection IM, palpation testiculaire, arrêt cardio-respiratoire)</span></label>
         <p class="small muted">Deux créneaux par jour sont créés, à 9 h et à 14 h. Tu pourras les changer.</p>
         <button class="primary">Créer la journée</button></form></div>`;
-  box.querySelectorAll('[data-jp]').forEach((tr) => tr.addEventListener('click', () => { location.hash = `#/admin/jp/${tr.dataset.jp}`; }));
+  box.querySelectorAll('[data-jp]').forEach((tr) => tr.addEventListener('click', (e) => {
+    if (e.target.closest('button, input, form')) return;
+    location.hash = `#/admin/jp/${tr.dataset.jp}`;
+  }));
+  (await import('./admin.js')).rowActions(box, list, {
+    save: (id, body) => api(`/jp/${id}`, { method: 'PATCH', body }),
+    remove: async (j) => {
+      if (!confirmBox(`Supprimer « ${j.name} », ses ateliers, ses créneaux et ses ${j.n_participants} inscrits ?`)) return false;
+      await api(`/jp/${j.id}`, { method: 'DELETE' });
+      return true;
+    },
+    reload: () => jpSection(box),
+  });
   box.querySelector('#newjp').addEventListener('submit', async (e) => {
     e.preventDefault();
     const f = new FormData(e.target);

@@ -13,11 +13,12 @@ export async function examsView(app) {
     <h1>Sessions d'ECOS blancs</h1>
     <p class="lede">Une session regroupe ses 12 stations, ses inscrits et ses résultats.</p>
     ${exams.length ? `<div class="table-wrap" style="margin-top:20px"><table>
-      <thead><tr><th>Session</th><th>Dates</th><th class="num">Stations</th><th class="num">Inscrits</th><th class="num">Grilles saisies</th><th>Saisie</th></tr></thead>
+      <thead><tr><th>Session</th><th>Dates</th><th class="num">Stations</th><th class="num">Inscrits</th><th class="num">Grilles saisies</th><th>Saisie</th><th></th></tr></thead>
       <tbody>${exams.map((e) => `<tr class="clickable" data-id="${e.id}">
         <td><strong>${esc(e.name)}</strong></td><td>${dates(e)}</td>
         <td class="num">${e.n_stations}</td><td class="num">${e.n_candidates}</td><td class="num">${e.n_evaluations}</td>
-        <td>${e.eval_open ? '<span class="pill live ok">Ouverte</span>' : '<span class="pill">Fermée</span>'}</td></tr>`).join('')}</tbody>
+        <td>${e.eval_open ? '<span class="pill live ok">Ouverte</span>' : '<span class="pill">Fermée</span>'}</td>
+        <td><div class="row" style="flex-wrap:nowrap;gap:4px"><button class="small" data-edit>Modifier</button><button class="small danger" data-del>Supprimer</button></div></td></tr>`).join('')}</tbody>
     </table></div>` : '<p class="alert info">Aucune session pour l\'instant. Crée la première ci-dessous.</p>'}
     <div class="panel">
       <h2>Créer une session</h2>
@@ -42,7 +43,53 @@ export async function examsView(app) {
     const r = await api('/exams', { method: 'POST', body: { name: f.get('name'), starts_on: f.get('starts_on'), ends_on: f.get('ends_on'), create_slots: !!f.get('slots') } });
     location.hash = `#/admin/session/${r.id}`;
   });
-  app.querySelectorAll('tr[data-id]').forEach((tr) => tr.addEventListener('click', () => { location.hash = `#/admin/session/${tr.dataset.id}`; }));
+  app.querySelectorAll('tr[data-id]').forEach((tr) => tr.addEventListener('click', (e) => {
+    if (e.target.closest('button, input, form')) return;
+    location.hash = `#/admin/session/${tr.dataset.id}`;
+  }));
+  rowActions(app, exams, {
+    save: (id, body) => api(`/exams/${id}`, { method: 'PATCH', body }),
+    remove: async (e) => {
+      if (e.n_evaluations > 0) {
+        const typed = prompt(`« ${e.name} » contient ${e.n_evaluations} grilles saisies. Elles seront perdues avec la session, ses stations et ses inscrits.\n\nTape SUPPRIMER pour confirmer.`);
+        if (typed !== 'SUPPRIMER') return false;
+        await api(`/exams/${e.id}?force=1`, { method: 'DELETE' });
+      } else {
+        if (!confirmBox(`Supprimer « ${e.name} », ses stations et ses inscrits ?`)) return false;
+        await api(`/exams/${e.id}`, { method: 'DELETE' });
+      }
+      return true;
+    },
+    reload: () => examsView(app),
+  });
+}
+
+// Boutons Modifier et Supprimer d'une liste de sessions (ECOS ou journées procédure)
+export function rowActions(root, items, { save, remove, reload }) {
+  root.querySelectorAll('tr[data-id] [data-edit], tr[data-jp] [data-edit]').forEach((b) => b.addEventListener('click', () => {
+    const tr = b.closest('tr');
+    const id = tr.dataset.id || tr.dataset.jp;
+    const it = items.find((x) => String(x.id) === id);
+    const cols = tr.children.length;
+    tr.classList.remove('clickable');
+    tr.innerHTML = `<td colspan="${cols}"><form class="row" style="align-items:flex-end">
+      <div style="flex:2;min-width:220px"><label for="en${id}" style="margin-top:0">Nom</label><input id="en${id}" name="name" value="${esc(it.name)}" required></div>
+      <div><label for="es${id}" style="margin-top:0">Premier jour</label><input id="es${id}" type="date" name="starts_on" value="${esc(it.starts_on || '')}"></div>
+      <div><label for="ee${id}" style="margin-top:0">Dernier jour</label><input id="ee${id}" type="date" name="ends_on" value="${esc(it.ends_on || '')}"></div>
+      <button class="primary">Enregistrer</button><button type="button" class="quiet" data-cancel>Annuler</button></form></td>`;
+    tr.querySelector('input').focus();
+    tr.querySelector('[data-cancel]').addEventListener('click', reload);
+    tr.querySelector('form').addEventListener('submit', async (ev) => {
+      ev.preventDefault();
+      const f = new FormData(ev.target);
+      try { await save(id, { name: f.get('name'), starts_on: f.get('starts_on') || null, ends_on: f.get('ends_on') || null }); toast('Modifications enregistrées'); reload(); } catch (err) { toast(err.message, 'error'); }
+    });
+  }));
+  root.querySelectorAll('tr[data-id] [data-del], tr[data-jp] [data-del]').forEach((b) => b.addEventListener('click', async () => {
+    const tr = b.closest('tr');
+    const it = items.find((x) => String(x.id) === (tr.dataset.id || tr.dataset.jp));
+    try { if (await remove(it)) { toast('Supprimé'); reload(); } } catch (err) { toast(err.message, 'error'); }
+  }));
 }
 
 // ---------- une session ----------
@@ -356,7 +403,7 @@ async function settingsTab(box, exam) {
         <div><label for="s2">Dernier jour</label><input id="s2" type="date" name="ends_on" value="${esc(exam.ends_on || '')}"></div></div></div>
       <button class="primary" style="margin-top:14px">Enregistrer</button>
     </form>
-    <div class="panel"><h2>Supprimer la session</h2><p class="small muted">Possible tant qu'aucune grille n'a été saisie. Les stations et les inscrits sont supprimés avec elle.</p>
+    <div class="panel"><h2>Supprimer la session</h2><p class="small muted">Les stations, les inscrits et les grilles saisies sont supprimés avec elle.</p>
       <button class="danger" id="del">Supprimer la session</button></div>`;
   box.querySelector('#f').addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -370,8 +417,9 @@ async function settingsTab(box, exam) {
     toast(cb.checked ? 'Activé' : 'Désactivé');
   }));
   box.querySelector('#del').addEventListener('click', async () => {
-    if (!confirmBox('Supprimer définitivement cette session, ses stations et ses inscrits ?')) return;
-    try { await api(`/exams/${exam.id}`, { method: 'DELETE' }); location.hash = '#/admin'; } catch (err) { toast(err.message, 'error'); }
+    const typed = prompt(`Supprimer définitivement « ${exam.name} », ses stations, ses inscrits et ses grilles ?\n\nTape SUPPRIMER pour confirmer.`);
+    if (typed !== 'SUPPRIMER') return;
+    try { await api(`/exams/${exam.id}?force=1`, { method: 'DELETE' }); location.hash = '#/admin'; } catch (err) { toast(err.message, 'error'); }
   });
 }
 

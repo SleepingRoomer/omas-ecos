@@ -176,7 +176,7 @@ app.patch('/exams/:id', need('admin'), async (c) => {
 app.delete('/exams/:id', need('admin'), async (c) => {
   const id = c.req.param('id');
   const n = await one(c.env.DB, 'SELECT COUNT(*) AS n FROM evaluations WHERE exam_id = ?', id);
-  if (n.n > 0) throw httpError(400, 'Cette session contient des évaluations : suppression impossible.');
+  if (n.n > 0 && c.req.query('force') !== '1') throw httpError(400, 'Cette session contient des grilles saisies : confirme la suppression.');
   await run(c.env.DB, 'DELETE FROM exams WHERE id = ?', id);
   return c.json({ ok: true });
 });
