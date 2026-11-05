@@ -79,3 +79,20 @@ export function parseTable(text) {
 }
 
 export function confirmBox(msg) { return window.confirm(msg); }
+
+// Plaque de porte d'une station : la couleur dit le circuit (A, B ou réserve)
+export function plate(slot, size = '') {
+  const s = String(slot || '?');
+  const c = /^A/i.test(s) ? 'c-a' : /^B/i.test(s) ? 'c-b' : /^R/i.test(s) ? 'c-r' : 'c-x';
+  return `<span class="plate ${c} ${size}" aria-label="Station ${esc(s)}">${esc(s)}</span>`;
+}
+
+// Ordre du circuit de validation (pour les rails de progression)
+export const FLOW_ORDER = ['redaction', 'relecture_pair', 'relecture_expert', 'test', 'corrections', 'validation', 'validee'];
+export const FLOW_SHORT = ['Rédaction', 'Relecture pair', 'Relecture expert', 'Test', 'Corrections', 'Validation', 'Validée'];
+
+export function rail(status, mini = false) {
+  const i = FLOW_ORDER.indexOf(status);
+  return `<span class="rail ${mini ? 'mini' : ''}" aria-hidden="true">${FLOW_ORDER.map((_, k) =>
+    `<i class="${status === 'validee' || k < i ? 'done' : k === i ? 'now' : ''}"></i>`).join('')}</span>`;
+}

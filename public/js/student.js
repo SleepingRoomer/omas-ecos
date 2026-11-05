@@ -1,62 +1,65 @@
-import { api, esc, nl, fmt, setTitle } from './ui.js';
+import { api, esc, nl, fmt, setTitle, plate } from './ui.js';
 import { COM_LEVELS } from './shared.js';
 
 let timer = null;
+const ord = (n) => (n === 1 ? 'er' : 'e');
+const time = (iso) => new Date(iso).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
 
 function render(R, opts = {}) {
   const c = R.candidate;
   const S = R.summary;
   const levelName = (v) => COM_LEVELS.find((l) => l.v === v)?.l || fmt(v);
-  const evaluated = R.stations.filter((s) => s.score !== undefined);
-  const gaps = evaluated.filter((s) => s.mean !== null).map((s) => ({ ...s, gap: s.score - s.mean })).sort((a, b) => b.gap - a.gap);
+  const scored = R.stations.filter((s) => s.score !== undefined && s.score !== null);
+  const gaps = scored.filter((s) => s.mean !== null).map((s) => ({ ...s, gap: s.score - s.mean })).sort((a, b) => b.gap - a.gap);
 
   const head = `
-    ${opts.back ? `<p class="small no-print"><a href="${opts.back}">← Retour</a></p>` : ''}
-    <div class="row between"><div><h1>${esc(c.first_name)} ${esc(c.last_name)}</h1>
-      <div class="muted small">${esc(R.exam.name)}${c.number ? ` · candidat <span class="code">${esc(c.number)}</span>` : ''}</div></div>
-      <button id="refresh" class="small no-print">Actualiser</button></div>`;
+    ${opts.back ? `<a class="back no-print" href="${opts.back}">Classement de la session</a>` : ''}
+    <div class="row between" style="align-items:flex-end">
+      <div><h1>${esc(c.first_name)} ${esc(c.last_name)}</h1>
+        <div class="muted" style="margin-top:4px">${c.number ? `Candidat <span class="cand-no">${esc(c.number)}</span>, ` : ''}${esc(R.exam.name)}</div></div>
+      <span class="live">Mis à jour à ${time(R.updated_at)}</span></div>`;
 
-  if (!S) {
-    return `${head}<div class="card"><p>Tes résultats apparaîtront ici dès que l'équipe les ouvrira.</p></div>`;
-  }
+  if (!S) return `${head}<div class="panel"><p>Tes résultats s'afficheront ici dès que l'équipe les ouvrira.</p></div>`;
 
-  const rankBlock = S.rank
-    ? `<div class="v">${S.rank}<span class="small muted"> / ${S.ranked}</span></div><div class="l">rang provisoire</div>`
-    : `<div class="v">–</div><div class="l">rang : dès tes ${S.total_stations} stations saisies</div>`;
+  const hero = S.rank
+    ? `<div class="rank-hero"><div><div class="rank">${S.rank}<sup>${ord(S.rank)}</sup></div>
+        <div class="of">sur ${S.ranked} candidat${S.ranked > 1 ? 's' : ''} classé${S.ranked > 1 ? 's' : ''} pour l'instant</div></div>
+        <div class="side"><div><div class="v">${fmt(S.avg)}</div><div class="l">ta moyenne sur 20</div></div>
+          <div><div class="v">${fmt(S.cohort_mean)}</div><div class="l">moyenne des classés</div></div></div></div>`
+    : `<div class="rank-hero pending"><div><div class="rank">${S.evaluated} / ${S.total_stations}</div>
+        <div class="of">stations saisies. Ton rang s'affiche quand les ${S.total_stations} le sont.</div></div>
+        <div class="side"><div><div class="v">${fmt(S.avg)}</div><div class="l">moyenne provisoire sur 20</div></div>
+          <div><div class="v">${S.ranked}</div><div class="l">candidats déjà classés</div></div></div></div>`;
 
-  return `${head}
-    <div class="grid grid-4" style="margin-top:12px">
-      <div class="stat hl">${rankBlock}</div>
-      <div class="stat"><div class="v">${fmt(S.avg)}</div><div class="l">moyenne /20</div></div>
-      <div class="stat"><div class="v">${fmt(S.cohort_mean)}</div><div class="l">moyenne des candidats classés</div></div>
-      <div class="stat"><div class="v">${S.evaluated}<span class="small muted"> / ${S.total_stations}</span></div><div class="l">stations saisies</div></div>
-    </div>
-    <p class="small muted">Classement provisoire entre les ${S.ranked} candidats dont toutes les stations sont saisies, sur ${S.registered} inscrits.
-      Il évolue à chaque série jusqu'au dernier jour de la session. Mis à jour à ${new Date(R.updated_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}.</p>
-    ${gaps.length >= 3 ? `<div class="grid grid-2">
-      <div class="card"><h3>Tes points forts</h3><ul>${gaps.slice(0, 2).map((s) => `<li>${esc(s.domain || s.title)} : ${fmt(s.score, 1)} (moyenne ${fmt(s.mean, 1)})</li>`).join('')}</ul></div>
-      <div class="card"><h3>À travailler en priorité</h3><ul>${gaps.slice(-2).reverse().map((s) => `<li>${esc(s.domain || s.title)} : ${fmt(s.score, 1)} (moyenne ${fmt(s.mean, 1)})</li>`).join('')}</ul></div>
-    </div>` : ''}
-    <h2>Détail par station</h2>
+  return `${head}${hero}
+    <p class="small muted">Le classement bouge à chaque série, jusqu'au dernier jour de la session : ${S.registered} candidats sont inscrits. La page se met à jour toute seule chaque minute.</p>
+    ${gaps.length >= 4 ? `<div class="duo">
+      <div><h3>Tes points forts</h3><ul>${gaps.slice(0, 2).map((s) => `<li><span>${esc(s.domain || s.title)}</span><b>+${fmt(s.gap, 1)}</b></li>`).join('')}</ul>
+        <p class="small faint" style="margin:6px 0 0">Écart avec la moyenne de la station</p></div>
+      <div><h3>À travailler en priorité</h3><ul>${gaps.slice(-2).reverse().map((s) => `<li><span>${esc(s.domain || s.title)}</span><b>${fmt(s.gap, 1)}</b></li>`).join('')}</ul>
+        <p class="small faint" style="margin:6px 0 0">Écart avec la moyenne de la station</p></div></div>` : ''}
+    <h2>Station par station</h2>
     ${R.stations.map((s) => {
-      const has = s.score !== undefined;
+      const has = s.score !== undefined && s.score !== null;
       return `<details class="st-res" ${opts.open ? 'open' : ''}>
-        <summary>${has && s.rank ? `<span class="badge">Rang ${s.rank} / ${s.n}</span>` : ''}
-          <span><strong>${esc(s.domain || '')}</strong>${s.title ? `<span class="muted"> · ${esc(s.title)}</span>` : ''}</span>
-          <span class="spacer"></span>
-          ${has ? `<span class="badge dark">${fmt(s.score)} / 20</span>` : s.absent ? '<span class="badge warn">absent</span>' : '<span class="badge">pas encore saisie</span>'}</summary>
+        <summary>${plate(s.slot, 'lg')}
+          <span class="what"><strong>${esc(s.domain || '')}</strong>${s.title ? `<span>${esc(s.title)}</span>` : ''}</span>
+          <span class="score">${has ? `<b>${fmt(s.score, 1)}</b><small> / 20</small>${s.rank ? `<span class="rk">${s.rank}${ord(s.rank)} sur ${s.n}</span>` : ''}`
+            : s.absent ? '<span class="pill warn">Absent</span>' : '<span class="pill">En attente</span>'}</span></summary>
         <div class="body">
-          ${has ? `<div class="row between small"><span>${fmt(s.points)} / ${fmt(s.max_points)} points</span><span class="muted">moyenne de la station : ${fmt(s.mean)} / 20</span></div>
-            <div class="bar"><span style="width:${Math.max(0, Math.min(100, s.score * 5))}%"></span></div>` : ''}
+          ${has ? `<div class="gauge" role="img" aria-label="${fmt(s.score, 1)} sur 20, moyenne de la station ${fmt(s.mean, 1)}">
+              <div class="fill" style="width:${Math.max(0, Math.min(100, s.score * 5))}%"></div>
+              ${s.mean !== null ? `<div class="mean" style="left:${Math.max(0, Math.min(100, s.mean * 5))}%"><span>moyenne ${fmt(s.mean, 1)}</span></div>` : ''}</div>
+            <p class="small muted" style="margin:0">${fmt(s.points)} points sur ${fmt(s.max_points)}.</p>` : ''}
           ${s.apt ? `<h3>Aptitudes cliniques et techniques</h3>
-            ${s.apt.map((i) => `<div class="it ${i.ok ? 'ok' : 'ko'}"><span class="mark">${i.ok ? '✓' : '✗'}</span><span>${esc(i.label)}</span><span class="pts">${i.ok ? i.points : 0} / ${i.points}</span></div>
-              ${i.comment ? `<div class="item-comment">${esc(i.comment)}</div>` : ''}`).join('')}
+            ${s.apt.map((i) => `<div class="it ${i.ok ? 'ok' : 'ko'}"><span class="mark" aria-label="${i.ok ? 'observé' : 'non observé'}">${i.ok ? '✓' : '✗'}</span><span class="txt">${esc(i.label)}</span><span class="pts">${i.ok ? i.points : 0} / ${i.points}</span>
+              ${i.comment ? `<span class="item-comment">${esc(i.comment)}</span>` : ''}</div>`).join('')}
             <h3>Communication et attitudes</h3>
-            ${s.com.map((i) => `<div class="it ${i.value >= 0.5 ? 'ok' : 'ko'}"><span class="mark">${i.value >= 0.5 ? '✓' : '·'}</span><span>${esc(i.label)}</span><span class="pts">${esc(levelName(i.value))} · ${fmt(i.value)}</span></div>`).join('')}
-            ${s.comment ? `<div class="alert warn" style="margin-top:10px"><strong>Commentaire de l'évaluateur</strong><br>${nl(s.comment)}</div>` : ''}` : ''}
+            ${s.com.map((i) => `<div class="it ${i.value >= 0.5 ? 'ok' : 'ko'}"><span class="mark">${i.value >= 0.5 ? '✓' : '·'}</span><span class="txt">${esc(i.label)}</span><span class="pts">${esc(levelName(i.value))}, ${fmt(i.value)}</span></div>`).join('')}
+            ${s.comment ? `<div class="evcomment"><b>Le mot de l'évaluateur</b>${nl(s.comment)}</div>` : ''}` : ''}
           ${s.correction ? `<h3>Correction</h3><div>${nl(s.correction.text) || '<span class="muted">Pas encore rédigée.</span>'}</div>
             ${s.correction.references ? `<p class="small muted">Références : ${nl(s.correction.references)}</p>` : ''}`
-            : (has ? '<p class="small muted">La correction sera publiée après la fin de la session.</p>' : '')}
+            : (has ? '<p class="small faint" style="margin-top:14px">La correction arrive après la fin de la session.</p>' : '')}
         </div></details>`;
     }).join('')}`;
 }
@@ -66,9 +69,8 @@ export async function studentView(app) {
   const load = async () => {
     const open = [...app.querySelectorAll('details.st-res')].map((d) => d.open);
     const R = await api('/me/results');
-    app.innerHTML = `<div class="narrow" style="margin:0 auto">${render(R)}</div>`;
+    app.innerHTML = `<div class="narrow">${render(R)}</div>`;
     app.querySelectorAll('details.st-res').forEach((d, i) => { if (open[i]) d.open = true; });
-    app.querySelector('#refresh')?.addEventListener('click', load);
   };
   await load();
   clearInterval(timer);
@@ -78,7 +80,6 @@ export async function studentView(app) {
 export async function adminReport(app, candidateId, examId) {
   const R = await api(`/candidates/${candidateId}/report`);
   setTitle(`${R.candidate.last_name} ${R.candidate.first_name}`);
-  app.innerHTML = `<div class="narrow" style="margin:0 auto">${render(R, { back: `#/admin/session/${examId}/resultats` })}
-    <p class="small muted no-print">Vue administrateur : tout est visible, quels que soient les réglages de la session.</p></div>`;
-  app.querySelector('#refresh')?.addEventListener('click', () => adminReport(app, candidateId, examId));
+  app.innerHTML = `<div class="narrow">${render(R, { back: `#/admin/session/${examId}/resultats` })}
+    <p class="small muted no-print">Vue de l'équipe : tout est visible, quels que soient les réglages de la session.</p></div>`;
 }

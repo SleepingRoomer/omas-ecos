@@ -22,6 +22,13 @@ export const TYPES = {
   MANNEQUIN: 'Mannequin / matériel',
 };
 
+export const TYPES_SHORT = {
+  PS: 'avec PS',
+  PSS: 'avec PSS',
+  SANS: 'sans PS ni PSS',
+  MANNEQUIN: 'sur mannequin',
+};
+
 export const TYPE_LINE = {
   PS: "Il s'agit d'une station AVEC PS",
   PSS: "Il s'agit d'une station AVEC PSS",

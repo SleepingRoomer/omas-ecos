@@ -1,4 +1,4 @@
-import { api, esc, toast, setTitle } from './ui.js';
+import { api, esc, toast, setTitle, plate } from './ui.js';
 
 const app = document.getElementById('app');
 const nav = document.getElementById('nav');
@@ -9,14 +9,14 @@ const HOME = { admin: '#/admin', auteur: '#/redaction', evaluateur: '#/eval', et
 function renderNav() {
   const k = state.me?.kind;
   const links = {
-    admin: [['#/admin', 'Sessions'], ['#/admin/personnes', 'Rédacteurs']],
+    admin: [['#/admin', 'Sessions'], ['#/admin/personnes', 'Rédacteurs et relecteurs']],
     auteur: [['#/redaction', 'Mes stations']],
     evaluateur: [['#/eval', 'Ma salle']],
     etudiant: [['#/resultats', 'Mes résultats']],
   }[k] || [];
   const here = location.hash || '#/';
   nav.innerHTML = links.map(([h, l]) => `<a href="${h}" class="${here === h ? 'active' : ''}">${esc(l)}</a>`).join('')
-    + (k ? `<span class="who">${esc(state.me.name || '')}</span><button id="logout">Déconnexion</button>` : '');
+    + (k ? `<span class="who">${esc(state.me.name || '')}</span><button id="logout">Se déconnecter</button>` : '');
   document.getElementById('logout')?.addEventListener('click', async () => {
     await api('/logout', { method: 'POST' });
     state.me = { kind: null };
@@ -28,32 +28,39 @@ function renderNav() {
 function loginView() {
   setTitle('Connexion');
   const roles = [
-    ['etudiant', 'Étudiant'], ['evaluateur', 'Évaluateur'], ['redaction', 'Rédaction'], ['admin', 'Admin'],
+    ['etudiant', 'Étudiant'], ['evaluateur', 'Évaluateur'], ['redaction', 'Rédaction'], ['admin', 'Équipe'],
   ];
   const help = {
-    etudiant: 'Entre le code personnel reçu par e-mail pour suivre tes résultats.',
-    evaluateur: 'Entre le code affiché dans ta salle et ton nom.',
-    redaction: 'Entre ton code de rédacteur ou de relecteur.',
-    admin: "Mot de passe de l'équipe d'organisation.",
+    etudiant: 'Entre le code reçu avec ta convocation. Tes notes et ton rang s\'affichent dès que tes grilles sont saisies.',
+    evaluateur: 'Entre le code affiché sur la porte de ta salle, puis ton nom.',
+    redaction: 'Entre ton code de rédacteur ou de relecteur pour retrouver tes stations.',
+    admin: 'Réservé à l\'équipe d\'organisation.',
   };
   const params = new URLSearchParams(location.hash.split('?')[1] || '');
   let role = params.get('role') || 'etudiant';
+  const circuit = (letter) => `<span class="lbl">Circuit ${letter}</span>${[1, 2, 3, 4, 5].map((n) => plate(letter + n, 'lg')).join('')}`;
   const draw = () => {
     app.innerHTML = `
-      <div class="login card">
-        <h1>ECOS blancs OMAS</h1>
-        <p class="muted" style="text-align:center;margin:0">Accède à ton espace</p>
-        <div class="seg">${roles.map(([r, l]) => `<button type="button" data-r="${r}" class="${r === role ? 'on' : ''}">${l}</button>`).join('')}</div>
-        <p class="alert info">${esc(help[role])}</p>
-        <form id="f">
-          <label for="code">${role === 'admin' ? 'Mot de passe' : role === 'evaluateur' ? 'Code de la salle' : "Code d'accès"}</label>
-          <input id="code" ${role === 'admin' ? 'type="password"' : 'type="text" autocapitalize="characters" autocomplete="off"'}
-            value="${esc(params.get('code') || '')}" placeholder="${role === 'admin' ? '' : 'Ex. : A93K7XPQ'}" required>
-          ${role === 'evaluateur' ? '<label for="name">Ton nom</label><input id="name" type="text" required placeholder="Prénom Nom">' : ''}
-          <div style="margin-top:14px"><button class="primary" style="width:100%;justify-content:center">Se connecter</button></div>
-        </form>
+      <div class="login">
+        <div class="intro">
+          <div class="circuit" aria-hidden="true">${circuit('A')}${circuit('B')}</div>
+          <h1>ECOS blancs OMAS</h1>
+          <p class="lede">Dix stations, deux circuits, huit minutes chacune. Ici, on rédige les stations, on saisit les grilles le jour J et on suit ses résultats en direct.</p>
+        </div>
+        <div class="door">
+          <h2>Se connecter</h2>
+          <div class="seg" role="tablist">${roles.map(([r, l]) => `<button type="button" role="tab" aria-selected="${r === role}" data-r="${r}" class="${r === role ? 'on' : ''}">${l}</button>`).join('')}</div>
+          <p class="muted small" style="min-height:3em">${esc(help[role])}</p>
+          <form id="f">
+            <label for="code">${role === 'admin' ? 'Mot de passe' : role === 'evaluateur' ? 'Code de la salle' : "Code d'accès"}</label>
+            <input id="code" ${role === 'admin' ? 'type="password"' : 'type="text" class="code-input" autocapitalize="characters" autocomplete="off" spellcheck="false" maxlength="12"'}
+              value="${esc(params.get('code') || '')}" placeholder="${role === 'admin' ? '' : 'A93K7XPQ'}" required>
+            ${role === 'evaluateur' ? '<label for="name">Ton nom</label><input id="name" type="text" required autocomplete="name" placeholder="Prénom Nom">' : ''}
+            <button class="primary" style="width:100%;margin-top:18px">${role === 'etudiant' ? 'Voir mes résultats' : role === 'evaluateur' ? 'Ouvrir ma salle' : role === 'redaction' ? 'Voir mes stations' : 'Entrer'}</button>
+          </form>
+        </div>
       </div>`;
-    app.querySelectorAll('[data-r]').forEach((b) => b.addEventListener('click', () => { role = b.dataset.r; draw(); }));
+    app.querySelectorAll('[data-r]').forEach((b) => b.addEventListener('click', () => { role = b.dataset.r; draw(); app.querySelector('#code').focus(); }));
     app.querySelector('#f').addEventListener('submit', async (e) => {
       e.preventDefault();
       try {
