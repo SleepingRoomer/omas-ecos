@@ -9,6 +9,7 @@ import { registerPlanning } from './planning.js';
 import { registerExtras } from './extras.js';
 import { registerAccueil } from './accueil.js';
 import { registerBenevoles } from './benevoles.js';
+import { registerBanque } from './banque.js';
 
 const app = new Hono().basePath('/api');
 const COOKIE = 'omas_s';
@@ -668,7 +669,8 @@ async function candidateReport(db, candidateId, asAdmin) {
         if (asAdmin) out.by_rater = grids.map((g) => ({ name: g.evaluator_name, score: g.score }));
       }
     }
-    if (showCorr && content) out.correction = { text: content.pedago.correction, references: content.pedago.references };
+    if (showCorr && content) out.correction = { text: content.pedago.correction, references: content.pedago.references,
+      images: (content.documents || []).filter((d) => d.file_id && /^image\//.test(d.file_mime || '')).map((d) => ({ id: d.file_id, nom: d.nom })) };
     return out;
   });
   return {
@@ -871,6 +873,7 @@ app.get('/eval/context', need('evaluateur'), async (c) => {
     exam,
     station: { id: st.id, slot: st.slot, title: st.title, domain: st.domain, discipline: st.discipline, type: st.type },
     vignette: content.vignette, examinateur: content.examinateur, grille: content.grille,
+    documents: content.documents.filter((d) => d.nom || d.file_id).map((d) => ({ nom: d.nom, remis_par: d.remis_par, description: d.description, file_id: d.file_id || null, file_mime: d.file_mime || null })),
     candidates,
   });
 });
@@ -919,6 +922,7 @@ registerPlanning(app, { need, httpError, all, one, run, parse, batch, genCode, f
 registerExtras(app, { need, httpError, all, one, run, parse });
 registerAccueil(app, { need, httpError, all, one, run, parse, genCode, freshCodes });
 registerBenevoles(app, { need, httpError, all, one, run, parse, freshCodes, batch, createSession });
+registerBanque(app, { need, httpError, all, one, run, parse, stationRights, STATION_LIST_SQL });
 
 app.all('*', () => { throw httpError(404, 'Route inconnue'); });
 

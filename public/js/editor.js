@@ -1,4 +1,4 @@
-import { api, esc, nl, toast, setTitle, plate, atelierPlate, rail, FLOW_ORDER, FLOW_SHORT, dom, disc } from './ui.js';
+import { api, esc, nl, toast, setTitle, plate, atelierPlate, rail, FLOW_ORDER, FLOW_SHORT, dom, disc, uploadStationFile, fileThumb } from './ui.js';
 import { state } from './app.js';
 import { TYPES, TYPES_SHORT, TYPE_LINE, STATUSES, COM_ATTENDUS, GLOBAL_LEVELS, COM_LEVELS, DISCIPLINES, uid } from './shared.js';
 
@@ -158,7 +158,10 @@ export async function stationEditor(app, id) {
         <select data-path="documents.${i}.remis_par" ${dis} aria-label="Remis par">${['Sur la table', "Remis par l'examinateur", 'Remis par le PS ou le PSS'].map((o) =>
           `<option ${o === d.remis_par ? 'selected' : ''}>${o}</option>`).join('')}</select>
         <input type="text" data-path="documents.${i}.description" value="${esc(d.description)}" placeholder="Quand et comment il est remis" ${dis} aria-label="Description">
-        <input type="text" data-path="documents.${i}.lien" value="${esc(d.lien)}" placeholder="Lien vers le fichier" ${dis} aria-label="Lien"></div>
+        <input type="text" data-path="documents.${i}.lien" value="${esc(d.lien)}" placeholder="Lien (facultatif)" ${dis} aria-label="Lien"></div>
+        <div class="doc-file">${d.file_id ? `${fileThumb(d)}<span class="small muted">${esc(d.file_name || '')}</span>${ro ? '' : `<button type="button" class="small quiet" data-unfile="${i}">Retirer le fichier</button>`}`
+          : ro ? '' : `<label class="btn small" style="cursor:pointer">Joindre une image ou un PDF<input type="file" accept="image/*,application/pdf" data-upload="${i}" hidden></label>
+            <span class="small muted">Photo d'ECG, radio, compte rendu… Imprimé en grand avec le dossier.</span>`}</div>
         ${ro ? '' : `<button type="button" class="small quiet" data-del="documents" data-i="${i}" style="margin-top:6px">Retirer</button>`}</div>`).join('')}
       ${ro ? '' : '<button type="button" class="small" data-add="documents" data-kind="doc">Ajouter un document</button>'}
     </section>
@@ -261,7 +264,8 @@ export async function stationEditor(app, id) {
           <div class="row" style="margin-top:8px;justify-content:flex-end">
           <a class="btn small" href="#/apercu/${st.id}/vignette" target="_blank">Vignette</a>
           <a class="btn small" href="#/apercu/${st.id}/grille" target="_blank">Grille papier</a>
-          <a class="btn small" href="#/apercu/${st.id}/dossier" target="_blank">Dossier complet</a></div></div></div>
+          <a class="btn small" href="#/apercu/${st.id}/dossier" target="_blank">Dossier complet</a>
+          ${content.documents.some((d) => d.file_id) ? `<a class="btn small" href="#/apercu/${st.id}/documents" target="_blank">Documents</a>` : ''}</div></div></div>
       ${workflow()}
       <div class="editor-layout">
         <nav class="editor-nav" aria-label="Parties de la station">${SECTIONS.map(([k, l], i) =>
@@ -312,13 +316,38 @@ export async function stationEditor(app, id) {
         }
         if (e.target.tagName === 'SELECT' && e.target.dataset.path?.startsWith('grille.com')) flush().then(draw);
       });
+      form.addEventListener('change', async (e) => {
+        const inp = e.target.closest('[data-upload]');
+        if (!inp || !inp.files[0]) return;
+        const i = Number(inp.dataset.upload);
+        setState('Envoi du fichier…', true);
+        try {
+          const f = await uploadStationFile(st.id, inp.files[0]);
+          Object.assign(content.documents[i], { file_id: f.id, file_mime: f.mime, file_name: f.name });
+          if (!content.documents[i].nom) content.documents[i].nom = f.name.replace(/\.[a-z0-9]+$/i, '');
+          await save(); draw();
+        } catch (err) { setState('Fichier non envoyé', true); toast(err.message, 'error'); }
+      });
+      form.addEventListener('click', async (e) => {
+        const u = e.target.closest('[data-unfile]');
+        if (u) {
+          const d = content.documents[Number(u.dataset.unfile)];
+          await api(`/files/${d.file_id}`, { method: 'DELETE' }).catch(() => {});
+          delete d.file_id; delete d.file_mime; delete d.file_name;
+          await save(); draw(); return;
+        }
+      });
       form.addEventListener('click', (e) => {
         const b = e.target.closest('button');
-        if (!b) return;
+        if (!b || b.dataset.unfile !== undefined) return;
         const i = Number(b.dataset.i);
         let focusPath = null;
         if (b.dataset.add) { const arr = get(content, b.dataset.add); arr.push(NEW[b.dataset.kind]()); focusPath = `${b.dataset.add}.${arr.length - 1}`; }
-        else if (b.dataset.del) { get(content, b.dataset.del).splice(i, 1); }
+        else if (b.dataset.del) {
+          const gone = get(content, b.dataset.del)[i];
+          if (b.dataset.del === 'documents' && gone?.file_id) api(`/files/${gone.file_id}`, { method: 'DELETE' }).catch(() => {});
+          get(content, b.dataset.del).splice(i, 1);
+        }
         else if (b.dataset.up && i > 0) { const a = get(content, b.dataset.up); [a[i - 1], a[i]] = [a[i], a[i - 1]]; }
         else if (b.dataset.down) { const a = get(content, b.dataset.down); if (i < a.length - 1) [a[i + 1], a[i]] = [a[i], a[i + 1]]; }
         else return;
@@ -394,6 +423,17 @@ export async function preview(app, id, kind) {
     app.innerHTML = `${bar}<div class="sheet portrait">${paperGrid(st, c)}</div>`;
     return;
   }
+  if (kind === 'documents') {
+    const docs = c.documents.filter((d) => d.nom || d.file_id);
+    app.innerHTML = `${bar}${docs.length ? docs.map((d) => `<div class="sheet portrait doc-sheet">
+      <div class="print-head"><span>Station ${esc(st.slot)}</span><span>${esc(d.remis_par || '')}</span></div>
+      <h2>${esc(d.nom || '')}</h2>${d.description ? `<p class="no-print small muted">${esc(d.description)}</p>` : ''}
+      ${d.file_id && /^image\//.test(d.file_mime || '') ? `<img src="/api/files/${d.file_id}" alt="${esc(d.nom || '')}">`
+        : d.file_id ? `<p class="no-print">${fileThumb(d)} <span class="small muted">Les PDF s'impriment depuis leur propre fenêtre.</span></p>`
+        : d.lien ? `<p class="no-print"><a href="${esc(d.lien)}" target="_blank" rel="noopener noreferrer">Ouvrir le lien</a></p>` : '<p class="muted">Pas de fichier joint.</p>'}
+    </div>`).join('') : '<p class="panel">Pas de document pour cette station.</p>'}`;
+    return;
+  }
   if (data.rights.isEval) { app.innerHTML = '<p class="alert error">Le dossier complet est réservé à l\'équipe de rédaction.</p>'; return; }
   const s = c.script;
   const li = (a) => a.filter((x) => x?.trim()).map((x) => `<li>${esc(x)}</li>`).join('');
@@ -414,7 +454,7 @@ export async function preview(app, id, kind) {
         ${s.reactions.filter((r) => r.q || r.r).map((r) => `<tr><td>${esc(r.q)}</td><td>${esc(r.r)}</td></tr>`).join('')}</tbody></table>` : ''}
       <p><strong>Attitude :</strong> ${nl(s.attitude)}</p>
       ${li(s.neutres) ? `<p><strong>Réponses neutres :</strong></p><ul>${li(s.neutres)}</ul>` : ''}` : ''}
-    ${c.documents.length ? `<h2>Documents</h2><ul>${c.documents.map((d) => `<li><strong>${esc(d.nom)}</strong>, ${esc(d.remis_par.toLowerCase())}${d.description ? ` : ${esc(d.description)}` : ''}${d.lien ? ` (<a href="${esc(d.lien)}">lien</a>)` : ''}</li>`).join('')}</ul>` : ''}
+    ${c.documents.length ? `<h2>Documents</h2><ul>${c.documents.map((d) => `<li><strong>${esc(d.nom)}</strong>, ${esc(d.remis_par.toLowerCase())}${d.description ? ` : ${esc(d.description)}` : ''}${d.lien ? ` (<a href="${esc(d.lien)}">lien</a>)` : ''}${d.file_id ? ` (<a href="#/apercu/${st.id}/documents">fichier joint, voir les documents à imprimer</a>)` : ''}</li>`).join('')}</ul>` : ''}
     ${c.materiel.liste.length ? `<h2>Matériel</h2><table class="paper-grid" style="width:100%"><thead><tr><th>Article</th><th>Installé</th><th>Par candidat</th></tr></thead><tbody>
       ${c.materiel.liste.map((m) => `<tr><td>${esc(m.article)}</td><td>${esc(m.installe)}</td><td>${esc(m.par_candidat)}</td></tr>`).join('')}</tbody></table>` : ''}
     ${c.materiel.disposition ? `<p><strong>Disposition :</strong> ${nl(c.materiel.disposition)}</p>` : ''}

@@ -183,3 +183,35 @@ export function daysPicker(el, initial = [], onChange = () => {}, opts = {}) {
   draw();
   return { get: () => days };
 }
+
+// Envoi d'un fichier joint à une station. Les photos sont réduites dans le navigateur (2000 px, JPEG) :
+// une radio prise au téléphone pèse alors quelques centaines de Ko au lieu de plusieurs Mo.
+export async function uploadStationFile(stationId, file) {
+  let blob = file;
+  let type = file.type;
+  if (/^image\/(jpeg|png|webp|heic|heif)$/.test(type) || (type.startsWith('image/') && type !== 'image/svg+xml')) {
+    const bmp = await createImageBitmap(file).catch(() => null);
+    if (bmp && (file.size > 900000 || Math.max(bmp.width, bmp.height) > 2000 || !/^image\/(jpeg|png|webp)$/.test(type))) {
+      const k = Math.min(1, 2000 / Math.max(bmp.width, bmp.height));
+      const cv = document.createElement('canvas');
+      cv.width = Math.round(bmp.width * k); cv.height = Math.round(bmp.height * k);
+      const g = cv.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, cv.width, cv.height); g.drawImage(bmp, 0, 0, cv.width, cv.height);
+      blob = await new Promise((ok) => cv.toBlob(ok, 'image/jpeg', 0.85));
+      type = 'image/jpeg';
+    }
+  }
+  const res = await fetch(`/api/stations/${stationId}/files`, {
+    method: 'POST', body: blob, credentials: 'same-origin',
+    headers: { 'Content-Type': type, 'X-Filename': encodeURIComponent(file.name.replace(/\.(heic|heif|png|webp)$/i, type === 'image/jpeg' ? '.jpg' : '.$1')) },
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `Erreur ${res.status}`);
+  return data;
+}
+
+// Aperçu d'un document joint : vignette pour une image, lien pour un PDF
+export function fileThumb(d, big = false) {
+  if (!d?.file_id) return '';
+  return /^image\//.test(d.file_mime || '') ? `<a href="/api/files/${d.file_id}" target="_blank" rel="noopener"><img src="/api/files/${d.file_id}" alt="${esc(d.nom || d.file_name || 'Document')}" loading="lazy" ${big ? 'class="big"' : ''}></a>`
+    : `<a class="btn small" href="/api/files/${d.file_id}" target="_blank" rel="noopener">Ouvrir le PDF</a>`;
+}

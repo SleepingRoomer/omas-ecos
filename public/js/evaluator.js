@@ -87,6 +87,8 @@ export async function roomView(app) {
         ${ctx.examinateur.scenario || ctx.examinateur.consignes ? `<h3>Pour toi</h3><p>${nl(ctx.examinateur.scenario)}</p><p>${nl(ctx.examinateur.consignes)}</p>` : ''}
         <h3>Repères de la performance globale</h3>
         <ul>${GLOBAL_LEVELS.map((l, i) => `<li><strong>${i}. ${l}</strong>${ctx.grille.global[i] ? ` : ${esc(ctx.grille.global[i])}` : ''}</li>`).join('')}</ul>
+        ${(ctx.documents || []).length ? `<h3>Documents de la station</h3><ul class="small">${ctx.documents.map((d) => `<li><strong>${esc(d.nom || 'Document')}</strong>, ${esc((d.remis_par || '').toLowerCase())}${d.description ? ` : ${esc(d.description)}` : ''}</li>`).join('')}</ul>
+          ${ctx.documents.some((d) => d.file_id) ? `<p class="small"><a href="#/apercu/${s.id}/documents" target="_blank">Voir les documents en grand</a> (pour les montrer sur une tablette si l'impression manque)</p>` : ''}` : ''}
         <p class="small"><a href="#/apercu/${s.id}/grille" target="_blank">Imprimer la grille papier de secours</a></p></div>
       </details>
       <details class="panel race-panel" style="padding:14px 18px" ${raceOpen ? 'open' : ''}><summary style="cursor:pointer"><strong>🏇 La course du jour</strong> <span class="small muted" id="race-sum"></span></summary>

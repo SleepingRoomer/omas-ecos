@@ -156,6 +156,7 @@ async function stationsTab(box, exam) {
     </div>
     ${active.length ? '' : '<p class="alert warn">Ajoute d\'abord des rédacteurs et des relecteurs dans <a href="#/admin/personnes">Rédacteurs et relecteurs</a> pour attribuer les stations.</p>'}
     <div class="row" style="margin:6px 0 12px"><span class="spacer"></span>
+      <a class="btn small" href="#/admin/banque">Banque de stations</a>
       <button id="codes" class="small">Codes des salles</button>
       <button id="add" class="small">Ajouter une station</button></div>
     <div class="table-wrap"><table>
@@ -171,7 +172,8 @@ async function stationsTab(box, exam) {
         <td style="min-width:150px"><select data-f="status" aria-label="Étape">${Object.entries(STATUSES).map(([k, l]) => `<option value="${k}" ${k === s.status ? 'selected' : ''}>${l}</option>`).join('')}</select>
           ${rail(s.status, true)}
           <div class="small faint">${s.n_evaluations ? `${s.n_evaluations} grille(s) saisie(s)` : s.n_comments ? `${s.n_comments} commentaire(s)` : ''}</div></td>
-        <td><a class="btn small" href="#/station/${s.id}">Ouvrir</a></td></tr>`).join('')}</tbody>
+        <td><div class="row" style="flex-wrap:nowrap;gap:4px"><a class="btn small" href="#/station/${s.id}">Ouvrir</a>
+          ${s.n_evaluations ? '' : `<a class="btn small quiet" href="#/admin/banque/${s.id}" title="Reprendre une station déjà écrite">Banque</a>`}</div></td></tr>`).join('')}</tbody>
     </table></div>
     <p class="small muted">Attribuer un rédacteur passe la station en rédaction. Ensuite, elle avance d'elle-même à chaque étape du circuit de relecture ; l'étape ne se change ici qu'en cas de besoin.</p>`;
 

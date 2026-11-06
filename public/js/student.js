@@ -66,6 +66,7 @@ function render(R, opts = {}) {
             ${(s.comments || (s.comment ? [s.comment] : [])).map((t) => `<div class="evcomment"><b>${s.comments?.length > 1 ? 'Le mot d\'un évaluateur' : 'Le mot de l\'évaluateur'}</b>${nl(t)}</div>`).join('')}
             ${s.by_rater?.length > 1 ? `<p class="small muted">Par évaluateur : ${s.by_rater.map((r) => `${esc(r.name)} ${fmt(r.score, 1)}`).join(', ')}.</p>` : ''}` : ''}
           ${s.correction ? `<h3>Correction</h3><div>${nl(s.correction.text) || '<span class="muted">Pas encore rédigée.</span>'}</div>
+            ${(s.correction.images || []).length ? `<div class="corr-imgs">${s.correction.images.map((im) => `<figure><a href="/api/files/${im.id}" target="_blank" rel="noopener"><img src="/api/files/${im.id}" alt="${esc(im.nom || '')}" loading="lazy"></a><figcaption class="small muted">${esc(im.nom || '')}</figcaption></figure>`).join('')}</div>` : ''}
             ${s.correction.references ? `<p class="small muted">Références : ${nl(s.correction.references)}</p>` : ''}`
             : (has ? '<p class="small faint" style="margin-top:14px">La correction arrive après la fin de la session.</p>' : '')}
         </div></details>`;
