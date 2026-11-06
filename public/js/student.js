@@ -83,7 +83,7 @@ export async function studentView(app) {
       <div class="muted" style="margin-top:4px">${c.number ? `Candidat <span class="cand-no">${esc(c.number)}</span>, ` : ''}${esc(R0.exam.name)}</div></div>
       <span class="live" id="upd"></span></div>
     <div id="announce"></div>
-    ${passed ? '<div id="fb"></div><div id="res"></div><div id="conv"></div>' : '<div id="conv"></div><div id="res"></div><div id="fb"></div>'}
+    ${passed ? '<div id="fb"></div><div id="res"></div><div id="plan"></div><div id="prog"></div><div id="conv"></div>' : '<div id="conv"></div><div id="res"></div><div id="fb"></div>'}
     <div id="about"></div></div>`;
   const resBox = app.querySelector('#res');
   const convBox = app.querySelector('#conv');
@@ -100,6 +100,11 @@ export async function studentView(app) {
   }).catch(() => { convBox.innerHTML = ''; });
   await loadConv();
   feedbackPanel(app.querySelector('#fb'));
+  if (passed) {
+    const rev = await import('./revision.js');
+    rev.revisionPlan(app.querySelector('#plan'), R0);
+    rev.progression(app.querySelector('#prog'));
+  }
   aboutSection(app.querySelector('#about'));
   clearInterval(timer);
   timer = setInterval(() => {

@@ -16,8 +16,8 @@ function renderNav() {
     admin: [['#/admin', 'Sessions'], ['#/admin/personnes', 'Rédacteurs et relecteurs'], ['#/admin/communication', 'Communication'], ['#/admin/benevoles', 'Bénévoles']],
     auteur: [['#/redaction', 'Mes stations et ateliers']],
     evaluateur: [['#/eval', 'Ma salle']],
-    etudiant: [['#/resultats', 'Mon espace']],
-    participant: [['#/journee', 'Ma journée']],
+    etudiant: [['#/resultats', 'Mon espace'], ['#/fiches', 'Fiches procédures']],
+    participant: [['#/journee', 'Ma journée'], ['#/fiches', 'Fiches procédures']],
     benevole: [['#/benevole', 'Mon espace bénévole']],
   }[k] || [];
   const here = location.hash || '#/';
@@ -87,6 +87,8 @@ const routes = [
   [/^#\/benevole\/(\d+)$/, [null, 'admin', 'etudiant', 'evaluateur', 'auteur', 'participant', 'benevole'], async (m) => (await import('./benevoles.js')).publicSignup(app, m[1])],
   [/^#\/benevole$/, 'benevole', async () => (await import('./benevoles.js')).volunteerSpace(app)],
   [/^#\/calibration\/(\d+)$/, ['admin', 'benevole'], async (m) => (await import('./benevoles.js')).calibrationView(app, m[1], state.me.kind)],
+  [/^#\/fiches$/, ['etudiant', 'participant', 'admin', 'benevole', 'auteur'], async () => (await import('./fiches.js')).fichesView(app)],
+  [/^#\/fiches\/([\w-]+)$/, ['etudiant', 'participant', 'admin', 'benevole', 'auteur'], async (m) => (await import('./fiches.js')).ficheView(app, m[1])],
   [/^#\/admin\/banque(?:\/(\d+))?$/, 'admin', async (m) => (await import('./bank.js')).bankView(app, m[1])],
   [/^#\/admin\/benevoles$/, 'admin', async () => (await import('./benevoles.js')).engagementView(app)],
   [/^#\/admin\/communication$/, 'admin', async () => (await import('./comms.js')).commsView(app)],

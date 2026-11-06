@@ -10,6 +10,7 @@ import { registerExtras } from './extras.js';
 import { registerAccueil } from './accueil.js';
 import { registerBenevoles } from './benevoles.js';
 import { registerBanque } from './banque.js';
+import { registerProgression } from './progression.js';
 
 const app = new Hono().basePath('/api');
 const COOKIE = 'omas_s';
@@ -637,7 +638,8 @@ async function candidateReport(db, candidateId, asAdmin) {
   const showDetails = asAdmin || ex.show_details;
   const showCorr = asAdmin || ex.corrections_published;
   // le détail des grilles n'est lu que pour ce candidat
-  const needContent = showDetails || showCorr;
+  // le contenu sert aussi au plan de révision (item et situation de départ de chaque station)
+  const needContent = showResults || showCorr;
   const [contents, mine] = needContent ? await Promise.all([
     all(db, 'SELECT id, content FROM stations WHERE exam_id = ? AND played = 1', cand.exam_id),
     showDetails ? all(db, 'SELECT station_id, evaluator_name, absent, answers, comment, score FROM evaluations WHERE candidate_id = ?', cand.id) : [],
@@ -648,6 +650,7 @@ async function candidateReport(db, candidateId, asAdmin) {
     const st = R.stationStats[s.id];
     const out = { slot: s.slot, title: s.title, domain: s.domain, discipline: s.discipline, evaluated: !!e, absent: !!e?.absent };
     const content = contentOf.get(s.id);
+    if (content && showResults) { out.item = content.identite.item || ''; out.sdd = content.identite.sdd || ''; }
     if (e && !e.absent && showResults) {
       out.score = e.score; out.points = e.points; out.max_points = e.max_points;
       out.rank = st.ranks.get(cand.id) ?? null; out.n = st.n; out.mean = st.mean;
@@ -923,6 +926,7 @@ registerExtras(app, { need, httpError, all, one, run, parse });
 registerAccueil(app, { need, httpError, all, one, run, parse, genCode, freshCodes });
 registerBenevoles(app, { need, httpError, all, one, run, parse, freshCodes, batch, createSession });
 registerBanque(app, { need, httpError, all, one, run, parse, stationRights, STATION_LIST_SQL });
+registerProgression(app, { need, httpError, all, one });
 
 app.all('*', () => { throw httpError(404, 'Route inconnue'); });
 

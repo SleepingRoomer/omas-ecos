@@ -712,3 +712,74 @@ fieldset legend { font-weight: 700; padding: 0 6px; }
 .corr-imgs { display: flex; flex-wrap: wrap; gap: 10px; margin: 10px 0; }
 .corr-imgs figure { margin: 0; }
 .corr-imgs img { max-height: 160px; max-width: 260px; border-radius: 8px; border: 1px solid var(--line); }
+
+/* fiches procédures */
+.fiche-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 10px; margin-top: 14px; }
+.fiche-card { display: flex; gap: 12px; align-items: center; padding: 14px 16px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); color: inherit; text-decoration: none; }
+.fiche-card:hover { border-color: var(--ink); }
+.fiche-card .n, .fiche-head .n { font-weight: 800; font-size: 1.4em; color: var(--a); min-width: 2ch; font-variant-numeric: tabular-nums; }
+.fiche-card > span:last-child { display: flex; flex-direction: column; gap: 2px; }
+.fiche-head { display: flex; gap: 14px; align-items: center; margin: 10px 0 6px; border-bottom: 3px solid var(--a); padding-bottom: 10px; }
+.fiche-head h1 { margin: 0; } .fiche-head .kick { text-transform: uppercase; letter-spacing: .08em; font-size: .75em; color: var(--ink-2); font-weight: 700; }
+.fiche-head .n { font-size: 2.2em; }
+.fiche-nav { margin: 24px 0 8px; }
+.fiche-body { line-height: 1.55; }
+.fiche-body h2 { margin-top: 26px; padding-bottom: 4px; border-bottom: 1px solid var(--line); }
+.fiche-body h3 { margin: 6px 0; }
+.fiche-body .k { background: var(--ok-soft); color: var(--ink); padding: 0 3px; border-radius: 3px; font-weight: 600; }
+.fiche-body .r { color: var(--ko); font-weight: 700; }
+.fiche-body .pre, .fiche-body .mn, .fiche-body .lufi { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin: 10px 0; }
+.fiche-body .pre > div, .fiche-body .mn > div, .fiche-body .lufi > div { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; font-size: .92em; }
+.fiche-body .pre b { display: block; color: var(--a); }
+.fiche-body .mn .L { font-size: 1.6em; font-weight: 800; color: var(--a); line-height: 1; }
+.fiche-body .mn .W { font-weight: 700; margin: 4px 0 2px; }
+.fiche-body .lufi i { color: var(--a); font-style: normal; font-size: 1.2em; }
+.fiche-body ol.steps { counter-reset: st; list-style: none; padding: 0; }
+.fiche-body ol.steps > li { counter-increment: st; position: relative; padding: 0 0 10px 38px; }
+.fiche-body ol.steps > li::before { content: counter(st); position: absolute; left: 0; top: 0; width: 26px; height: 26px; border-radius: 50%; background: var(--a); color: #fff; font-weight: 700; display: grid; place-items: center; font-size: .85em; }
+.fiche-body .st { font-weight: 700; }
+.fiche-body .box { border-radius: 12px; padding: 12px 14px; margin: 14px 0; border: 1px solid var(--line); background: var(--surface); }
+.fiche-body .box.tip { background: var(--paper); }
+.fiche-body .box.say { background: var(--ok-soft); border-color: transparent; }
+.fiche-body .box.warn { background: #fdf3e1; border-color: transparent; }
+.fiche-body .box p { margin: 4px 0; }
+.fiche-body .lab { font-weight: 800; text-transform: uppercase; letter-spacing: .06em; font-size: .75em; margin-bottom: 4px; }
+.fiche-body table.grid { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: .92em; }
+.fiche-body table.grid th, .fiche-body table.grid td { border: 1px solid var(--line); padding: 8px; vertical-align: top; text-align: left; }
+.fiche-body table.grid th { background: var(--paper); }
+.fiche-body td.lbl { font-weight: 700; white-space: nowrap; }
+.fiche-body .two, .fiche-body .two-6040 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
+.fiche-body .two-6040 { grid-template-columns: 3fr 2fr; }
+@media (max-width: 720px) { .fiche-body .two, .fiche-body .two-6040 { grid-template-columns: 1fr; } }
+.fiche-body figure { margin: 10px 0; } .fiche-body figure img { max-width: 100%; border-radius: 8px; }
+.fiche-body figcaption { font-size: .85em; color: var(--ink-2); }
+.fiche-body .sub { display: flex; gap: 10px; align-items: baseline; margin: 22px 0 8px; }
+.fiche-body .sub .l { background: var(--a); color: #fff; font-weight: 800; border-radius: 8px; padding: 2px 10px; }
+.fiche-body .sub .t { font-weight: 800; font-size: 1.2em; } .fiche-body .sub .s { color: var(--ink-2); }
+.fiche-body .chain { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 8px 0; }
+.fiche-body .chain > div { background: var(--a); color: #fff; border-radius: 8px; padding: 6px; text-align: center; font-weight: 700; font-size: .85em; }
+.fiche-body .chain span { display: block; font-weight: 400; opacity: .85; }
+.fiche-body .flow { display: flex; flex-direction: column; align-items: center; gap: 2px; margin: 10px 0; }
+.fiche-body .flow .n { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 6px 12px; text-align: center; font-size: .9em; width: 100%; }
+.fiche-body .flow .n.hl { background: var(--a); color: #fff; border-color: var(--a); font-weight: 700; }
+.fiche-body .flow .n.tl { background: var(--ok-soft); font-weight: 700; }
+.fiche-body .flow .a::before { content: '↓'; color: var(--ink-2); }
+.fiche-body .flow .side { font-size: .82em; color: var(--ink-2); text-align: center; }
+.fiche-body .avoid { border-left: 4px solid var(--a); padding: 4px 0 4px 12px; margin: 12px 0; }
+.fiche-body .grid8 { display: none; }
+@media print { .fiche-page { max-width: none; } .fiche-body .box, .fiche-body .avoid, .fiche-body table, .fiche-body figure { break-inside: avoid; } }
+
+/* plan de révision et progression */
+.plan { display: grid; gap: 10px; }
+.plan-item { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; box-shadow: var(--shadow); }
+.plan-item.done { opacity: .6; }
+.plan-item h3 { margin: 0; font-size: 1.05em; }
+.plan-item ul { margin: 8px 0 0; padding-left: 20px; }
+.plan-item .fiche-links a { margin-right: 8px; }
+.prog-chart { width: 100%; max-width: 620px; height: auto; }
+.prog-chart text { font: 12px var(--font, inherit); fill: var(--ink-2); }
+/* les fiches reprennent des noms de classes déjà pris ailleurs : on remet à plat */
+.fiche-body ol.steps { display: block; margin: 10px 0; }
+.fiche-body .steps .st { font-size: inherit; color: var(--ink); padding: 0; border: 0; font-weight: 700; }
+.fiche-body .box { display: block; width: auto; height: auto; vertical-align: baseline; }
+.fiche-body .two > *, .fiche-body .two-6040 > * { min-width: 0; }
