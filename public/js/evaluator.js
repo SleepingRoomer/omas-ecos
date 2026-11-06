@@ -1,9 +1,11 @@
 import { api, esc, nl, toast, fmt, frDate, setTitle, plate, dom, disc } from './ui.js';
 import { COM_LEVELS, GLOBAL_LEVELS, TYPE_LINE, missingAnswers, computeScore } from './shared.js';
 import { seriesTimes, frTime } from './planning-shared.js';
+import { raceHtml } from './race.js';
 
 let ctx = null;
 const filters = { day: null, series: '', q: '' };
+let raceOpen = false;
 
 async function loadCtx() {
   const [c, sch] = await Promise.all([api('/eval/context'), api('/eval/schedule').catch(() => null)]);
@@ -36,6 +38,7 @@ export async function roomView(app) {
       && (!filters.series || String(c.series) === filters.series)
       && (!filters.q || `${c.number} ${c.first_name} ${c.last_name}`.toLowerCase().includes(filters.q.toLowerCase())));
     const done = shown.filter((c) => c.eval_id).length;
+    const next = shown.find((c) => !c.eval_id && c.time);
     app.innerHTML = `
       <div class="room-head">${plate(s.slot, 'xl')}
         <div style="flex:1"><h1>${esc(s.title || s.domain || `Salle ${s.slot}`)}</h1>
@@ -52,6 +55,8 @@ export async function roomView(app) {
         <ul>${GLOBAL_LEVELS.map((l, i) => `<li><strong>${i}. ${l}</strong>${ctx.grille.global[i] ? ` : ${esc(ctx.grille.global[i])}` : ''}</li>`).join('')}</ul>
         <p class="small"><a href="#/apercu/${s.id}/grille" target="_blank">Imprimer la grille papier de secours</a></p></div>
       </details>
+      <details class="panel race-panel" style="padding:14px 18px" ${raceOpen ? 'open' : ''}><summary style="cursor:pointer"><strong>🏇 La course du jour</strong> <span class="small muted" id="race-sum"></span></summary>
+        <div id="race" style="margin-top:10px"><p class="muted small">Chargement…</p></div></details>
       <div class="row" style="margin-top:18px">
         ${days.length > 1 ? `<select id="day" style="max-width:190px" aria-label="Jour">${days.map((d) => `<option value="${d}" ${d === filters.day ? 'selected' : ''}>${frDate(d)}</option>`).join('')}<option value="" ${!filters.day ? 'selected' : ''}>Tous les jours</option></select>` : ''}
         <div class="chips" role="group" aria-label="Série"><button data-s="" class="${!filters.series ? 'on' : ''}">Toutes</button>
@@ -60,7 +65,7 @@ export async function roomView(app) {
         <input id="q" type="text" placeholder="Numéro ou nom" value="${esc(filters.q)}" style="max-width:180px" aria-label="Chercher un candidat">
       </div>
       <p class="muted small" style="margin:12px 0 0">${done} grille${done > 1 ? 's' : ''} saisie${done > 1 ? 's' : ''} sur ${shown.length}. <button class="small quiet" id="reload">Actualiser</button></p>
-      <div class="cand-list">${shown.map((c) => `<button class="cand ${c.eval_id ? 'done' : ''}" data-id="${c.id}">
+      <div class="cand-list">${shown.map((c) => `<button class="cand ${c.eval_id ? 'done' : ''} ${c === next ? 'next' : ''}" data-id="${c.id}">${c === next ? '<span class="next-tag">À suivre</span>' : ''}
           <span class="cand-no">${esc(c.number || 'Sans numéro')}</span>${c.time ? `<span class="small muted">${frTime(c.time)}</span>` : ''}<span class="who">${esc(c.first_name)} ${esc((c.last_name || '').slice(0, 1))}.</span>
           <span class="st">${c.eval_id ? (c.absent ? 'Absent' : `${fmt(c.score, 1)} sur 20`) : 'À évaluer'}${c.n_others ? `<small class="faint" style="display:block">${c.eval_id ? 'ton binôme aussi' : 'déjà notée par ton binôme'}</small>` : ''}</span></button>`).join('') || '<p class="muted">Aucun candidat avec ces filtres.</p>'}</div>`;
     app.querySelector('#day')?.addEventListener('change', (e) => { filters.day = e.target.value; filters.series = ''; roomView(app); });
@@ -68,6 +73,14 @@ export async function roomView(app) {
     app.querySelector('#q').addEventListener('input', (e) => { filters.q = e.target.value; const pos = e.target.selectionStart; draw(); const q = app.querySelector('#q'); q.focus(); q.setSelectionRange(pos, pos); });
     app.querySelector('#reload').addEventListener('click', () => roomView(app));
     app.querySelectorAll('.cand').forEach((b) => b.addEventListener('click', () => { location.hash = `#/eval/candidat/${b.dataset.id}`; }));
+    const rp = app.querySelector('.race-panel');
+    rp.addEventListener('toggle', () => { raceOpen = rp.open; });
+    api('/eval/race').then((R) => {
+      const box = app.querySelector('#race'); if (!box) return;
+      box.innerHTML = raceHtml(R, { me: ctx.evaluator });
+      const i = R.horses.findIndex((h) => h.name.toLowerCase() === ctx.evaluator.toLowerCase());
+      app.querySelector('#race-sum').textContent = i < 0 ? 'ton cheval attend ta première grille' : `tu es ${i + 1}${i ? 'e' : 'er'} sur ${R.horses.length}`;
+    }).catch(() => { const box = app.querySelector('#race'); if (box) box.innerHTML = ''; });
   };
   draw();
 }

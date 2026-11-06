@@ -688,7 +688,7 @@ async function examDataset(db, examId, full) {
   if (!exam) throw httpError(404, 'Session introuvable');
   const candCols = full
     ? "'key', id, 'number', number, 'last_name', last_name, 'first_name', first_name, 'email', email, 'phone', phone, 'faculty', faculty, 'year', year, 'slot_label', slot_label, 'day', day, 'series', series, 'seat', seat, 'status', status, 'code', code, 'confirmed_at', confirmed_at, 'extra', json(COALESCE(extra, 'null'))"
-    : "'id', id, 'number', number, 'faculty', faculty, 'year', year, 'day', day, 'series', series, 'status', status, 'extra', json(COALESCE(extra, 'null'))";
+    : "'id', id, 'number', number, 'faculty', faculty, 'year', year, 'day', day, 'series', series, 'seat', seat, 'status', status, 'extra', json(COALESCE(extra, 'null'))";
   const [stations, candidates, evaluations] = await Promise.all([
     jsonRows(db, `SELECT json_object('${full ? 'key' : 'id'}', id, 'slot', slot, 'played', played, 'domain', domain, 'type', type, 'discipline', discipline,
       'title', title, 'status', status, 'content', json(content)) AS j FROM stations WHERE exam_id = ? ORDER BY slot`, examId),
@@ -787,6 +787,43 @@ app.post('/import/:examId/evaluations', need('admin'), async (c) => {
   await batch(db, multiInsert(db, 'evaluations', ['exam_id', 'station_id', 'candidate_id', 'evaluator_name', 'absent', 'answers', 'global', 'comment', 'points', 'max_points', 'score', 'created_at'],
     clean, 'ON CONFLICT(station_id, candidate_id, evaluator_name) DO NOTHING'));
   return c.json({ imported: clean.length, skipped: rows.length - clean.length });
+});
+
+// ---------- course des évaluateurs ----------
+// Un cheval par évaluateur : il avance à chaque grille saisie pour les candidats du jour.
+const parisToday = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Paris' });
+
+async function race(db, examId, wanted) {
+  const days = (await all(db, "SELECT DISTINCT day FROM candidates WHERE exam_id = ? AND day IS NOT NULL AND status != 'annule' ORDER BY day", examId)).map((d) => d.day);
+  const today = parisToday();
+  let day = wanted && days.includes(wanted) ? wanted : days.includes(today) ? today : null;
+  if (!day) {
+    const last = await one(db, `SELECT c.day FROM evaluations v JOIN candidates c ON c.id = v.candidate_id WHERE v.exam_id = ? AND c.day IS NOT NULL
+      ORDER BY v.updated_at DESC LIMIT 1`, examId);
+    day = last?.day || days[0] || null;
+  }
+  if (!day) return { day: null, days, target: 0, horses: [] };
+  const [rows, target] = await Promise.all([
+    all(db, `SELECT v.evaluator_name AS name, s.slot, COUNT(*) AS n, MAX(v.updated_at) AS last FROM evaluations v
+      JOIN candidates c ON c.id = v.candidate_id JOIN stations s ON s.id = v.station_id
+      WHERE v.exam_id = ? AND c.day = ? GROUP BY v.evaluator_name, s.slot`, examId, day),
+    one(db, "SELECT COUNT(*) AS n FROM candidates WHERE exam_id = ? AND day = ? AND status != 'annule'", examId, day),
+  ]);
+  const by = new Map();
+  for (const r of rows) {
+    const k = r.name.toLowerCase();
+    const h = by.get(k) || { name: r.name, slots: [], n: 0, last: null };
+    h.slots.push(r.slot); h.n += r.n; h.last = !h.last || r.last > h.last ? r.last : h.last;
+    by.set(k, h);
+  }
+  return { day, days, today, target: target.n, horses: [...by.values()].sort((a, b) => b.n - a.n || a.name.localeCompare(b.name)) };
+}
+
+app.get('/exams/:id/race', need('admin'), async (c) => c.json(await race(c.env.DB, c.req.param('id'), c.req.query('day'))));
+app.get('/eval/race', need('evaluateur'), async (c) => {
+  const st = await openRoom(c);
+  const r = await race(c.env.DB, st.exam_id, c.req.query('day'));
+  return c.json({ ...r, me: evalName(c.get('session')) });
 });
 
 // ---------- évaluateurs ----------

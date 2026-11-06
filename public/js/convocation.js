@@ -62,7 +62,10 @@ export async function convocationPanel(box, reload) {
     box.innerHTML = !C.placed ? `<div class="panel"><h2>Ta convocation</h2><p>Ton créneau de passage n'est pas encore fixé. Il apparaîtra ici dès que l'équipe aura établi le planning.</p></div>` : `
       <section class="convoc">
         <div class="convoc-main">
-          <div class="kicker">Ta convocation</div>
+          <div class="kicker">Ta convocation${(() => {
+            const d = Math.round((new Date(`${C.day}T12:00:00`) - new Date(`${new Date().toLocaleDateString('en-CA')}T12:00:00`)) / 864e5);
+            return d > 1 ? ` <span class="countdown">J-${d}</span>` : d === 1 ? ' <span class="countdown">demain</span>' : d === 0 ? ' <span class="countdown">aujourd\'hui</span>' : '';
+          })()}</div>
           <div class="date">${esc(longDate(C.day))}</div>
           <div class="hour">${frTime(s.convocation || s.start)}</div>
           <div class="muted">Passage de ${frTime(s.start)} à ${frTime(s.end)}${s.debrief ? `, puis débrief et correction jusqu'à ${frTime(s.debrief.end)}` : ''}. Tu commences par le circuit ${esc(first || '')}.</div>

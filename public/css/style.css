@@ -562,3 +562,28 @@ button.link { background: none; border: none; padding: 0 0 0 6px; min-height: 0;
 .frise-hint { display: none; }
 @media (max-width: 720px) { .frise-hint { display: block; } }
 @media print { .frise { min-width: 0; } .frise-wrap { overflow: visible; } }
+
+/* ---------- course des évaluateurs ---------- */
+.race-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.race-lanes { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 6px; }
+.lane { display: grid; grid-template-columns: minmax(150px, 30%) 1fr 58px; gap: 12px; align-items: center; padding: 4px 6px; border-radius: 10px; }
+.lane.me { background: var(--r-soft); }
+.lane-who { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.lane-rank { width: 1.6em; text-align: center; font-weight: 800; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.lane-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lane-slots { display: inline-flex; gap: 3px; flex: none; }
+.lane-slots .plate.sm { width: 24px; height: 24px; font-size: .68rem; }
+.lane-track { position: relative; height: 34px; border-radius: 17px; background: repeating-linear-gradient(90deg, #eef5ec 0 28px, #e6f0e3 28px 56px);
+  box-shadow: inset 0 0 0 1px #dbe8d6; }
+.lane-horse { position: absolute; top: 2px; font-size: 1.55rem; line-height: 30px; transform: scaleX(-1); transition: left .8s cubic-bezier(.3, 1.4, .5, 1); }
+.lane-flag { position: absolute; right: 6px; top: 6px; font-size: 1rem; opacity: .7; }
+.lane-n { text-align: right; font-weight: 800; font-variant-numeric: tabular-nums; }
+@media (max-width: 560px) { .lane { grid-template-columns: 1fr 52px; } .lane-who { grid-column: 1 / -1; } }
+.cand { position: relative; }
+.cand.next { border-color: var(--r); box-shadow: 0 0 0 3px var(--r-soft); }
+.next-tag { position: absolute; top: -9px; right: 8px; background: var(--r); color: #fff; font-size: .68rem; font-weight: 800; padding: 1px 7px; border-radius: 999px; letter-spacing: .02em; }
+.late-row { display: grid; grid-template-columns: auto auto 1fr; gap: 12px; align-items: center; padding: 6px 0; border-top: 1px solid rgba(0,0,0,.06); }
+.countdown { display: inline-block; margin-left: 8px; padding: 1px 9px; border-radius: 999px; background: var(--r); color: #fff; letter-spacing: .02em; }
+.cmp-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); gap: 0 16px; }
+.cmp .viz-row { grid-template-columns: minmax(120px, 36%) 1fr 48px; }
+.cmp-verdict { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline; }

@@ -109,7 +109,7 @@ export function rowActions(root, items, { save, remove, reload, days, weekend = 
 
 // ---------- une session ----------
 
-const TABS = [['stations', 'Stations'], ['candidats', 'Candidats'], ['planning', 'Planning'], ['resultats', 'Résultats'], ['analyse', 'Analyse'], ['reglages', 'Réglages']];
+const TABS = [['stations', 'Stations'], ['candidats', 'Candidats'], ['planning', 'Planning'], ['direct', 'En direct'], ['resultats', 'Résultats'], ['analyse', 'Analyse'], ['reglages', 'Réglages']];
 
 export async function examView(app, id, tab) {
   const exam = await api(`/exams/${id}`);
@@ -129,6 +129,7 @@ export async function examView(app, id, tab) {
   if (tab === 'candidats') return candidatesTab(box, exam);
   if (tab === 'resultats') return resultsTab(box, exam);
   if (tab === 'planning') return (await import('./planning.js')).planningTab(box, exam);
+  if (tab === 'direct') return (await import('./live.js')).liveTab(box, exam);
   if (tab === 'analyse') return (await import('./analytics.js')).analyticsTab(box, exam);
   if (tab === 'reglages') return settingsTab(box, exam);
   box.innerHTML = '<p>Onglet inconnu.</p>';

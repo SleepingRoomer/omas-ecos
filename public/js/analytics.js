@@ -3,6 +3,29 @@
 // pour ne pas charger le serveur.
 import { api, esc, fmt, pct, plate, downloadCsv, dom, longDate, frDate } from './ui.js';
 import { normalizeContent, GLOBAL_LEVELS } from './shared.js';
+import { normalizePlanning, rotationFor, toMin } from './planning-shared.js';
+
+// ---------- tests statistiques simples ----------
+// Loi normale : approximation d'Abramowitz et Stegun, largement suffisante pour des p-valeurs indicatives
+const phi = (z) => { const t = 1 / (1 + 0.2316419 * Math.abs(z)); const d = 0.3989423 * Math.exp(-z * z / 2);
+  const p = d * t * (0.3193815 + t * (-0.3565638 + t * (1.781478 + t * (-1.821256 + t * 1.330274)))); return z > 0 ? 1 - p : p; };
+function welch(a, b) {
+  if (a.length < 5 || b.length < 5) return null;
+  const ma = a.reduce((x, y) => x + y, 0) / a.length; const mb = b.reduce((x, y) => x + y, 0) / b.length;
+  const va = a.reduce((x, y) => x + (y - ma) ** 2, 0) / (a.length - 1); const vb = b.reduce((x, y) => x + (y - mb) ** 2, 0) / (b.length - 1);
+  const se = Math.sqrt(va / a.length + vb / b.length);
+  const z = se ? (ma - mb) / se : 0;
+  return { ma, mb, na: a.length, nb: b.length, diff: ma - mb, p: 2 * (1 - phi(Math.abs(z))) };
+}
+function trend(xs, ys) {
+  const n = xs.length; if (n < 10) return null;
+  const mx = xs.reduce((a, b) => a + b, 0) / n; const my = ys.reduce((a, b) => a + b, 0) / n;
+  let sxy = 0; let sxx = 0; for (let i = 0; i < n; i++) { sxy += (xs[i] - mx) * (ys[i] - my); sxx += (xs[i] - mx) ** 2; }
+  if (!sxx) return null;
+  const slope = sxy / sxx; const res = ys.reduce((a, y, i) => a + (y - my - slope * (xs[i] - mx)) ** 2, 0);
+  const se = Math.sqrt(res / (n - 2) / sxx);
+  return { slope, p: 2 * (1 - phi(Math.abs(slope / se))) };
+}
 
 // ---------- statistiques ----------
 const mean = (xs) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
@@ -159,7 +182,47 @@ function compute(D, filter) {
     }) };
   };
 
+  // ---------- moment du passage ----------
+  // Le rang de passage (1er à 10e tour) se déduit de la place du candidat dans sa série
+  let timing = null;
+  try {
+    const P = normalizePlanning(JSON.parse(D.exam.planning || 'null'), D.exam);
+    const slotOf = new Map(stations.map((s) => [s.id, s.slot]));
+    const slots = [...slotOf.values()].sort();
+    const rot = rotationFor(slots);
+    const roundOf = (seat, slot) => { for (let r = 1; r <= rot.seats; r++) if (rot.at(seat, r) === slot) return r; return null; };
+    const candById = new Map(cands.map((c) => [c.id, c]));
+    const serOf = (c) => P.days.find((d) => d.date === c.day)?.series[c.series - 1];
+    const byRound = Array.from({ length: slots.length }, () => []);
+    const xs = []; const ys = [];
+    for (const p of passages) {
+      if (p.score === null) continue;
+      const c = candById.get(p.candidate);
+      if (!c?.seat) continue;
+      const r = roundOf(c.seat, slotOf.get(p.station));
+      if (!r) continue;
+      const dev = p.score - stMean.get(p.station);
+      byRound[r - 1].push(dev); xs.push(r); ys.push(dev);
+    }
+    const avgOf = (c) => mean(Object.values(byCand.get(c.id) || {}));
+    const pick = (f) => cands.filter((c) => c.day && c.series && f(c)).map(avgOf).filter((x) => x !== null);
+    const half = Math.floor(slots.length / 2);
+    const nSer = (c) => P.days.find((d) => d.date === c.day)?.series.length || 0;
+    const pause = P.pause_after || half;
+    if (xs.length) {
+      timing = {
+        rounds: byRound.map((l, i) => ({ r: i + 1, n: l.length, mean: mean(l) })), pauseAfter: pause, trend: trend(xs, ys),
+        pause: welch(ys.filter((_, i) => xs[i] <= pause), ys.filter((_, i) => xs[i] > pause)),
+        ampm: welch(pick((c) => toMin(serOf(c)?.start) < 12 * 60), pick((c) => toMin(serOf(c)?.start) >= 12 * 60)),
+        firstLast: welch(pick((c) => c.series === 1), pick((c) => nSer(c) > 1 && c.series === nSer(c))),
+        circuit: welch(pick((c) => c.seat && c.seat <= half), pick((c) => c.seat && c.seat > half)),
+        firstCircuit: slots[0]?.[0] || 'A', secondCircuit: slots[slots.length - 1]?.[0] || 'B',
+      };
+    }
+  } catch { timing = null; }
+
   return {
+    timing,
     stations: stStats, cands, grids, passages, complete, avgs, alpha, pairs, evaluators,
     groups: [groupBy('weekend', 'Week-end'), groupBy('day', 'Jour'), groupBy('series', 'Série'), groupBy('faculty', 'Faculté'), groupBy('year', 'Année'), groupBy('prepa', 'Préparation'), groupBy('adherent', 'Adhésion')].filter(Boolean),
     hasGlobal: grids.some((g) => g.global !== null && g.global !== undefined),
@@ -249,6 +312,64 @@ function setupTooltips(root) {
     el.addEventListener('focus', () => { const r = el.getBoundingClientRect(); show(el, r.left + r.width / 2, r.top); });
     el.addEventListener('blur', () => { t.style.display = 'none'; });
   });
+}
+
+// ---------- moment du passage ----------
+const pFmt = (p) => (p < 0.001 ? '< 0,001' : fmt(p, p < 0.01 ? 3 : 2));
+function verdict(t, better) {
+  if (!t) return '<span class="small muted">Pas assez de données.</span>';
+  const d = Math.abs(t.diff);
+  return t.p < 0.05
+    ? `<span class="pill warn">Écart net</span> <span class="small">${fmt(d, 2)} point en faveur ${better(t.diff > 0)} (p = ${pFmt(t.p)})</span>`
+    : `<span class="pill">Pas d'écart notable</span> <span class="small muted">${fmt(d, 2)} point, sans doute le hasard (p = ${pFmt(t.p)})</span>`;
+}
+function cmpCard(title, t, la, lb, better, note = '') {
+  const max = 20;
+  const row = (l, m, n) => `<div class="viz-row" ${tip([`${fmt(m, 2)} sur 20`, l, `${n} candidats`])}><span class="viz-name">${esc(l)}</span>
+    <div class="viz-track"><i class="viz-bar" style="width:${(m / max) * 100}%;background:var(--viz-a)"></i></div><span class="viz-val">${fmt(m, 1)}</span></div>`;
+  return `<div class="panel cmp"><h3 style="margin-top:0">${title}</h3>
+    ${t ? `<div class="viz-rows">${row(la, t.ma, t.na)}${row(lb, t.mb, t.nb)}</div>` : ''}
+    <div class="cmp-verdict">${verdict(t, better)}</div>${note ? `<p class="small muted" style="margin:6px 0 0">${note}</p>` : ''}</div>`;
+}
+function roundsChart(T) {
+  const W = 1000; const H = 170; const L = 40; const mid = 80; const sc = 26;
+  const ms = T.rounds.map((r) => r.mean ?? 0);
+  const lim = Math.max(1, ...ms.map(Math.abs));
+  const bw = (W - L) / T.rounds.length;
+  const k = Math.min(sc, 70 / lim);
+  return `<svg viewBox="0 0 ${W} ${H}" class="viz-svg" role="img" aria-label="Écart à la moyenne de la station selon le rang de passage">
+    <line x1="${L}" x2="${W}" y1="${mid}" y2="${mid}" class="viz-ref" style="stroke-dasharray:none;stroke-width:1.5"/>
+    <text x="${L - 6}" y="${mid - k + 4}" class="viz-tick" text-anchor="end">+1</text><text x="${L - 6}" y="${mid + k + 4}" class="viz-tick" text-anchor="end">-1</text>
+    <line x1="${L}" x2="${W}" y1="${mid - k}" y2="${mid - k}" class="viz-grid"/><line x1="${L}" x2="${W}" y1="${mid + k}" y2="${mid + k}" class="viz-grid"/>
+    ${T.rounds.map((r, i) => {
+      const v = r.mean ?? 0; const h = Math.abs(v) * k; const x = L + i * bw + 6; const w = bw - 12;
+      return `<g class="viz-hit" ${tip([`${v >= 0 ? '+' : ''}${fmt(v, 2)} point`, `${r.r}${r.r === 1 ? 're' : 'e'} station de la série`, `${r.n} passages`])}>
+        <rect x="${x - 4}" y="10" width="${w + 8}" height="${H - 30}" fill="transparent"/>
+        <rect x="${x}" y="${v >= 0 ? mid - h : mid}" width="${w}" height="${Math.max(1, h)}" rx="3" fill="${v >= 0 ? 'var(--viz-a)' : 'var(--viz-warn)'}" class="viz-mark"/>
+        <text x="${x + w / 2}" y="${H - 6}" class="viz-tick" text-anchor="middle">${r.r}</text></g>`;
+    }).join('')}
+    ${T.pauseAfter && T.pauseAfter < T.rounds.length ? `<line x1="${L + T.pauseAfter * bw}" x2="${L + T.pauseAfter * bw}" y1="12" y2="${H - 22}" class="viz-ref"/><text x="${L + T.pauseAfter * bw + 4}" y="20" class="viz-label">pause</text>` : ''}
+  </svg>`;
+}
+function timingHtml(T) {
+  const tr = T.trend;
+  return `<h2>Le moment du passage</h2>
+    <p class="muted small">Pour repérer des biais : fatigue, échauffement, évaluateurs plus ou moins sévères selon l'heure. « p » est la probabilité d'observer un tel écart par pur hasard : en dessous de 0,05, l'écart mérite qu'on s'y arrête.</p>
+    <div class="panel"><h3 style="margin-top:0">Selon le rang dans la série, du 1er au ${T.rounds.length}e passage</h3>
+      ${roundsChart(T)}
+      <div class="cmp-verdict">${tr ? (tr.p < 0.05
+        ? `<span class="pill warn">Tendance nette</span> <span class="small">${tr.slope > 0 ? '+' : ''}${fmt(tr.slope, 2)} point par station passée : ${tr.slope > 0 ? 'les candidats progressent (échauffement, ou évaluateurs plus généreux au fil de la série)' : 'les candidats fatiguent, ou les évaluateurs se durcissent au fil de la série'} (p = ${pFmt(tr.p)})</span>`
+        : `<span class="pill">Pas de tendance</span> <span class="small muted">${fmt(tr.slope, 2)} point par station, sans doute le hasard (p = ${pFmt(tr.p)})</span>`) : ''}</div>
+      <p class="small muted" style="margin:6px 0 0">Écart moyen à la moyenne de la station, pour neutraliser la difficulté propre à chaque station. Chaque candidat passe à tous les rangs : c'est la comparaison la plus fiable. Le rang 1 est aussi le premier candidat de la série pour l'évaluateur.</p></div>
+    <div class="cmp-grid">
+      <div class="panel cmp"><h3 style="margin-top:0">Avant ou après la pause</h3>
+        ${T.pause ? `<p style="margin:0 0 8px">Avant : <strong>${T.pause.ma >= 0 ? '+' : ''}${fmt(T.pause.ma, 2)}</strong>, après : <strong>${T.pause.mb >= 0 ? '+' : ''}${fmt(T.pause.mb, 2)}</strong> point par rapport à la moyenne de chaque station.</p>` : ''}
+        <div class="cmp-verdict">${verdict(T.pause, (pos) => (pos ? 'd\'avant la pause' : 'd\'après la pause'))}</div>
+        <p class="small muted" style="margin:6px 0 0">La pause coïncide avec le changement de circuit.</p></div>
+      ${cmpCard('Matin ou après-midi', T.ampm, 'Séries du matin', 'Séries de l\'après-midi', (pos) => (pos ? 'du matin' : 'de l\'après-midi'), 'Les candidats ne sont pas répartis au hasard entre les séries : un écart peut venir de leur profil plutôt que de l\'heure.')}
+      ${cmpCard('Première ou dernière série du jour', T.firstLast, 'Première série', 'Dernière série', (pos) => (pos ? 'de la première série' : 'de la dernière série'), 'Utile pour voir si la fatigue des évaluateurs en fin de journée pèse sur les notes.')}
+      ${cmpCard(`Commencer par le circuit ${T.firstCircuit} ou ${T.secondCircuit}`, T.circuit, `Départ circuit ${T.firstCircuit}`, `Départ circuit ${T.secondCircuit}`, (pos) => (pos ? `d'un départ par le circuit ${T.firstCircuit}` : `d'un départ par le circuit ${T.secondCircuit}`))}
+    </div>`;
 }
 
 // ---------- rendu ----------
@@ -366,7 +487,8 @@ function render(box, D, A, filter, exam) {
       <p class="muted small">Si la grille est bien construite, la note monte avec l'impression globale de l'évaluateur.</p>
       <div class="panel">${bars([0, 1, 2, 3, 4].map((l) => { const xs = A.grids.filter((g) => g.global === l && !g.absent); return { label: GLOBAL_LEVELS[l], value: mean(xs.map((g) => g.score)), extra: [`${xs.length} grilles`] }; }), { max: 20, format: (v) => `${fmt(v, 1)} / 20` })}</div>` : ''}
 
-    ${A.groups.length ? `<h2>Selon le moment du passage et le profil</h2><p class="muted small">Moyenne sur 20 des candidats de chaque groupe. Un écart de moins d'un point entre groupes de cette taille relève du hasard.</p>` : ''}
+    ${A.timing ? timingHtml(A.timing) : ''}
+    ${A.groups.length ? `<h2>Par groupe de candidats</h2><p class="muted small">Moyenne sur 20 des candidats de chaque groupe. Un écart de moins d'un point entre groupes de cette taille relève du hasard.</p>` : ''}
     ${A.groups.map((g) => `<h3>Par ${g.label.toLowerCase()}</h3><div class="panel">${bars(g.rows.map((r) => ({
       label: g.key === 'series' ? `Série ${r.v}` : g.key === 'day' ? longDate(r.v) : g.key === 'weekend' ? `Week-end du ${frDate(r.v)}` : String(r.v),
       value: r.mean, extra: [`${r.n} candidats`] })), { max: 20, format: (v) => fmt(v, 1) })}</div>`).join('')}
