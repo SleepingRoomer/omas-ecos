@@ -114,6 +114,8 @@ const TABS = [['stations', 'Stations'], ['candidats', 'Candidats'], ['planning',
 export async function examView(app, id, tab) {
   const exam = await api(`/exams/${id}`);
   if (tab === 'affiches') return signsView(app, exam);
+  if (tab === 'attestations') return (await import('./certificates.js')).certificatesView(app, exam);
+  if (tab === 'projection') return (await import('./projection.js')).projectionView(app, exam);
   if (tab === 'planning-imprimer') return (await import('./planning.js')).planningPrint(app, exam);
   setTitle(exam.name);
   app.innerHTML = `
@@ -448,7 +450,14 @@ async function settingsTab(box, exam) {
     ${flag('show_results', 'Les étudiants voient leurs notes et leur rang', 'Notes par station et rang provisoire, mis à jour à chaque grille saisie.')}
     ${flag('show_details', 'Les étudiants voient le détail des grilles', 'Items réussis et manqués, niveaux de communication, commentaires des évaluateurs.',
       'Visible dès le premier week-end : les candidats du deuxième peuvent en avoir écho.')}
+    <div class="panel"><h2>Message aux étudiants</h2>
+      <p class="small muted">Affiché en haut de l'espace de chaque inscrit de la session : résultats en ligne, changement de salle, rappel… Laisse vide pour le retirer.</p>
+      <textarea id="ann" rows="3" placeholder="Les résultats sont en ligne ! Les corrections arrivent dimanche soir."></textarea>
+      <div class="row" style="margin-top:10px"><select id="ann-level" style="max-width:220px" aria-label="Ton du message"><option value="info">Information</option><option value="warn">Important</option></select>
+        <button class="primary" id="ann-save">Publier le message</button></div></div>
     <h2>Après la session</h2>
+    <p><a class="btn" href="#/admin/session/${exam.id}/attestations" target="_blank">Attestations des évaluateurs</a>
+      <span class="small muted">Une page par évaluateur : grilles saisies, stations, jours. À imprimer ou à enregistrer en PDF.</span></p>
     ${flag('corrections_published', 'Corrections publiées', 'Les fiches pédagogiques deviennent visibles par les étudiants. À cocher après le dernier jour.')}
     <form id="f" class="panel">
       <h2>Informations</h2>
@@ -461,6 +470,16 @@ async function settingsTab(box, exam) {
       <a class="btn" href="/api/exams/${exam.id}/export">Télécharger la sauvegarde</a></div>
     <div class="panel"><h2>Supprimer la session</h2><p class="small muted">Les stations, les inscrits et les grilles saisies sont supprimés avec elle.</p>
       <button class="danger" id="del">Supprimer la session</button></div>`;
+  api(`/exams/${exam.id}/planning`).then((D) => {
+    const a = D.planning.announcement || {};
+    box.querySelector('#ann').value = a.text || ''; box.querySelector('#ann-level').value = a.level || 'info';
+    box.querySelector('#ann-save').addEventListener('click', async () => {
+      const fresh = (await api(`/exams/${exam.id}/planning`)).planning;
+      const text = box.querySelector('#ann').value.trim();
+      await api(`/exams/${exam.id}/planning`, { method: 'PUT', body: { planning: { ...fresh, announcement: text ? { text, level: box.querySelector('#ann-level').value } : null } } });
+      toast(text ? 'Message publié' : 'Message retiré');
+    });
+  });
   const setPicker = daysPicker(box.querySelector('#setdays'), examDays(exam), () => {}, { weekend: true });
   box.querySelector('#f').addEventListener('submit', async (e) => {
     e.preventDefault();

@@ -314,6 +314,28 @@ function setupTooltips(root) {
   });
 }
 
+// ---------- avis des étudiants ----------
+function feedbackHtml(F, S, nCands) {
+  const avg = (k) => mean(F.map((f) => f[k]).filter((v) => typeof v === 'number'));
+  const rec = F.map((f) => f.recommend).filter((v) => typeof v === 'number');
+  const nps = rec.length ? Math.round(((rec.filter((v) => v >= 9).length - rec.filter((v) => v <= 6).length) / rec.length) * 100) : null;
+  const clar = S.map((s) => { const v = F.map((f) => f.stations?.[s.slot]).filter((x) => typeof x === 'number'); return { s, n: v.length, m: mean(v) }; });
+  const comments = F.filter((f) => f.comment);
+  return `<h2>L'avis des étudiants</h2>
+    <p class="muted small">${F.length} réponse${F.length > 1 ? 's' : ''} sur ${nCands} candidats. Les réponses sont anonymes pour l'équipe.</p>
+    <div class="facts">
+      <div><div class="v">${fmt(avg('global'), 1)}<span class="faint"> / 5</span></div><div class="l">utilité ressentie</div></div>
+      <div><div class="v">${fmt(avg('organisation'), 1)}<span class="faint"> / 5</span></div><div class="l">accueil et organisation</div></div>
+      <div><div class="v">${nps === null ? '–' : `${nps > 0 ? '+' : ''}${nps}`}</div><div class="l">score de recommandation (de -100 à +100)</div></div>
+    </div>
+    <div class="panel"><h3 style="margin-top:0">Clarté ressentie de chaque station</h3>
+      ${bars(clar.filter((x) => x.n).map((x) => ({ label: `${x.s.slot} ${x.s.title || ''}`, html: `${plate(x.s.slot, 'sm')} <span>${esc(x.s.title || '')}</span>`, value: x.m,
+        color: x.m < 3 ? 'var(--viz-warn)' : circuitColor(x.s.slot), extra: [`${x.n} avis`] })), { max: 5, format: (v) => `${fmt(v, 1)} / 5` })}
+      <p class="small muted" style="margin:6px 0 0">Sous 3 sur 5, la vignette ou les consignes méritent une relecture. À croiser avec les items à revoir.</p></div>
+    ${comments.length ? `<details class="panel"><summary style="cursor:pointer"><strong>${comments.length} commentaire${comments.length > 1 ? 's' : ''}</strong></summary>
+      <ul class="fb-comments">${comments.map((f) => `<li>${esc(f.comment)}</li>`).join('')}</ul></details>` : ''}`;
+}
+
 // ---------- moment du passage ----------
 const pFmt = (p) => (p < 0.001 ? '< 0,001' : fmt(p, p < 0.01 ? 3 : 2));
 function verdict(t, better) {
@@ -487,6 +509,7 @@ function render(box, D, A, filter, exam) {
       <p class="muted small">Si la grille est bien construite, la note monte avec l'impression globale de l'évaluateur.</p>
       <div class="panel">${bars([0, 1, 2, 3, 4].map((l) => { const xs = A.grids.filter((g) => g.global === l && !g.absent); return { label: GLOBAL_LEVELS[l], value: mean(xs.map((g) => g.score)), extra: [`${xs.length} grilles`] }; }), { max: 20, format: (v) => `${fmt(v, 1)} / 20` })}</div>` : ''}
 
+    ${D.feedback?.length ? feedbackHtml(D.feedback, A.stations, A.cands.length) : ''}
     ${A.timing ? timingHtml(A.timing) : ''}
     ${A.groups.length ? `<h2>Par groupe de candidats</h2><p class="muted small">Moyenne sur 20 des candidats de chaque groupe. Un écart de moins d'un point entre groupes de cette taille relève du hasard.</p>` : ''}
     ${A.groups.map((g) => `<h3>Par ${g.label.toLowerCase()}</h3><div class="panel">${bars(g.rows.map((r) => ({
@@ -512,7 +535,11 @@ function render(box, D, A, filter, exam) {
 
 export async function analyticsTab(box, exam) {
   box.innerHTML = '<p class="muted">Chargement des grilles…</p>';
-  const D = await (await fetch(`/api/exams/${exam.id}/dataset`, { credentials: 'same-origin' })).json();
+  const [D, FB] = await Promise.all([
+    fetch(`/api/exams/${exam.id}/dataset`, { credentials: 'same-origin' }).then((r) => r.json()),
+    api(`/exams/${exam.id}/feedback`).catch(() => []),
+  ]);
+  D.feedback = FB;
   if (!D.evaluations?.length) { box.innerHTML = '<p class="alert info">Aucune grille saisie : l\'analyse apparaîtra avec les premières grilles.</p>'; return; }
   const filter = {};
   render(box, D, compute(D, filter), filter, exam);

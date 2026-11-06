@@ -6,6 +6,7 @@ import {
 import { registerJp } from './jp.js';
 import { normalizePlanning } from '../public/js/planning-shared.js';
 import { registerPlanning } from './planning.js';
+import { registerExtras } from './extras.js';
 
 const app = new Hono().basePath('/api');
 const COOKIE = 'omas_s';
@@ -902,6 +903,7 @@ app.delete('/evaluations/:id', need('admin'), async (c) => {
 
 registerJp(app, { need, httpError, all, one, run, uniqueCode, freshCodes, multiInsert, batch, parse });
 registerPlanning(app, { need, httpError, all, one, run, parse, batch, genCode, freshCodes, multiInsert });
+registerExtras(app, { need, httpError, all, one, run, parse });
 
 app.all('*', () => { throw httpError(404, 'Route inconnue'); });
 

@@ -275,6 +275,7 @@ export function registerPlanning(app, h) {
       candidate: { first_name: cand.first_name, last_name: cand.last_name, number: placed ? cand.number : null, status: cand.status },
       place: planning.place, instructions: planning.instructions, rotation_minutes: planning.rotation_minutes,
       welcome: schedule ? welcomeFor(planning, schedule.start) : '',
+      announcement: planning.announcement || null,
       placed, day: placed ? cand.day : null, series: placed ? cand.series : null, seat: placed ? cand.seat : null, schedule,
       published: planning.publish,
       wishes: {

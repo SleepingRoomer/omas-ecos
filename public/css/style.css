@@ -587,3 +587,74 @@ button.link { background: none; border: none; padding: 0 0 0 6px; min-height: 0;
 .cmp-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); gap: 0 16px; }
 .cmp .viz-row { grid-template-columns: minmax(120px, 36%) 1fr 48px; }
 .cmp-verdict { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline; }
+
+/* ---------- présentation OMAS, agenda ---------- */
+.about { margin-top: 36px; }
+.about-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 0 16px; }
+.about-card { line-height: 1.65; }
+.about-card.accent { border-top: 4px solid var(--b); }
+.about-card:first-child { border-top: 4px solid var(--a); }
+.about-kicker { text-transform: uppercase; letter-spacing: .08em; font-size: .75rem; font-weight: 800; color: var(--ink-2); margin-bottom: 8px; }
+.agenda { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.agenda li { display: grid; grid-template-columns: 196px 1fr auto; gap: 14px; align-items: center; background: var(--surface); border: 1px solid var(--line);
+  border-radius: 14px; padding: 10px 14px; box-shadow: var(--shadow); }
+.ag-days { display: flex; gap: 4px; }
+.ag-day { display: grid; place-items: center; width: 44px; height: 48px; border-radius: 10px; background: var(--a-soft); color: var(--a); font-size: .7rem; text-transform: uppercase; font-weight: 700; line-height: 1.1; }
+.ag-day b { font-size: 1.2rem; }
+.ag-what { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.about-links { margin-top: 14px; }
+@media (max-width: 560px) { .agenda li { grid-template-columns: 1fr; } }
+
+/* ---------- avis des étudiants ---------- */
+.fb-q { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 6px 0; flex-wrap: wrap; }
+.fb-l { font-weight: 600; }
+.fb-stars { display: inline-flex; gap: 2px; }
+.fb-stars button { min-height: 36px; width: 36px; padding: 0; border: none; background: none; font-size: 1.5rem; color: var(--line); }
+.fb-stars button.on { color: #e3a008; }
+.fb-stars button:hover { color: #f0c048; }
+.fb-stations { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 0 18px; }
+.fb-stations .fb-q { justify-content: flex-start; }
+.fb-nps { display: grid; grid-template-columns: repeat(11, 1fr); gap: 4px; }
+.fb-nps button { min-height: 38px; padding: 0; font-weight: 600; }
+.fb-nps button.on { background: var(--a); border-color: var(--a); color: #fff; }
+.fb-scale { display: flex; justify-content: space-between; margin-top: 4px; }
+.fb-done { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.announce { font-size: 1rem; }
+.comms { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px; align-items: start; }
+.comms .about { margin-top: 0; }
+.cm-row { margin-bottom: 6px; flex-wrap: nowrap; }
+.cm-ev { border: 1px solid var(--line-2); border-radius: 10px; padding: 10px; margin-bottom: 8px; }
+@media (max-width: 960px) { .comms { grid-template-columns: 1fr; } }
+.cert-pick { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 4px 16px; }
+.cert { display: flex; flex-direction: column; justify-content: center; min-height: 297mm; padding: 28mm 24mm !important; text-align: center; }
+.cert-brand { display: flex; align-items: center; justify-content: center; gap: 10px; font: 800 14pt/1 var(--display); margin-bottom: 18mm; }
+.cert-brand .brand-mark { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.cert h1 { font-size: 26pt !important; margin-bottom: 14mm; }
+.cert-body { font-size: 13pt; line-height: 1.6; margin: 3mm 0; }
+.cert-name { font: 800 24pt/1.2 var(--display); margin: 6mm 0; color: #2e2c80; }
+.cert-thanks { margin: 14mm auto 0; max-width: 130mm; font-style: italic; color: #444; font-size: 11.5pt; }
+.cert-sign { display: flex; justify-content: space-between; margin-top: 26mm; text-align: left; font-size: 11pt; }
+.cert-line { width: 60mm; border-bottom: 1px solid #999; height: 18mm; }
+
+/* ---------- mode projection ---------- */
+body.kiosk .topbar { display: none; }
+body.kiosk .container { max-width: none; padding: 28px 40px; }
+.proj { font-size: 1.15rem; }
+.proj-top { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 22px; }
+.proj-title { font: 800 2.2rem/1.1 var(--display); }
+.proj-day { color: var(--ink-2); font-size: 1.3rem; margin-top: 6px; }
+.proj-clock { font: 800 4.6rem/1 var(--display); font-variant-numeric: tabular-nums; letter-spacing: -.03em; color: var(--a); }
+.proj-grid { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 16px; }
+.proj-card { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 20px 24px; box-shadow: var(--shadow); }
+.proj-card.big { background: var(--a); color: #fff; border: none; }
+.proj-k { text-transform: uppercase; letter-spacing: .08em; font-size: .85rem; font-weight: 800; opacity: .75; }
+.proj-v { font: 800 3rem/1.1 var(--display); margin: 6px 0; font-variant-numeric: tabular-nums; }
+.proj-s { font-size: 1.15rem; opacity: .85; }
+.proj-series { display: flex; gap: 8px; margin: 18px 0; flex-wrap: wrap; }
+.proj-series span { padding: 6px 14px; border-radius: 999px; background: var(--paper-2); color: var(--ink-2); font-weight: 600; }
+.proj-series span.on { background: var(--r); color: #fff; }
+.proj-series span.past { opacity: .5; text-decoration: line-through; }
+.proj-race { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 18px 22px; box-shadow: var(--shadow); }
+.proj-exit { position: fixed; right: 16px; bottom: 16px; opacity: .4; }
+.proj-exit:hover { opacity: 1; }
+.fb-comments { margin: 10px 0 0; padding-left: 1.1rem; display: grid; gap: 8px; }

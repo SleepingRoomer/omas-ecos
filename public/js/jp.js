@@ -486,7 +486,9 @@ export async function participantView(app) {
         ${a.grille?.length ? `<h3>Les gestes à maîtriser</h3><ul>${a.grille.map((g) => `<li>${esc(g)}</li>`).join('')}</ul>` : ''}
         ${a.references ? `<p class="small muted">Références : ${nl(a.references)}</p>` : ''}
         ${!R.jp.keypoints_published ? '<p class="small faint">Les points clés arrivent le soir de la journée.</p>' : ''}</div></details>`).join('')}
+    <div id="about"></div>
   </div>`;
+  (await import('./about.js')).aboutSection(app.querySelector('#about'));
 }
 
 export { state };

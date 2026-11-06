@@ -11,7 +11,7 @@ const HOME = { admin: '#/admin', auteur: '#/redaction', evaluateur: '#/eval', et
 function renderNav() {
   const k = state.me?.kind;
   const links = {
-    admin: [['#/admin', 'Sessions'], ['#/admin/personnes', 'Rédacteurs et relecteurs']],
+    admin: [['#/admin', 'Sessions'], ['#/admin/personnes', 'Rédacteurs et relecteurs'], ['#/admin/communication', 'Communication']],
     auteur: [['#/redaction', 'Mes stations et ateliers']],
     evaluateur: [['#/eval', 'Ma salle']],
     etudiant: [['#/resultats', 'Mon espace']],
@@ -77,6 +77,7 @@ function loginView() {
 }
 
 const routes = [
+  [/^#\/admin\/communication$/, 'admin', async () => (await import('./comms.js')).commsView(app)],
   [/^#\/admin\/session\/(\d+)\/candidat\/(\d+)$/, 'admin', async (m) => (await import('./student.js')).adminReport(app, m[2], m[1])],
   [/^#\/admin\/session\/(\d+)(?:\/([\w-]+))?$/, 'admin', async (m) => (await import('./admin.js')).examView(app, m[1], m[2] || 'stations')],
   [/^#\/admin\/jp\/(\d+)(?:\/(\w+))?$/, 'admin', async (m) => (await import('./jp.js')).jpView(app, m[1], m[2] || 'ateliers')],
@@ -93,6 +94,7 @@ const routes = [
 ];
 
 export async function route() {
+  if (!location.hash.endsWith('/projection')) document.body.classList.remove('kiosk');
   if (!state.me) {
     try { state.me = await api('/me'); } catch { state.me = { kind: null }; }
   }
