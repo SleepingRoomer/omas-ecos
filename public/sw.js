@@ -1,6 +1,6 @@
 // Service worker : garde une copie de l'application pour qu'un évaluateur puisse continuer à noter
 // quand le wifi de la faculté décroche. Les grilles elles-mêmes attendent dans le téléphone (voir evaluator.js).
-const CACHE = 'omas-v2';
+const CACHE = 'omas-v3';
 const API_CACHED = /^\/api\/(me|eval\/(context|schedule|evaluations\/\d+))$/;
 
 self.addEventListener('install', () => self.skipWaiting());

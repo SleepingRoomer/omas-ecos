@@ -8,6 +8,7 @@ import { normalizePlanning } from '../public/js/planning-shared.js';
 import { registerPlanning } from './planning.js';
 import { registerExtras } from './extras.js';
 import { registerAccueil } from './accueil.js';
+import { registerBenevoles } from './benevoles.js';
 
 const app = new Hono().basePath('/api');
 const COOKIE = 'omas_s';
@@ -43,8 +44,11 @@ const run = (db, sql, ...args) => db.prepare(sql).bind(...args).run();
 // Codes d'accès : uniques sur toute la base (salles, rédacteurs, candidats, inscrits des journées).
 // Une seule requête, quel que soit le nombre de codes demandés.
 async function freshCodes(db, n) {
-  const taken = new Set((await all(db, `SELECT code AS c FROM candidates UNION ALL SELECT code FROM jp_participants
-    UNION ALL SELECT code FROM people UNION ALL SELECT eval_code FROM stations`)).map((r) => r.c));
+  const base = `SELECT code AS c FROM candidates UNION ALL SELECT code FROM jp_participants
+    UNION ALL SELECT code FROM people UNION ALL SELECT eval_code FROM stations`;
+  // la table des bénévoles n'existe qu'une fois la migration 0010 passée : sans elle, on continue sans
+  const rows = await all(db, `${base} UNION ALL SELECT code FROM volunteer_signups`).catch(() => all(db, base));
+  const taken = new Set(rows.map((r) => r.c));
   const out = [];
   let guard = 0;
   while (out.length < n) {
@@ -169,7 +173,13 @@ app.post('/login', async (c) => {
     await createSession(c, 'auteur', p.id, p.name);
     return c.json({ kind: 'auteur' });
   }
-  if (role === 'evaluateur') {
+  if (role === 'evaluateur' || role === 'benevole') {
+    // un code personnel de bénévole ouvre son espace (planning, calibration, accès direct à sa salle)
+    const vol = await one(db, 'SELECT s.id, v.first_name, v.last_name FROM volunteer_signups s JOIN volunteers v ON v.id = s.volunteer_id WHERE s.code = ?', upper).catch(() => null);
+    if (vol) {
+      await createSession(c, 'benevole', vol.id, `${vol.first_name} ${vol.last_name}`, 24 * 30);
+      return c.json({ kind: 'benevole' });
+    }
     const st = await one(db, 'SELECT s.*, e.eval_open FROM stations s JOIN exams e ON e.id = s.exam_id WHERE s.eval_code = ?', upper);
     if (!st) throw await failed(c, role, 'Code de salle inconnu');
     if (!st.eval_open) throw httpError(403, 'La salle n\'est pas encore ouverte : l\'équipe ouvre la saisie le matin du passage.');
@@ -745,8 +755,10 @@ app.post('/import/:examId/candidates', need('admin'), async (c) => {
   const rows = (await c.req.json()).rows || [];
   if (rows.length > 500) throw httpError(400, 'Paquet trop gros (500 lignes au plus)');
   // on garde les codes d'origine (les étudiants les connaissent déjà) sauf s'ils sont pris
-  const taken = new Set((await all(db, `SELECT code AS c FROM candidates UNION ALL SELECT code FROM jp_participants
-    UNION ALL SELECT code FROM people UNION ALL SELECT eval_code FROM stations`)).map((r) => r.c));
+  const base = `SELECT code AS c FROM candidates UNION ALL SELECT code FROM jp_participants
+    UNION ALL SELECT code FROM people UNION ALL SELECT eval_code FROM stations`;
+  const existing = await all(db, `${base} UNION ALL SELECT code FROM volunteer_signups`).catch(() => all(db, base));
+  const taken = new Set(existing.map((r) => r.c));
   let changed = 0;
   const out = rows.map((r) => {
     let code = String(r.code || '').toUpperCase().replace(/\s+/g, '');
@@ -906,6 +918,7 @@ registerJp(app, { need, httpError, all, one, run, uniqueCode, freshCodes, multiI
 registerPlanning(app, { need, httpError, all, one, run, parse, batch, genCode, freshCodes, multiInsert });
 registerExtras(app, { need, httpError, all, one, run, parse });
 registerAccueil(app, { need, httpError, all, one, run, parse, genCode, freshCodes });
+registerBenevoles(app, { need, httpError, all, one, run, parse, freshCodes, batch, createSession });
 
 app.all('*', () => { throw httpError(404, 'Route inconnue'); });
 

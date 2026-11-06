@@ -109,7 +109,7 @@ export function rowActions(root, items, { save, remove, reload, days, weekend = 
 
 // ---------- une session ----------
 
-const TABS = [['stations', 'Stations'], ['candidats', 'Candidats'], ['planning', 'Planning'], ['accueil', 'Accueil'], ['direct', 'En direct'], ['materiel', 'Matériel'], ['resultats', 'Résultats'], ['analyse', 'Analyse'], ['reglages', 'Réglages']];
+const TABS = [['stations', 'Stations'], ['candidats', 'Candidats'], ['planning', 'Planning'], ['benevoles', 'Bénévoles'], ['accueil', 'Accueil'], ['direct', 'En direct'], ['materiel', 'Matériel'], ['resultats', 'Résultats'], ['analyse', 'Analyse'], ['reglages', 'Réglages']];
 
 export async function examView(app, id, tab) {
   const exam = await api(`/exams/${id}`);
@@ -133,6 +133,7 @@ export async function examView(app, id, tab) {
   if (tab === 'planning') return (await import('./planning.js')).planningTab(box, exam);
   if (tab === 'accueil') return (await import('./accueil.js')).accueilTab(box, exam);
   if (tab === 'materiel') return (await import('./materiel.js')).materielTab(box, exam);
+  if (tab === 'benevoles') return (await import('./benevoles.js')).benevolesTab(box, exam);
   if (tab === 'direct') return (await import('./live.js')).liveTab(box, exam);
   if (tab === 'analyse') return (await import('./analytics.js')).analyticsTab(box, exam);
   if (tab === 'reglages') return settingsTab(box, exam);

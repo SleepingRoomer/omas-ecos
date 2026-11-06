@@ -126,7 +126,7 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 
 label { display: block; font-weight: 700; font-size: .92rem; margin: 14px 0 6px; }
 label .hint { font-weight: 400; color: var(--ink-3); }
-input[type=text], input[type=date], input[type=password], input[type=number], input:not([type]), select, textarea {
+input[type=text], input[type=email], input[type=tel], input[type=search], input[type=url], input[type=time], input[type=date], input[type=password], input[type=number], input:not([type]), select, textarea {
   font: 400 1rem/1.4 var(--text); color: var(--ink); width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface); }
 input::placeholder, textarea::placeholder { color: var(--ink-3); }
 textarea { min-height: 80px; resize: vertical; }
@@ -676,3 +676,23 @@ body.kiosk .container { max-width: none; padding: 28px 40px; }
 .mat-rooms { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 0 14px; }
 .mat-room { margin: 8px 0; }
 .mat-check { margin: 4px 0; font-weight: 400; }
+
+/* bénévoles */
+.vol-roles, fieldset { border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; margin: 14px 0 0; }
+fieldset legend { font-weight: 700; padding: 0 6px; }
+.vol-days { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
+.vol-day { display: flex; flex-direction: column; gap: 6px; }
+.pick { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px; cursor: pointer; margin: 0 6px 0 0; background: var(--surface); }
+.pick:has(input:checked) { border-color: var(--ink); background: var(--paper); font-weight: 700; }
+.vol-plan { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
+.vol-slot { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; background: var(--surface); box-shadow: var(--shadow); display: block; color: inherit; text-decoration: none; }
+.vol-slot.now { border-color: var(--ok); }
+.vol-slot.link:hover { border-color: var(--ink); }
+.vol-now { border-color: var(--ok); }
+.vol-hd { flex-wrap: wrap; margin-top: 6px; }
+.vol-hd .pill { margin-left: 6px; }
+.vol-matrix select { width: auto; min-width: 150px; margin: 2px 4px 2px 0; }
+.q.calib-off { border-color: var(--ko); background: color-mix(in srgb, var(--ko) 6%, var(--surface)); }
+.vol-hd, .vol-day .seg { display: flex; flex-wrap: wrap; }
+.vol-day .seg { margin: 0; background: none; padding: 0; }
+.vol-hd button { padding: 6px 12px; }
