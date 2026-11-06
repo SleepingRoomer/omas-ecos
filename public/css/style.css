@@ -318,6 +318,7 @@ td select { min-width: 112px; padding: 7px 8px; font-size: .9rem; }
 .it .mark { font-weight: 700; text-align: center; }
 .it.ok .mark { color: var(--ok); }
 .it.ko .mark { color: var(--ko); }
+.it.half .mark { color: var(--warn, #b7791f); }
 .it.ko .txt { color: var(--ink); }
 .it .pts { color: var(--ink-3); white-space: nowrap; font-size: .85rem; }
 .item-comment { grid-column: 2 / 4; font-size: .87rem; color: var(--a); background: var(--a-soft); padding: 4px 10px; border-radius: var(--r-sm); }
@@ -391,3 +392,51 @@ td select { min-width: 112px; padding: 7px 8px; font-size: .9rem; }
   .container { max-width: none; padding: 0; }
   .sheet { border: none; margin: 0; page-break-after: always; }
 }
+
+/* ---------- analyse ---------- */
+:root { --viz-a: #4a47c4; --viz-b: #11998a; --viz-n: #8a8fae; --viz-warn: #c98410; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.viz-filters { margin: 4px 0 8px; gap: 14px; }
+.viz-filter { display: inline-flex; align-items: center; gap: 8px; margin: 0; font-weight: 600; font-size: .9rem; }
+.viz-filter select { width: auto; }
+.viz-take { margin: 0; padding-left: 1.2rem; }
+.viz-take li { margin: 6px 0; line-height: 1.5; }
+.viz-take .plate { vertical-align: middle; }
+.viz-svg { width: 100%; height: auto; display: block; overflow: visible; }
+.viz-grid { stroke: var(--line-2); stroke-width: 1; }
+.viz-tick { font-size: 11px; fill: var(--ink-3); font-variant-numeric: tabular-nums; }
+.viz-label { font-size: 12px; fill: var(--ink-2); font-weight: 600; }
+.viz-ref { stroke: var(--ink); stroke-width: 2; stroke-dasharray: 3 3; }
+.viz-hit { cursor: default; outline: none; }
+.viz-hit:hover .viz-mark, .viz-hit:focus .viz-mark { opacity: .8; }
+.viz-rows { display: grid; gap: 2px; }
+.viz-row { display: grid; grid-template-columns: minmax(150px, 34%) 1fr 64px; align-items: center; gap: 12px; padding: 5px 4px; border-radius: 6px; outline: none; }
+.viz-row:hover, .viz-row:focus { background: var(--paper); }
+.viz-row.viz-axis { padding-top: 0; padding-bottom: 0; }
+.viz-row.viz-axis:hover { background: none; }
+.viz-name { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: .9rem; }
+.viz-name > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.viz-item { white-space: normal !important; font-size: .84rem; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.viz-val { text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; font-size: .9rem; }
+.viz-track { position: relative; height: 18px; background: var(--line-2); border-radius: 4px; }
+.viz-track.bare { background: none; height: 14px; }
+.viz-track.bare span { position: absolute; transform: translateX(-50%); font-size: 11px; color: var(--ink-3); }
+.viz-track i { position: absolute; display: block; }
+.viz-bar { top: 3px; bottom: 3px; left: 0; border-radius: 0 4px 4px 0; }
+.viz-ten { top: -3px; bottom: -3px; width: 2px; margin-left: -1px; background: var(--ink-3); }
+.viz-whisk { top: 8px; height: 2px; background: var(--ink-3); }
+.viz-box { top: 3px; bottom: 3px; border-radius: 4px; opacity: .9; }
+.viz-dot { top: 2px; width: 14px; height: 14px; margin-left: -7px; border-radius: 50%; background: var(--surface); border: 3px solid var(--ink); }
+.viz-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; margin: 10px 0 0; }
+.viz-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.viz-legend i { width: 14px; height: 10px; border-radius: 3px; display: inline-block; }
+.viz-legend i.dot { width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--ink); background: var(--surface); }
+.viz-div { position: relative; display: block; height: 14px; background: var(--line-2); border-radius: 4px; }
+.viz-div i { position: absolute; top: 2px; bottom: 2px; display: block; }
+.viz-div .viz-zero { left: 50%; width: 2px; margin-left: -1px; top: -2px; bottom: -2px; background: var(--ink-3); }
+.viz-div .viz-bar { background: var(--viz-n); border-radius: 3px; }
+#viz-tip { position: fixed; z-index: 50; display: none; pointer-events: none; max-width: 320px; background: var(--ink); color: #fff;
+  padding: 8px 11px; border-radius: 8px; font-size: .82rem; line-height: 1.4; box-shadow: 0 6px 20px rgba(20,22,58,.25); }
+#viz-tip strong { display: block; font-size: .95rem; font-variant-numeric: tabular-nums; }
+#viz-tip div { color: #cfd2e6; }
+@media (max-width: 640px) { .viz-row { grid-template-columns: 1fr 52px; } .viz-row .viz-name { grid-column: 1 / -1; } }

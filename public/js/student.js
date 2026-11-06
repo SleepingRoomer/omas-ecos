@@ -52,11 +52,14 @@ function render(R, opts = {}) {
               ${s.mean !== null ? `<div class="mean" style="left:${Math.max(0, Math.min(100, s.mean * 5))}%"><span>moyenne ${fmt(s.mean, 1)}</span></div>` : ''}</div>
             <p class="small muted" style="margin:0">${fmt(s.points)} points sur ${fmt(s.max_points)}.</p>` : ''}
           ${s.apt ? `<h3>Aptitudes cliniques et techniques</h3>
-            ${s.apt.map((i) => `<div class="it ${i.ok ? 'ok' : 'ko'}"><span class="mark" aria-label="${i.ok ? 'observé' : 'non observé'}">${i.ok ? '✓' : '✗'}</span><span class="txt">${esc(i.label)}</span><span class="pts">${i.ok ? i.points : 0} / ${i.points}</span>
-              ${i.comment ? `<span class="item-comment">${esc(i.comment)}</span>` : ''}</div>`).join('')}
+            ${s.raters > 1 ? `<p class="small muted" style="margin:0 0 6px">Station notée par ${s.raters} évaluateurs : ta note est la moyenne de leurs grilles. Un item coché par un seul d'entre eux compte pour moitié.</p>` : ''}
+            ${s.apt.map((i) => { const half = i.share > 0 && i.share < 1; const st = i.ok ? 'ok' : half ? 'half' : 'ko';
+              return `<div class="it ${st}"><span class="mark" aria-label="${i.ok ? 'observé' : half ? 'observé par un évaluateur sur deux' : 'non observé'}">${i.ok ? '✓' : half ? '½' : '✗'}</span><span class="txt">${esc(i.label)}</span><span class="pts">${fmt((i.share ?? (i.ok ? 1 : 0)) * i.points, half ? 1 : 0)} / ${i.points}</span>
+              ${i.comment ? `<span class="item-comment">${esc(i.comment)}</span>` : ''}</div>`; }).join('')}
             <h3>Communication et attitudes</h3>
             ${s.com.map((i) => `<div class="it ${i.value >= 0.5 ? 'ok' : 'ko'}"><span class="mark">${i.value >= 0.5 ? '✓' : '·'}</span><span class="txt">${esc(i.label)}</span><span class="pts">${esc(levelName(i.value))}, ${fmt(i.value)}</span></div>`).join('')}
-            ${s.comment ? `<div class="evcomment"><b>Le mot de l'évaluateur</b>${nl(s.comment)}</div>` : ''}` : ''}
+            ${(s.comments || (s.comment ? [s.comment] : [])).map((t) => `<div class="evcomment"><b>${s.comments?.length > 1 ? 'Le mot d\'un évaluateur' : 'Le mot de l\'évaluateur'}</b>${nl(t)}</div>`).join('')}
+            ${s.by_rater?.length > 1 ? `<p class="small muted">Par évaluateur : ${s.by_rater.map((r) => `${esc(r.name)} ${fmt(r.score, 1)}`).join(', ')}.</p>` : ''}` : ''}
           ${s.correction ? `<h3>Correction</h3><div>${nl(s.correction.text) || '<span class="muted">Pas encore rédigée.</span>'}</div>
             ${s.correction.references ? `<p class="small muted">Références : ${nl(s.correction.references)}</p>` : ''}`
             : (has ? '<p class="small faint" style="margin-top:14px">La correction arrive après la fin de la session.</p>' : '')}

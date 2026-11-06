@@ -2,7 +2,7 @@
 import { normalizeAtelier, atelierChecks, rotation, JP1_DRAFTS, JP_STATUSES } from '../public/js/jp-shared.js';
 
 export function registerJp(app, h) {
-  const { need, httpError, all, one, run, uniqueCode, parse } = h;
+  const { need, httpError, all, one, run, freshCodes, multiInsert, batch, parse } = h;
 
   const jpOr404 = async (db, id) => {
     const jp = await one(db, 'SELECT * FROM jp_days WHERE id = ?', id);
@@ -22,11 +22,11 @@ export function registerJp(app, h) {
     const db = c.env.DB;
     const r = await run(db, 'INSERT INTO jp_days (name, starts_on, ends_on) VALUES (?,?,?)', b.name.trim(), b.starts_on || null, b.ends_on || null);
     const id = r.meta.last_row_id;
+    const stmts = [];
     if (b.prefill) {
-      for (const [i, a] of JP1_DRAFTS.entries()) {
-        await run(db, 'INSERT INTO jp_ateliers (jp_id, code, position, title, discipline, content) VALUES (?,?,?,?,?,?)',
-          id, a.code, i, a.title, a.discipline, JSON.stringify(normalizeAtelier({ ...a.content, emoji: a.emoji })));
-      }
+      stmts.push(...multiInsert(db, 'jp_ateliers', ['jp_id', 'code', 'position', 'title', 'discipline', 'content'],
+        JP1_DRAFTS.map((a, i) => ({ jp_id: id, code: a.code, position: i, title: a.title, discipline: a.discipline,
+          content: JSON.stringify(normalizeAtelier({ ...a.content, emoji: a.emoji })) }))));
     }
     // deux créneaux par jour, à 9 h et à 14 h
     const days = [];
@@ -35,7 +35,9 @@ export function registerJp(app, h) {
       const d1 = new Date(`${b.ends_on || b.starts_on}T12:00:00Z`);
       for (let d = d0; d <= d1 && days.length < 7; d = new Date(d.getTime() + 864e5)) days.push(d.toISOString().slice(0, 10));
     }
-    for (const day of days) for (const t of ['09:00', '14:00']) await run(db, 'INSERT INTO jp_slots (jp_id, day, start_time) VALUES (?,?,?)', id, day, t);
+    stmts.push(...multiInsert(db, 'jp_slots', ['jp_id', 'day', 'start_time'],
+      days.flatMap((day) => ['09:00', '14:00'].map((t) => ({ jp_id: id, day, start_time: t })))));
+    await batch(db, stmts);
     return c.json({ id });
   });
 
@@ -184,8 +186,11 @@ export function registerJp(app, h) {
   });
 
   app.delete('/slots/:id', need('admin'), async (c) => {
-    await run(c.env.DB, 'UPDATE jp_participants SET slot_id = NULL, group_no = NULL WHERE slot_id = ?', c.req.param('id'));
-    await run(c.env.DB, 'DELETE FROM jp_slots WHERE id = ?', c.req.param('id'));
+    const db = c.env.DB;
+    await db.batch([
+      db.prepare('UPDATE jp_participants SET slot_id = NULL, group_no = NULL WHERE slot_id = ?').bind(c.req.param('id')),
+      db.prepare('DELETE FROM jp_slots WHERE id = ?').bind(c.req.param('id')),
+    ]);
     return c.json({ ok: true });
   });
 
@@ -195,16 +200,14 @@ export function registerJp(app, h) {
 
   app.post('/jp/:id/participants', need('admin'), async (c) => {
     const b = await c.req.json();
-    const list = Array.isArray(b.rows) ? b.rows : [b];
-    let n = 0;
-    for (const r of list) {
-      if (!String(r.last_name || '').trim() && !String(r.first_name || '').trim()) continue;
-      await run(c.env.DB, `INSERT INTO jp_participants (jp_id, last_name, first_name, email, phone, faculty, year, slot_label, code)
-        VALUES (?,?,?,?,?,?,?,?,?)`, c.req.param('id'), String(r.last_name || '').trim(), String(r.first_name || '').trim(),
-      r.email || null, r.phone || null, r.faculty || null, r.year || null, r.slot_label || null, await uniqueCode(c.env.DB, 'jp_participants'));
-      n++;
-    }
-    return c.json({ imported: n });
+    const list = (Array.isArray(b.rows) ? b.rows : [b])
+      .filter((r) => String(r.last_name || '').trim() || String(r.first_name || '').trim());
+    const codes = await freshCodes(c.env.DB, list.length);
+    await batch(c.env.DB, multiInsert(c.env.DB, 'jp_participants',
+      ['jp_id', 'last_name', 'first_name', 'email', 'phone', 'faculty', 'year', 'slot_label', 'code'],
+      list.map((r, i) => ({ jp_id: Number(c.req.param('id')), last_name: String(r.last_name || '').trim(), first_name: String(r.first_name || '').trim(),
+        email: r.email || null, phone: r.phone || null, faculty: r.faculty || null, year: r.year || null, slot_label: r.slot_label || null, code: codes[i] }))));
+    return c.json({ imported: list.length });
   });
 
   app.patch('/participants/:id', need('admin'), async (c) => {
@@ -235,7 +238,7 @@ export function registerJp(app, h) {
     const { from, to, count } = await c.req.json();
     const n = Math.max(0, Number(count) || 0);
     const rows = await all(c.env.DB, "SELECT id FROM jp_participants WHERE jp_id = ? AND slot_id = ? AND status != 'annule' ORDER BY id DESC LIMIT ?", c.req.param('id'), from, n);
-    for (const r of rows) await run(c.env.DB, 'UPDATE jp_participants SET slot_id = ?, group_no = NULL WHERE id = ?', to, r.id);
+    if (rows.length) await c.env.DB.batch(rows.map((r) => c.env.DB.prepare('UPDATE jp_participants SET slot_id = ?, group_no = NULL WHERE id = ?').bind(to, r.id)));
     return c.json({ moved: rows.length });
   });
 
@@ -245,14 +248,15 @@ export function registerJp(app, h) {
     const id = c.req.param('id');
     const nAt = (await one(db, 'SELECT COUNT(*) AS n FROM jp_ateliers WHERE jp_id = ? AND active = 1', id)).n;
     if (!nAt) throw httpError(400, 'Ajoute d\'abord les ateliers');
-    const slots = await all(db, 'SELECT id FROM jp_slots WHERE jp_id = ?', id);
+    const ps = await all(db, "SELECT id, slot_id FROM jp_participants WHERE jp_id = ? AND slot_id IS NOT NULL AND status != 'annule' ORDER BY slot_id, last_name, first_name", id);
     const stmts = [];
-    for (const s of slots) {
-      const ps = await all(db, "SELECT id FROM jp_participants WHERE slot_id = ? AND status != 'annule' ORDER BY last_name, first_name", s.id);
-      ps.forEach((p, i) => stmts.push(db.prepare('UPDATE jp_participants SET group_no = ? WHERE id = ?').bind((i % nAt) + 1, p.id)));
+    const count = {};
+    for (const p of ps) {
+      const i = (count[p.slot_id] = (count[p.slot_id] ?? -1) + 1);
+      stmts.push(db.prepare('UPDATE jp_participants SET group_no = ? WHERE id = ?').bind((i % nAt) + 1, p.id));
     }
     stmts.push(db.prepare("UPDATE jp_participants SET group_no = NULL WHERE jp_id = ? AND (status = 'annule' OR slot_id IS NULL)").bind(id));
-    await db.batch(stmts);
+    await batch(db, stmts);
     return c.json({ ok: true });
   });
 

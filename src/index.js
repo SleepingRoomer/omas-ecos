@@ -33,16 +33,37 @@ const all = async (db, sql, ...args) => (await db.prepare(sql).bind(...args).all
 const one = (db, sql, ...args) => db.prepare(sql).bind(...args).first();
 const run = (db, sql, ...args) => db.prepare(sql).bind(...args).run();
 
-async function uniqueCode(db, table) {
-  for (let i = 0; i < 20; i++) {
+// Codes d'accès : uniques sur toute la base (salles, rédacteurs, candidats, inscrits des journées).
+// Une seule requête, quel que soit le nombre de codes demandés.
+async function freshCodes(db, n) {
+  const taken = new Set((await all(db, `SELECT code AS c FROM candidates UNION ALL SELECT code FROM jp_participants
+    UNION ALL SELECT code FROM people UNION ALL SELECT eval_code FROM stations`)).map((r) => r.c));
+  const out = [];
+  let guard = 0;
+  while (out.length < n) {
+    if (++guard > n * 50 + 100) throw httpError(500, 'Impossible de générer des codes uniques');
     const code = genCode();
-    const col = table === 'stations' ? 'eval_code' : 'code';
-    if (await one(db, `SELECT 1 FROM ${table} WHERE ${col} = ?`, code)) continue;
-    if ((table === 'candidates' || table === 'jp_participants')
-      && await one(db, `SELECT 1 FROM ${table === 'candidates' ? 'jp_participants' : 'candidates'} WHERE code = ?`, code)) continue;
-    return code;
+    if (!taken.has(code)) { taken.add(code); out.push(code); }
   }
-  throw httpError(500, 'Impossible de générer un code unique');
+  return out;
+}
+const uniqueCode = async (db) => (await freshCodes(db, 1))[0];
+
+// INSERT de plusieurs lignes par requête, sans dépasser 100 paramètres par requête (limite D1).
+// Renvoie des requêtes préparées à passer à db.batch : un batch ne compte que pour un appel.
+function multiInsert(db, table, cols, rows, tail = '') {
+  const per = Math.max(1, Math.floor(100 / cols.length));
+  const stmts = [];
+  for (let i = 0; i < rows.length; i += per) {
+    const chunk = rows.slice(i, i + per);
+    const ph = chunk.map(() => `(${cols.map(() => '?').join(',')})`).join(',');
+    stmts.push(db.prepare(`INSERT INTO ${table} (${cols.join(',')}) VALUES ${ph} ${tail}`)
+      .bind(...chunk.flatMap((r) => cols.map((c) => (r[c] === undefined ? null : r[c])))));
+  }
+  return stmts;
+}
+async function batch(db, stmts) {
+  for (let i = 0; i < stmts.length; i += 400) await db.batch(stmts.slice(i, i + 400));
 }
 
 app.onError((err, c) => {
@@ -150,10 +171,9 @@ app.post('/exams', need('admin'), async (c) => {
   const r = await run(db, 'INSERT INTO exams (name, starts_on, ends_on) VALUES (?,?,?)', b.name.trim(), b.starts_on || null, b.ends_on || null);
   const id = r.meta.last_row_id;
   if (b.create_slots !== false) {
-    for (const s of DEFAULT_SLOTS) {
-      await run(db, 'INSERT INTO stations (exam_id, slot, domain, type, played, eval_code) VALUES (?,?,?,?,?,?)',
-        id, s.slot, s.domain, s.type, s.played, await uniqueCode(db, 'stations'));
-    }
+    const codes = await freshCodes(db, DEFAULT_SLOTS.length);
+    await batch(db, multiInsert(db, 'stations', ['exam_id', 'slot', 'domain', 'type', 'played', 'eval_code'],
+      DEFAULT_SLOTS.map((s, i) => ({ exam_id: id, slot: s.slot, domain: s.domain, type: s.type, played: s.played, eval_code: codes[i] }))));
   }
   return c.json({ id });
 });
@@ -194,21 +214,18 @@ app.get('/people', need('admin'), async (c) => {
 app.post('/people', need('admin'), async (c) => {
   const b = await c.req.json();
   const list = Array.isArray(b) ? b : [b];
-  const ids = [];
-  for (const p of list) {
-    if (!String(p.name || '').trim()) continue;
-    const r = await run(c.env.DB, 'INSERT INTO people (name, email, phone, specialty, code) VALUES (?,?,?,?,?)',
-      p.name.trim(), p.email || null, p.phone || null, p.specialty || null, await uniqueCode(c.env.DB, 'people'));
-    ids.push(r.meta.last_row_id);
-  }
-  return c.json({ ids });
+  const rows = list.filter((p) => String(p.name || '').trim());
+  const codes = await freshCodes(c.env.DB, rows.length);
+  await batch(c.env.DB, multiInsert(c.env.DB, 'people', ['name', 'email', 'phone', 'specialty', 'code'],
+    rows.map((p, i) => ({ name: p.name.trim(), email: p.email || null, phone: p.phone || null, specialty: p.specialty || null, code: codes[i] }))));
+  return c.json({ added: rows.length });
 });
 
 app.patch('/people/:id', need('admin'), async (c) => {
   const b = await c.req.json();
   const sets = []; const vals = [];
   for (const f of ['name', 'email', 'phone', 'specialty', 'active']) if (f in b) { sets.push(`${f} = ?`); vals.push(b[f]); }
-  if (b.regen_code) { sets.push('code = ?'); vals.push(await uniqueCode(c.env.DB, 'people')); }
+  if (b.regen_code) { sets.push('code = ?'); vals.push(await uniqueCode(c.env.DB)); }
   if (sets.length) await run(c.env.DB, `UPDATE people SET ${sets.join(', ')} WHERE id = ?`, ...vals, c.req.param('id'));
   return c.json({ ok: true });
 });
@@ -252,7 +269,7 @@ app.post('/exams/:id/stations', need('admin'), async (c) => {
   const slot = String(b.slot || '').trim().toUpperCase();
   if (!slot) throw httpError(400, 'Emplacement requis (ex. R3)');
   const r = await run(c.env.DB, 'INSERT INTO stations (exam_id, slot, domain, type, played, eval_code) VALUES (?,?,?,?,?,?)',
-    c.req.param('id'), slot, b.domain || null, b.type || 'SANS', b.played ? 1 : 0, await uniqueCode(c.env.DB, 'stations'));
+    c.req.param('id'), slot, b.domain || null, b.type || 'SANS', b.played ? 1 : 0, await uniqueCode(c.env.DB));
   return c.json({ id: r.meta.last_row_id });
 });
 
@@ -268,7 +285,7 @@ app.patch('/stations/:id', need('admin'), async (c) => {
   if (b.status && !STATUSES[b.status]) throw httpError(400, 'Statut inconnu');
   // une station attribuée passe automatiquement en rédaction
   if ('author_id' in b && b.author_id && st.status === 'a_attribuer' && !('status' in b)) { sets.push('status = ?'); vals.push('redaction'); }
-  if (b.regen_code) { sets.push('eval_code = ?'); vals.push(await uniqueCode(db, 'stations')); }
+  if (b.regen_code) { sets.push('eval_code = ?'); vals.push(await uniqueCode(db)); }
   if (sets.length) {
     sets.push("updated_at = datetime('now')");
     await run(db, `UPDATE stations SET ${sets.join(', ')} WHERE id = ?`, ...vals, st.id);
@@ -380,6 +397,8 @@ app.post('/stations/:id/review', need('admin', 'auteur'), async (c) => {
 
 // ---------- candidats ----------
 
+const CAND_COLS = ['exam_id', 'last_name', 'first_name', 'email', 'phone', 'faculty', 'year', 'slot_label', 'day', 'series', 'status', 'code'];
+
 app.get('/exams/:id/candidates', need('admin'), async (c) => {
   const rows = await all(c.env.DB, `SELECT c.*, (SELECT COUNT(*) FROM evaluations v WHERE v.candidate_id = c.id) AS n_evaluations
     FROM candidates c WHERE c.exam_id = ? ORDER BY c.day, c.series, c.number, c.last_name`, c.req.param('id'));
@@ -389,17 +408,16 @@ app.get('/exams/:id/candidates', need('admin'), async (c) => {
 app.post('/exams/:id/candidates', need('admin'), async (c) => {
   const examId = c.req.param('id');
   const b = await c.req.json();
-  const list = Array.isArray(b.rows) ? b.rows : [b];
-  let n = 0;
-  for (const r of list) {
-    if (!String(r.last_name || '').trim() && !String(r.first_name || '').trim()) continue;
-    await run(c.env.DB, `INSERT INTO candidates (exam_id, last_name, first_name, email, phone, faculty, year, slot_label, day, series, status, code)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`, examId, String(r.last_name || '').trim(), String(r.first_name || '').trim(),
-    r.email || null, r.phone || null, r.faculty || null, r.year || null, r.slot_label || null, r.day || null,
-    r.series ? Number(r.series) : null, r.status === 'annule' ? 'annule' : 'inscrit', await uniqueCode(c.env.DB, 'candidates'));
-    n++;
-  }
-  return c.json({ imported: n });
+  const list = (Array.isArray(b.rows) ? b.rows : [b])
+    .filter((r) => String(r.last_name || '').trim() || String(r.first_name || '').trim());
+  const codes = await freshCodes(c.env.DB, list.length);
+  await batch(c.env.DB, multiInsert(c.env.DB, 'candidates', [...CAND_COLS, 'extra'], list.map((r, i) => ({
+    exam_id: Number(examId), last_name: String(r.last_name || '').trim(), first_name: String(r.first_name || '').trim(),
+    email: r.email || null, phone: r.phone || null, faculty: r.faculty || null, year: r.year || null, slot_label: r.slot_label || null,
+    day: r.day || null, series: r.series ? Number(r.series) : null, status: r.status === 'annule' ? 'annule' : 'inscrit', code: codes[i],
+    extra: String(r.prepa || '').trim() ? JSON.stringify({ prepa: String(r.prepa).trim() }) : null,
+  }))));
+  return c.json({ imported: list.length });
 });
 
 app.patch('/candidates/:id', need('admin'), async (c) => {
@@ -408,7 +426,7 @@ app.patch('/candidates/:id', need('admin'), async (c) => {
   for (const f of ['last_name', 'first_name', 'email', 'phone', 'faculty', 'year', 'slot_label', 'day', 'series', 'status', 'number']) {
     if (f in b) { sets.push(`${f} = ?`); vals.push(b[f] === '' ? null : b[f]); }
   }
-  if (b.regen_code) { sets.push('code = ?'); vals.push(await uniqueCode(c.env.DB, 'candidates')); }
+  if (b.regen_code) { sets.push('code = ?'); vals.push(await uniqueCode(c.env.DB)); }
   if (sets.length) await run(c.env.DB, `UPDATE candidates SET ${sets.join(', ')} WHERE id = ?`, ...vals, c.req.param('id'));
   return c.json({ ok: true });
 });
@@ -450,42 +468,63 @@ app.post('/exams/:id/candidates/renumber', need('admin'), async (c) => {
 
 // ---------- résultats ----------
 
+// Plusieurs évaluateurs peuvent noter le même passage (binôme) : la note de la station est la moyenne
+// de leurs notes. Un passage n'est « absent » que si tous ses évaluateurs l'ont marqué absent.
+function mergePassages(rows) {
+  const map = new Map();
+  for (const e of rows) {
+    const k = `${e.station_id}|${e.candidate_id}`;
+    let m = map.get(k);
+    if (!m) { m = { station_id: e.station_id, candidate_id: e.candidate_id, raters: [] }; map.set(k, m); }
+    m.raters.push(e);
+  }
+  for (const m of map.values()) {
+    const sc = m.raters.filter((e) => !e.absent && e.score !== null);
+    m.absent = sc.length === 0 && m.raters.every((e) => e.absent);
+    const avg = (f) => (sc.length ? sc.reduce((x, e) => x + (e[f] ?? 0), 0) / sc.length : null);
+    m.score = avg('score'); m.points = avg('points'); m.max_points = sc.length ? sc[0].max_points : null;
+  }
+  return [...map.values()];
+}
+
+const mean = (xs) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
+const sdev = (xs) => { const m = mean(xs); return xs.length > 1 ? Math.sqrt(xs.reduce((a, b) => a + (b - m) ** 2, 0) / (xs.length - 1)) : null; };
+
+// Calcul léger (sans lire le détail des grilles) : il tourne à chaque actualisation des pages étudiants.
 async function examResults(db, examId) {
   const exam = await one(db, 'SELECT * FROM exams WHERE id = ?', examId);
   if (!exam) throw httpError(404, 'Session introuvable');
-  const stations = (await all(db, 'SELECT id, slot, domain, type, title, discipline, played, content FROM stations WHERE exam_id = ? ORDER BY slot', examId))
-    .map((s) => ({ ...s, content: normalizeContent(parse(s.content, {})) }));
-  const candidates = await all(db, "SELECT * FROM candidates WHERE exam_id = ? AND status != 'annule'", examId);
-  const evals = (await all(db, 'SELECT * FROM evaluations WHERE exam_id = ?', examId))
-    .map((e) => ({ ...e, answers: parse(e.answers, {}) }));
+  const [stations, candidates, raw] = await Promise.all([
+    all(db, 'SELECT id, slot, domain, type, title, discipline, played FROM stations WHERE exam_id = ? ORDER BY slot', examId),
+    all(db, "SELECT id, number, last_name, first_name, email, day, series FROM candidates WHERE exam_id = ? AND status != 'annule'", examId),
+    all(db, 'SELECT id, station_id, candidate_id, evaluator_name, absent, points, max_points, score FROM evaluations WHERE exam_id = ?', examId),
+  ]);
   const played = stations.filter((s) => s.played);
+  const passages = mergePassages(raw);
+  const byStation = new Map(stations.map((s) => [s.id, []]));
+  const byCand = new Map(candidates.map((c) => [c.id, []]));
+  for (const p of passages) { byStation.get(p.station_id)?.push(p); byCand.get(p.candidate_id)?.push(p); }
 
-  // par station : moyenne et rangs
   const stationStats = {};
   for (const s of stations) {
-    const ev = evals.filter((e) => e.station_id === s.id && !e.absent && e.score !== null);
-    const scores = ev.map((e) => e.score);
-    const mean = scores.length ? scores.reduce((a, b) => a + b, 0) / scores.length : null;
-    const sd = scores.length > 1 ? Math.sqrt(scores.reduce((a, b) => a + (b - mean) ** 2, 0) / (scores.length - 1)) : null;
+    const ev = (byStation.get(s.id) || []).filter((p) => !p.absent && p.score !== null && byCand.has(p.candidate_id));
+    const scores = ev.map((p) => p.score);
     stationStats[s.id] = {
-      n: scores.length, mean, sd,
-      min: scores.length ? Math.min(...scores) : null,
-      max: scores.length ? Math.max(...scores) : null,
-      ranks: rankMap(ev.map((e) => ({ id: e.candidate_id, value: e.score }))),
+      n: scores.length, mean: mean(scores), sd: sdev(scores),
+      min: scores.length ? Math.min(...scores) : null, max: scores.length ? Math.max(...scores) : null,
+      ranks: rankMap(ev.map((p) => ({ id: p.candidate_id, value: p.score }))),
     };
   }
-
-  // par candidat : moyenne des stations passées, complétude, rang
+  const playedIds = played.map((s) => s.id);
   const perCandidate = candidates.map((cand) => {
-    const ev = evals.filter((e) => e.candidate_id === cand.id);
-    const scored = ev.filter((e) => !e.absent && e.score !== null);
-    const avg = scored.length ? scored.reduce((a, b) => a + b.score, 0) / scored.length : null;
-    const done = played.every((s) => ev.some((e) => e.station_id === s.id));
-    return { cand, ev, avg, done, n: ev.length };
+    const ev = byCand.get(cand.id);
+    const scored = ev.filter((p) => !p.absent && p.score !== null);
+    const done = playedIds.every((id) => ev.some((p) => p.station_id === id));
+    return { cand, ev, avg: mean(scored.map((p) => p.score)), done, n: ev.length };
   });
   const completed = perCandidate.filter((p) => p.done && p.avg !== null);
   const ranks = rankMap(completed.map((p) => ({ id: p.cand.id, value: p.avg })));
-  return { exam, stations, played, candidates, evals, stationStats, perCandidate, completed, ranks };
+  return { exam, stations, played, candidates, raw, passages, stationStats, perCandidate, completed, ranks };
 }
 
 app.get('/exams/:id/results', need('admin'), async (c) => {
@@ -494,33 +533,13 @@ app.get('/exams/:id/results', need('admin'), async (c) => {
     id: p.cand.id, number: p.cand.number, name: `${p.cand.last_name} ${p.cand.first_name}`, day: p.cand.day, series: p.cand.series,
     avg: p.avg, done: p.done, n: p.n, rank: R.ranks.get(p.cand.id) ?? null,
     scores: Object.fromEntries(p.ev.map((e) => [e.station_id, e.absent ? 'abs' : e.score])),
+    raters: Object.fromEntries(p.ev.map((e) => [e.station_id, e.raters.length])),
   })).sort((a, b) => (a.rank ?? 1e9) - (b.rank ?? 1e9) || (b.avg ?? -1) - (a.avg ?? -1));
-
   const stations = R.stations.map((s) => {
-    const st = R.stationStats[s.id];
-    const ev = R.evals.filter((e) => e.station_id === s.id && !e.absent);
-    const items = s.content.grille.apt.filter((i) => i.label?.trim()).map((i) => ({
-      id: i.id, label: i.label,
-      rate: ev.length ? ev.filter((e) => e.answers?.apt?.[i.id]?.ok === true).length / ev.length : null,
-    }));
-    const com = s.content.grille.com.filter((i) => i.label?.trim()).map((i) => ({
-      id: i.id, label: i.label,
-      mean: ev.length ? ev.reduce((a, e) => a + (Number(e.answers?.com?.[i.id]) || 0), 0) / ev.length : null,
-    }));
-    const byGlobal = [0, 1, 2, 3, 4].map((g) => {
-      const x = ev.filter((e) => e.global === g && e.score !== null);
-      return { level: g, n: x.length, mean: x.length ? x.reduce((a, e) => a + e.score, 0) / x.length : null };
-    });
-    const evaluators = [...new Set(ev.map((e) => e.evaluator_name))].map((name) => {
-      const x = ev.filter((e) => e.evaluator_name === name && e.score !== null);
-      return { name, n: x.length, mean: x.length ? x.reduce((a, e) => a + e.score, 0) / x.length : null };
-    });
-    return {
-      id: s.id, slot: s.slot, title: s.title, domain: s.domain, discipline: s.discipline, played: s.played,
-      n: st.n, mean: st.mean, sd: st.sd, min: st.min, max: st.max, items, com, byGlobal, evaluators,
-    };
+    const { ranks, ...st } = R.stationStats[s.id];
+    return { id: s.id, slot: s.slot, title: s.title, domain: s.domain, discipline: s.discipline, played: s.played, ...st };
   });
-  return c.json({ exam: R.exam, rows, stations, completed: R.completed.length, total: R.candidates.length });
+  return c.json({ exam: R.exam, rows, stations, completed: R.completed.length, total: R.candidates.length, grids: R.raw.length });
 });
 
 app.get('/exams/:id/results.csv', need('admin'), async (c) => {
@@ -530,7 +549,7 @@ app.get('/exams/:id/results.csv', need('admin'), async (c) => {
   for (const p of [...R.perCandidate].sort((a, b) => (R.ranks.get(a.cand.id) ?? 1e9) - (R.ranks.get(b.cand.id) ?? 1e9))) {
     lines.push([R.ranks.get(p.cand.id) ?? '', p.cand.number ?? '', p.cand.last_name, p.cand.first_name, p.cand.email ?? '',
       p.avg === null ? '' : p.avg.toFixed(2).replace('.', ','), p.done ? 'oui' : 'non',
-      ...R.played.map((s) => { const e = p.ev.find((x) => x.station_id === s.id); return !e ? '' : e.absent ? 'absent' : String(e.score).replace('.', ','); })]);
+      ...R.played.map((s) => { const e = p.ev.find((x) => x.station_id === s.id); return !e ? '' : e.absent ? 'absent' : e.score.toFixed(2).replace('.', ','); })]);
   }
   const csv = '﻿' + lines.map((l) => l.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(';')).join('\r\n');
   return new Response(csv, { headers: { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': 'attachment; filename="resultats.csv"' } });
@@ -546,24 +565,40 @@ async function candidateReport(db, candidateId, asAdmin) {
   const showResults = asAdmin || ex.show_results;
   const showDetails = asAdmin || ex.show_details;
   const showCorr = asAdmin || ex.corrections_published;
+  // le détail des grilles n'est lu que pour ce candidat
+  const needContent = showDetails || showCorr;
+  const [contents, mine] = needContent ? await Promise.all([
+    all(db, 'SELECT id, content FROM stations WHERE exam_id = ? AND played = 1', cand.exam_id),
+    showDetails ? all(db, 'SELECT station_id, evaluator_name, absent, answers, comment, score FROM evaluations WHERE candidate_id = ?', cand.id) : [],
+  ]) : [[], []];
+  const contentOf = new Map(contents.map((r) => [r.id, normalizeContent(parse(r.content, {}))]));
   const stations = R.played.map((s) => {
     const e = me?.ev.find((x) => x.station_id === s.id);
     const st = R.stationStats[s.id];
     const out = { slot: s.slot, title: s.title, domain: s.domain, discipline: s.discipline, evaluated: !!e, absent: !!e?.absent };
+    const content = contentOf.get(s.id);
     if (e && !e.absent && showResults) {
       out.score = e.score; out.points = e.points; out.max_points = e.max_points;
       out.rank = st.ranks.get(cand.id) ?? null; out.n = st.n; out.mean = st.mean;
-      if (showDetails) {
-        out.apt = s.content.grille.apt.filter((i) => i.label?.trim()).map((i) => ({
-          label: i.label, points: Number(i.points) > 0 ? Number(i.points) : 1,
-          ok: e.answers?.apt?.[i.id]?.ok === true, comment: e.answers?.apt?.[i.id]?.comment || '',
-        }));
-        out.com = s.content.grille.com.filter((i) => i.label?.trim()).map((i) => ({ label: i.label, value: Number(e.answers?.com?.[i.id]) || 0 }));
-        out.comment = e.comment || '';
-        out.evaluator = e.evaluator_name;
+      out.raters = e.raters.length;
+      if (showDetails && content) {
+        const grids = mine.filter((x) => x.station_id === s.id && !x.absent).map((x) => ({ ...x, answers: parse(x.answers, {}) }));
+        const k = grids.length || 1;
+        out.apt = content.grille.apt.filter((i) => i.label?.trim()).map((i) => {
+          const share = grids.filter((g) => g.answers?.apt?.[i.id]?.ok === true).length / k;
+          return {
+            label: i.label, points: Number(i.points) > 0 ? Number(i.points) : 1, ok: share === 1, share,
+            comment: grids.map((g) => g.answers?.apt?.[i.id]?.comment).filter(Boolean).join(' / '),
+          };
+        });
+        out.com = content.grille.com.filter((i) => i.label?.trim())
+          .map((i) => ({ label: i.label, value: grids.reduce((a, g) => a + (Number(g.answers?.com?.[i.id]) || 0), 0) / k }));
+        out.comments = grids.map((g) => g.comment).filter(Boolean);
+        out.comment = out.comments.join('\n\n');
+        if (asAdmin) out.by_rater = grids.map((g) => ({ name: g.evaluator_name, score: g.score }));
       }
     }
-    if (showCorr) out.correction = { text: s.content.pedago.correction, references: s.content.pedago.references };
+    if (showCorr && content) out.correction = { text: content.pedago.correction, references: content.pedago.references };
     return out;
   });
   return {
@@ -572,7 +607,7 @@ async function candidateReport(db, candidateId, asAdmin) {
     summary: showResults ? {
       avg: me?.avg ?? null, done: !!me?.done, evaluated: me?.n ?? 0, total_stations: R.played.length,
       rank: R.ranks.get(cand.id) ?? null, ranked: R.completed.length, registered: R.candidates.length,
-      cohort_mean: R.completed.length ? R.completed.reduce((a, p) => a + p.avg, 0) / R.completed.length : null,
+      cohort_mean: mean(R.completed.map((p) => p.avg)),
     } : null,
     stations,
     updated_at: new Date().toISOString(),
@@ -582,20 +617,140 @@ async function candidateReport(db, candidateId, asAdmin) {
 app.get('/me/results', need('etudiant'), async (c) => c.json(await candidateReport(c.env.DB, c.get('session').subject_id, false)));
 app.get('/candidates/:id/report', need('admin'), async (c) => c.json(await candidateReport(c.env.DB, c.req.param('id'), true)));
 
+// ---------- jeu de données pour l'analyse ----------
+// SQLite assemble lui-même le JSON des grilles : le Worker ne fait que concaténer, ce qui reste rapide
+// même avec plusieurs milliers de grilles.
+async function jsonRows(db, sql, ...args) {
+  const rows = await all(db, sql, ...args);
+  return `[${rows.map((r) => r.j).join(',')}]`;
+}
+
+async function examDataset(db, examId, full) {
+  const exam = await one(db, 'SELECT * FROM exams WHERE id = ?', examId);
+  if (!exam) throw httpError(404, 'Session introuvable');
+  const candCols = full
+    ? "'key', id, 'number', number, 'last_name', last_name, 'first_name', first_name, 'email', email, 'phone', phone, 'faculty', faculty, 'year', year, 'slot_label', slot_label, 'day', day, 'series', series, 'status', status, 'code', code, 'extra', json(COALESCE(extra, 'null'))"
+    : "'id', id, 'number', number, 'faculty', faculty, 'year', year, 'day', day, 'series', series, 'status', status, 'extra', json(COALESCE(extra, 'null'))";
+  const [stations, candidates, evaluations] = await Promise.all([
+    jsonRows(db, `SELECT json_object('${full ? 'key' : 'id'}', id, 'slot', slot, 'played', played, 'domain', domain, 'type', type, 'discipline', discipline,
+      'title', title, 'status', status, 'content', json(content)) AS j FROM stations WHERE exam_id = ? ORDER BY slot`, examId),
+    jsonRows(db, `SELECT json_object(${candCols}) AS j FROM candidates WHERE exam_id = ? ORDER BY id`, examId),
+    jsonRows(db, `SELECT json_object('station', station_id, 'candidate', candidate_id, 'evaluator_name', evaluator_name, 'absent', absent,
+      'answers', json(answers), 'global', global, 'comment', comment, 'points', points, 'max_points', max_points, 'score', score,
+      'created_at', created_at) AS j FROM evaluations WHERE exam_id = ? ORDER BY id`, examId),
+  ]);
+  const head = full
+    ? { format: 'omas-ecos-session', version: 1, exported_at: new Date().toISOString(),
+      exam: { name: exam.name, starts_on: exam.starts_on, ends_on: exam.ends_on } }
+    : { exam };
+  return `${JSON.stringify(head).slice(0, -1)},"stations":${stations},"candidates":${candidates},"evaluations":${evaluations}}`;
+}
+
+app.get('/exams/:id/dataset', need('admin'), async (c) => new Response(await examDataset(c.env.DB, c.req.param('id'), false),
+  { headers: { 'Content-Type': 'application/json; charset=utf-8' } }));
+
+app.get('/exams/:id/export', need('admin'), async (c) => new Response(await examDataset(c.env.DB, c.req.param('id'), true), {
+  headers: { 'Content-Type': 'application/json; charset=utf-8', 'Content-Disposition': `attachment; filename="session-${c.req.param('id')}.json"` },
+}));
+
+// ---------- restauration d'une session (sauvegarde ou ancien site) ----------
+// L'import se fait en plusieurs appels pour rester sous les limites de D1 :
+// 1. la session et ses stations, 2. les candidats par paquets, 3. les grilles par paquets.
+
+app.post('/import/exam', need('admin'), async (c) => {
+  const db = c.env.DB;
+  const b = await c.req.json();
+  if (!String(b.exam?.name || '').trim()) throw httpError(400, 'Nom de session manquant');
+  const stations = Array.isArray(b.stations) ? b.stations : [];
+  if (!stations.length) throw httpError(400, 'Aucune station dans le fichier');
+  const r = await run(db, 'INSERT INTO exams (name, starts_on, ends_on) VALUES (?,?,?)', b.exam.name.trim(), b.exam.starts_on || null, b.exam.ends_on || null);
+  const examId = r.meta.last_row_id;
+  const codes = await freshCodes(db, stations.length);
+  await batch(db, multiInsert(db, 'stations', ['exam_id', 'slot', 'played', 'domain', 'type', 'discipline', 'title', 'status', 'content', 'eval_code'],
+    stations.map((s, i) => ({
+      exam_id: examId, slot: String(s.slot || `S${i + 1}`).toUpperCase(), played: s.played === 0 || s.played === false ? 0 : 1,
+      domain: s.domain || null, type: s.type || 'SANS', discipline: s.discipline || null, title: s.title || null,
+      status: STATUSES[s.status] ? s.status : 'validee', content: JSON.stringify(normalizeContent(s.content || {})), eval_code: codes[i],
+    }))));
+  const ids = await all(db, 'SELECT id, slot FROM stations WHERE exam_id = ?', examId);
+  const bySlot = Object.fromEntries(ids.map((x) => [x.slot, x.id]));
+  return c.json({ exam_id: examId, stations: stations.map((s, i) => [s.key ?? s.slot, bySlot[String(s.slot || `S${i + 1}`).toUpperCase()]]) });
+});
+
+app.post('/import/:examId/candidates', need('admin'), async (c) => {
+  const db = c.env.DB;
+  const examId = Number(c.req.param('examId'));
+  if (!await one(db, 'SELECT 1 FROM exams WHERE id = ?', examId)) throw httpError(404, 'Session introuvable');
+  const rows = (await c.req.json()).rows || [];
+  if (rows.length > 500) throw httpError(400, 'Paquet trop gros (500 lignes au plus)');
+  // on garde les codes d'origine (les étudiants les connaissent déjà) sauf s'ils sont pris
+  const taken = new Set((await all(db, `SELECT code AS c FROM candidates UNION ALL SELECT code FROM jp_participants
+    UNION ALL SELECT code FROM people UNION ALL SELECT eval_code FROM stations`)).map((r) => r.c));
+  let changed = 0;
+  const out = rows.map((r) => {
+    let code = String(r.code || '').toUpperCase().replace(/\s+/g, '');
+    if (code.length < 6 || taken.has(code)) {
+      if (code) changed++;
+      do code = genCode(); while (taken.has(code));
+    }
+    taken.add(code);
+    return {
+      exam_id: examId, number: r.number ?? null, last_name: String(r.last_name || '').trim() || '?', first_name: String(r.first_name || '').trim(),
+      email: r.email || null, phone: r.phone || null, faculty: r.faculty || null, year: r.year || null, slot_label: r.slot_label || null,
+      day: r.day || null, series: r.series ? Number(r.series) : null, status: r.status === 'annule' ? 'annule' : 'inscrit', code,
+      extra: r.extra ? JSON.stringify(r.extra) : null, key: r.key,
+    };
+  });
+  await batch(db, multiInsert(db, 'candidates', [...CAND_COLS, 'number', 'extra'], out));
+  const ids = await all(db, 'SELECT id, code FROM candidates WHERE exam_id = ?', examId);
+  const byCode = Object.fromEntries(ids.map((x) => [x.code, x.id]));
+  return c.json({ imported: out.length, codes_changed: changed, candidates: out.map((r) => [r.key ?? r.code, byCode[r.code]]) });
+});
+
+app.post('/import/:examId/evaluations', need('admin'), async (c) => {
+  const db = c.env.DB;
+  const examId = Number(c.req.param('examId'));
+  const rows = (await c.req.json()).rows || [];
+  if (rows.length > 800) throw httpError(400, 'Paquet trop gros (800 grilles au plus)');
+  const [st, ca] = await Promise.all([
+    all(db, 'SELECT id FROM stations WHERE exam_id = ?', examId),
+    all(db, 'SELECT id FROM candidates WHERE exam_id = ?', examId),
+  ]);
+  const okSt = new Set(st.map((x) => x.id));
+  const okCa = new Set(ca.map((x) => x.id));
+  const clean = rows.filter((r) => okSt.has(r.station_id) && okCa.has(r.candidate_id)).map((r) => ({
+    exam_id: examId, station_id: r.station_id, candidate_id: r.candidate_id,
+    evaluator_name: String(r.evaluator_name || '').trim().replace(/\s+/g, ' '), absent: r.absent ? 1 : 0,
+    answers: JSON.stringify(r.answers || {}), global: r.global ?? null, comment: r.comment || null,
+    points: r.points ?? null, max_points: r.max_points ?? null, score: r.score ?? null,
+    created_at: r.created_at || new Date().toISOString().replace('T', ' ').slice(0, 19),
+  }));
+  await batch(db, multiInsert(db, 'evaluations', ['exam_id', 'station_id', 'candidate_id', 'evaluator_name', 'absent', 'answers', 'global', 'comment', 'points', 'max_points', 'score', 'created_at'],
+    clean, 'ON CONFLICT(station_id, candidate_id, evaluator_name) DO NOTHING'));
+  return c.json({ imported: clean.length, skipped: rows.length - clean.length });
+});
+
 // ---------- évaluateurs ----------
+// Chaque évaluateur a sa propre grille. En binôme, chacun remplit la sienne sur son téléphone,
+// ou ils en remplissent une seule à deux sur le même appareil.
+
+const evalName = (s) => String(s.name || '').trim().replace(/\s+/g, ' ');
 
 app.get('/eval/context', need('evaluateur'), async (c) => {
   const db = c.env.DB;
-  const st = await one(db, 'SELECT * FROM stations WHERE id = ?', c.get('session').subject_id);
+  const s = c.get('session');
+  const st = await one(db, 'SELECT * FROM stations WHERE id = ?', s.subject_id);
   if (!st) throw httpError(404, 'Station introuvable');
   const exam = await one(db, 'SELECT id, name, eval_open FROM exams WHERE id = ?', st.exam_id);
   const content = normalizeContent(parse(st.content, {}));
   const candidates = await all(db, `SELECT c.id, c.number, c.first_name, c.last_name, c.day, c.series,
-    v.id AS eval_id, v.absent, v.score, v.evaluator_name
-    FROM candidates c LEFT JOIN evaluations v ON v.candidate_id = c.id AND v.station_id = ?
-    WHERE c.exam_id = ? AND c.status != 'annule' ORDER BY c.day, c.series, c.number, c.last_name`, st.id, st.exam_id);
+    v.id AS eval_id, v.absent, v.score, v.evaluator_name,
+    (SELECT COUNT(*) FROM evaluations o WHERE o.candidate_id = c.id AND o.station_id = ? AND o.evaluator_name != ?) AS n_others
+    FROM candidates c LEFT JOIN evaluations v ON v.candidate_id = c.id AND v.station_id = ? AND v.evaluator_name = ?
+    WHERE c.exam_id = ? AND c.status != 'annule' ORDER BY c.day, c.series, c.number, c.last_name`,
+  st.id, evalName(s), st.id, evalName(s), st.exam_id);
   return c.json({
-    evaluator: c.get('session').name,
+    evaluator: evalName(s),
     exam,
     station: { id: st.id, slot: st.slot, title: st.title, domain: st.domain, discipline: st.discipline, type: st.type },
     vignette: content.vignette, examinateur: content.examinateur, grille: content.grille,
@@ -604,8 +759,9 @@ app.get('/eval/context', need('evaluateur'), async (c) => {
 });
 
 app.get('/eval/evaluations/:candidateId', need('evaluateur'), async (c) => {
-  const e = await one(c.env.DB, 'SELECT * FROM evaluations WHERE station_id = ? AND candidate_id = ?',
-    c.get('session').subject_id, c.req.param('candidateId'));
+  const s = c.get('session');
+  const e = await one(c.env.DB, 'SELECT * FROM evaluations WHERE station_id = ? AND candidate_id = ? AND evaluator_name = ?',
+    s.subject_id, c.req.param('candidateId'), evalName(s));
   return c.json(e ? { ...e, answers: parse(e.answers, {}) } : null);
 });
 
@@ -627,10 +783,10 @@ app.put('/eval/evaluations', need('evaluateur'), async (c) => {
   const { points, max, score } = computeScore(grille, answers, absent);
   await run(db, `INSERT INTO evaluations (exam_id, station_id, candidate_id, evaluator_name, absent, answers, global, comment, points, max_points, score)
     VALUES (?,?,?,?,?,?,?,?,?,?,?)
-    ON CONFLICT(station_id, candidate_id) DO UPDATE SET evaluator_name = excluded.evaluator_name, absent = excluded.absent,
+    ON CONFLICT(station_id, candidate_id, evaluator_name) DO UPDATE SET absent = excluded.absent,
       answers = excluded.answers, global = excluded.global, comment = excluded.comment, points = excluded.points,
       max_points = excluded.max_points, score = excluded.score, updated_at = datetime('now')`,
-  st.exam_id, st.id, cand.id, s.name, absent ? 1 : 0, JSON.stringify(answers), absent ? null : global,
+  st.exam_id, st.id, cand.id, evalName(s), absent ? 1 : 0, JSON.stringify(answers), absent ? null : global,
   absent ? null : (String(b.comment || '').trim() || null), points, max, score);
   return c.json({ ok: true, score });
 });
@@ -640,7 +796,7 @@ app.delete('/evaluations/:id', need('admin'), async (c) => {
   return c.json({ ok: true });
 });
 
-registerJp(app, { need, httpError, all, one, run, uniqueCode, parse });
+registerJp(app, { need, httpError, all, one, run, uniqueCode, freshCodes, multiInsert, batch, parse });
 
 app.all('*', () => { throw httpError(404, 'Route inconnue'); });
 

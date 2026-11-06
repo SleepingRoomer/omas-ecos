@@ -48,7 +48,7 @@ export async function roomView(app) {
       <p class="muted small" style="margin:12px 0 0">${done} grille${done > 1 ? 's' : ''} saisie${done > 1 ? 's' : ''} sur ${shown.length}. <button class="small quiet" id="reload">Actualiser</button></p>
       <div class="cand-list">${shown.map((c) => `<button class="cand ${c.eval_id ? 'done' : ''}" data-id="${c.id}">
           <span class="cand-no">${esc(c.number || 'Sans numéro')}</span><span class="who">${esc(c.first_name)} ${esc((c.last_name || '').slice(0, 1))}.</span>
-          <span class="st">${c.eval_id ? (c.absent ? 'Absent' : `${fmt(c.score, 1)} sur 20`) : 'À évaluer'}</span></button>`).join('') || '<p class="muted">Aucun candidat avec ces filtres.</p>'}</div>`;
+          <span class="st">${c.eval_id ? (c.absent ? 'Absent' : `${fmt(c.score, 1)} sur 20`) : 'À évaluer'}${c.n_others ? `<small class="faint" style="display:block">${c.eval_id ? 'ton binôme aussi' : 'déjà notée par ton binôme'}</small>` : ''}</span></button>`).join('') || '<p class="muted">Aucun candidat avec ces filtres.</p>'}</div>`;
     app.querySelector('#day')?.addEventListener('change', (e) => { filters.day = e.target.value; filters.series = ''; roomView(app); });
     app.querySelectorAll('[data-s]').forEach((b) => b.addEventListener('click', () => { filters.series = b.dataset.s; draw(); }));
     app.querySelector('#q').addEventListener('input', (e) => { filters.q = e.target.value; const pos = e.target.selectionStart; draw(); const q = app.querySelector('#q'); q.focus(); q.setSelectionRange(pos, pos); });
@@ -84,7 +84,7 @@ export async function gridView(app, candidateId) {
         <div class="cand-head">${plate(ctx.station.slot, 'lg')}<div><span class="cand-no">${esc(cand.number || '')}</span>
           <div class="muted">${esc(cand.first_name)} ${esc(cand.last_name)}</div></div></div>
         <button id="absent" class="${absent ? 'danger solid' : 'danger'}">${absent ? 'Absent : annuler' : 'Candidat absent'}</button></div>
-      ${existing ? `<p class="alert info small">Grille déjà saisie par ${esc(existing.evaluator_name)}. Ce que tu enregistres la remplace.</p>` : ''}
+      ${existing ? '<p class="alert info small">Tu as déjà rempli cette grille. Ce que tu enregistres remplace ta version.</p>' : ''}
       ${absent ? '<p class="alert warn">Le candidat sera noté absent à cette station. Elle ne comptera pas dans sa moyenne.</p>' : `
       <h2>Aptitudes cliniques et techniques</h2>
       ${apt.map((i, k) => { const a = ans.apt[i.id] || {}; return `<div class="q ${flag(i.id)}">

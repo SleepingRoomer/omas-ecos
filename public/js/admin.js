@@ -2,7 +2,7 @@ import { api, esc, toast, fmt, pct, frDate, setTitle, downloadCsv, parseTable, c
 import { DOMAINS, TYPES, STATUSES, domainIcon } from './shared.js';
 
 const link = (role, code) => `${location.origin}/#/?role=${role}&code=${code}`;
-const dates = (e) => (e.starts_on ? `${frDate(e.starts_on)} au ${frDate(e.ends_on || e.starts_on)}` : 'Dates à fixer');
+const dates = (e) => (!e.starts_on ? 'Dates à fixer' : !e.ends_on || e.ends_on === e.starts_on ? frDate(e.starts_on) : `${frDate(e.starts_on)} au ${frDate(e.ends_on)}`);
 
 // ---------- liste des sessions ----------
 
@@ -35,7 +35,9 @@ export async function examsView(app) {
         <button class="primary" style="margin-top:16px">Créer la session</button>
       </form>
     </div>
+    <div id="impbox"></div>
     <div id="jpbox"></div>`;
+  (await import('./backup.js')).importPanel(app.querySelector('#impbox'), (id) => { location.hash = `#/admin/session/${id}/analyse`; });
   (await import('./jp.js')).jpSection(app.querySelector('#jpbox'));
   app.querySelector('#new').addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -94,7 +96,7 @@ export function rowActions(root, items, { save, remove, reload }) {
 
 // ---------- une session ----------
 
-const TABS = [['stations', 'Stations'], ['candidats', 'Candidats'], ['resultats', 'Résultats'], ['reglages', 'Réglages']];
+const TABS = [['stations', 'Stations'], ['candidats', 'Candidats'], ['resultats', 'Résultats'], ['analyse', 'Analyse'], ['reglages', 'Réglages']];
 
 export async function examView(app, id, tab) {
   const exam = await api(`/exams/${id}`);
@@ -112,6 +114,7 @@ export async function examView(app, id, tab) {
   if (tab === 'stations') return stationsTab(box, exam);
   if (tab === 'candidats') return candidatesTab(box, exam);
   if (tab === 'resultats') return resultsTab(box, exam);
+  if (tab === 'analyse') return (await import('./analytics.js')).analyticsTab(box, exam);
   if (tab === 'reglages') return settingsTab(box, exam);
   box.innerHTML = '<p>Onglet inconnu.</p>';
 }
@@ -192,12 +195,12 @@ async function signsView(app, exam) {
 
 const FIELDS = [
   ['last_name', 'Nom'], ['first_name', 'Prénom'], ['email', 'E-mail'], ['phone', 'Téléphone'],
-  ['faculty', 'Faculté'], ['year', 'Année'], ['slot_label', 'Créneau de la billetterie'],
+  ['faculty', 'Faculté'], ['year', 'Année'], ['slot_label', 'Créneau de la billetterie'], ['prepa', 'Préparation (tutorat, prépa…)'],
 ];
 const GUESS = {
   last_name: /^nom( |$)|nom participant|last ?name/i, first_name: /pr[ée]nom/i, email: /e-?mail|courriel/i,
   phone: /t[ée]l[ée]phone|portable|phone/i, faculty: /facult|fac\b|universit/i, year: /ann[ée]e|niveau|promo/i,
-  slot_label: /tarif|cr[ée]neau|formule|billet/i,
+  slot_label: /tarif|cr[ée]neau|formule|billet/i, prepa: /pr[ée]pa|tutorat|pr[ée]paration/i,
 };
 
 async function candidatesTab(box, exam) {
@@ -339,7 +342,7 @@ async function resultsTab(box, exam) {
     <div class="facts">
       <div><div class="v">${R.completed}<span class="faint"> / ${R.total}</span></div><div class="l">candidats classés (toutes leurs stations saisies)</div></div>
       <div><div class="v">${fmt(meanAll)}</div><div class="l">moyenne générale sur 20</div></div>
-      <div><div class="v">${R.stations.reduce((a, s) => a + s.n, 0)}</div><div class="l">grilles saisies</div></div>
+      <div><div class="v">${R.grids}</div><div class="l">grilles saisies</div></div>
     </div>
     <div class="row" style="margin:0 0 12px"><button id="refresh">Actualiser</button>
       <a class="btn" href="/api/exams/${exam.id}/results.csv">Exporter en CSV</a>
@@ -354,28 +357,7 @@ async function resultsTab(box, exam) {
         <td>${esc(r.name)}</td><td class="num"><strong>${fmt(r.avg)}</strong></td>
         ${played.map((s) => `<td class="num">${r.scores[s.id] === 'abs' ? '<span class="faint">abs.</span>' : fmt(r.scores[s.id], 1)}</td>`).join('')}</tr>`).join('')}</tbody>
     </table></div>
-    <h2>Qualité des stations</h2>
-    <p class="muted small">Alertes du guide : item réussi par moins de 10 % ou plus de 95 % des candidats, moyenne hors de 8 à 15, plus de 3 points d'écart entre évaluateurs d'une même station.</p>
-    ${R.stations.filter((s) => s.n > 0).map((s) => {
-      const flag = s.mean !== null && (s.mean < 8 || s.mean > 15);
-      const ev = s.evaluators.filter((e) => e.mean !== null);
-      const gap = ev.length > 1 ? Math.max(...ev.map((e) => e.mean)) - Math.min(...ev.map((e) => e.mean)) : 0;
-      const alerts = s.items.filter((i) => i.rate !== null && (i.rate < 0.1 || i.rate > 0.95)).length;
-      return `<details class="panel" style="margin:8px 0;padding:14px 18px"><summary class="row" style="cursor:pointer">${plate(s.slot)}
-        <strong>${esc(s.title || s.domain || '')}</strong><span class="tags small"><span>${domainIcon(s.domain)} ${esc(s.domain || '')}</span>${s.discipline ? `<span>${disc(s.discipline)}</span>` : ''}</span><span class="spacer"></span>
-        <span class="pill ${flag ? 'warn' : ''}">moyenne ${fmt(s.mean, 1)}</span><span class="pill">${s.n} grilles</span>
-        ${alerts ? `<span class="pill warn">${alerts} item(s) à revoir</span>` : ''}
-        ${gap > 3 ? `<span class="pill warn">écart de ${fmt(gap, 1)} pts entre évaluateurs</span>` : ''}</summary>
-        <p class="small muted">Écart-type ${fmt(s.sd)}, de ${fmt(s.min)} à ${fmt(s.max)}.</p>
-        <table><thead><tr><th>Indicateur</th><th class="num">Réussite</th></tr></thead><tbody>
-        ${s.items.map((i) => `<tr><td>${esc(i.label)}</td><td class="num">${i.rate !== null && (i.rate < 0.1 || i.rate > 0.95) ? `<span class="pill warn">${pct(i.rate)}</span>` : pct(i.rate)}</td></tr>`).join('')}
-        ${s.com.map((i) => `<tr><td><em>${esc(i.label)}</em></td><td class="num">${fmt(i.mean)} sur 1</td></tr>`).join('')}
-        </tbody></table>
-        <h3>Note moyenne selon la performance globale</h3>
-        <p class="small">${s.byGlobal.map((g) => `niveau ${g.level} : ${g.n ? `${fmt(g.mean, 1)} (${g.n})` : 'aucune'}`).join(', ')}</p>
-        <h3>Par évaluateur</h3><p class="small">${ev.map((e) => `${esc(e.name)} : ${fmt(e.mean, 1)} (${e.n})`).join(', ') || 'Aucun'}</p>
-      </details>`;
-    }).join('') || '<p class="muted">Aucune grille saisie pour l\'instant.</p>'}`;
+    <p class="small muted">Les indicateurs de qualité (items, évaluateurs, discrimination) sont dans l'onglet <a href="#/admin/session/${exam.id}/analyse">Analyse</a>.</p>`;
   box.querySelector('#refresh').addEventListener('click', () => resultsTab(box, exam));
   box.querySelectorAll('tr[data-id]').forEach((tr) => tr.addEventListener('click', () => {
     location.hash = `#/admin/session/${exam.id}/candidat/${tr.dataset.id}`;
@@ -403,6 +385,8 @@ async function settingsTab(box, exam) {
         <div><label for="s2">Dernier jour</label><input id="s2" type="date" name="ends_on" value="${esc(exam.ends_on || '')}"></div></div></div>
       <button class="primary" style="margin-top:14px">Enregistrer</button>
     </form>
+    <div class="panel"><h2>Sauvegarde</h2><p class="small muted">Un fichier avec les stations, les candidats et toutes les grilles. Il se réimporte depuis la liste des sessions. Il contient des données personnelles : garde-le dans un dossier partagé restreint.</p>
+      <a class="btn" href="/api/exams/${exam.id}/export">Télécharger la sauvegarde</a></div>
     <div class="panel"><h2>Supprimer la session</h2><p class="small muted">Les stations, les inscrits et les grilles saisies sont supprimés avec elle.</p>
       <button class="danger" id="del">Supprimer la session</button></div>`;
   box.querySelector('#f').addEventListener('submit', async (e) => {
