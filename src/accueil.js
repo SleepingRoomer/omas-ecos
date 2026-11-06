@@ -117,6 +117,7 @@ export function registerAccueil(app, h) {
       VALUES (?,?,?,?,?,?,?,?,?,?,?,'inscrit',?,?)`, w.exam_id, w.last_name, w.first_name, w.email, w.phone, w.faculty, w.year,
     day, Number(series), Number(seat), candidateNumber(planning, day, Number(series), Number(seat)), code, extra);
     await run(db, "UPDATE waitlist SET status = 'offered', candidate_id = ?, updated_at = datetime('now') WHERE id = ?", r.meta.last_row_id, w.id);
+    h.notifier?.(c).waitlist(r.meta.last_row_id);
     return c.json({ ok: true, candidate_id: r.meta.last_row_id, code });
   });
 

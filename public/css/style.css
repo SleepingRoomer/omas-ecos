@@ -783,3 +783,4 @@ fieldset legend { font-weight: 700; padding: 0 6px; }
 .fiche-body .steps .st { font-size: inherit; color: var(--ink); padding: 0; border: 0; font-weight: 700; }
 .fiche-body .box { display: block; width: auto; height: auto; vertical-align: baseline; }
 .fiche-body .two > *, .fiche-body .two-6040 > * { min-width: 0; }
+.danger-zone { border-color: color-mix(in srgb, var(--ko) 35%, var(--line)); }

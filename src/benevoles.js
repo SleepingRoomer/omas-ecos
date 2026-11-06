@@ -60,6 +60,10 @@ export function registerBenevoles(app, h) {
         .bind(exam.id, v.id, JSON.stringify(roles), JSON.stringify([...perDay.values()]), t(b.note, 300) || null, code),
       db.prepare("INSERT INTO login_failures (ip, role) VALUES (?, 'benevole')").bind(ip(c)),
     ]);
+    if (!prev) {
+      const sg = await one(db, 'SELECT id FROM volunteer_signups WHERE exam_id = ? AND volunteer_id = ?', exam.id, v.id);
+      h.notifier?.(c).volunteer(sg.id);
+    }
     return c.json({ ok: true, code, updated: !!prev });
   });
 

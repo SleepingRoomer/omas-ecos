@@ -397,6 +397,7 @@ export function registerPlanning(app, h) {
     const owner = await one(db, 'SELECT * FROM candidates WHERE id = ?', offer.candidate_id);
     const now = describe(planning, owner.day, owner.series);
     await doSwap(db, planning, offer, owner, cand);
+    h.notifier?.(c).swap([owner.id, cand.id]);
     return c.json({ ok: true, now });
   });
 
@@ -437,6 +438,7 @@ export function registerPlanning(app, h) {
     const offer = await one(db, 'SELECT * FROM swaps WHERE id = ?', p.swap_id);
     const before = describe(planning, other.day, other.series);
     await doSwap(db, planning, offer, cand, other);
+    h.notifier?.(c).swap([cand.id, other.id]);
     return c.json({ ok: true, now: before });
   });
 

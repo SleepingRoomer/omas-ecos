@@ -473,6 +473,7 @@ async function settingsTab(box, exam) {
           <p class="small muted">Les horaires de chaque série se règlent dans l'onglet Planning.</p></div></div>
       <button class="primary" style="margin-top:14px">Enregistrer</button>
     </form>
+    <div id="mails"></div>
     <div class="panel"><h2>Sauvegarde</h2><p class="small muted">Un fichier avec les stations, les candidats et toutes les grilles. Il se réimporte depuis la liste des sessions. Il contient des données personnelles : garde-le dans un dossier partagé restreint.</p>
       <a class="btn" href="/api/exams/${exam.id}/export">Télécharger la sauvegarde</a></div>
     <div class="panel"><h2>Supprimer la session</h2><p class="small muted">Les stations, les inscrits et les grilles saisies sont supprimés avec elle.</p>
@@ -487,6 +488,7 @@ async function settingsTab(box, exam) {
       toast(text ? 'Message publié' : 'Message retiré');
     });
   });
+  import('./emails.js').then((m) => m.sessionMails(box.querySelector('#mails'), exam)).catch(() => {});
   const setPicker = daysPicker(box.querySelector('#setdays'), examDays(exam), () => {}, { weekend: true });
   box.querySelector('#f').addEventListener('submit', async (e) => {
     e.preventDefault();

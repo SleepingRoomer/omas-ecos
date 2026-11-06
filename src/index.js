@@ -11,6 +11,7 @@ import { registerAccueil } from './accueil.js';
 import { registerBenevoles } from './benevoles.js';
 import { registerBanque } from './banque.js';
 import { registerProgression } from './progression.js';
+import { registerMail, notifier, dailyReminders } from './mail.js';
 
 const app = new Hono().basePath('/api');
 const COOKIE = 'omas_s';
@@ -155,6 +156,8 @@ app.post('/login', async (c) => {
   if (role === 'admin') {
     if (!c.env.ADMIN_PASSWORD || !safeEqual(clean, c.env.ADMIN_PASSWORD)) throw await failed(c, 'admin', 'Mot de passe incorrect');
     await createSession(c, 'admin', null, 'Administrateur', 12);
+    // adresse du site, pour les liens des e-mails envoyés par la tâche planifiée
+    await run(db, "INSERT INTO settings (key, value) VALUES ('site_url', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", new URL(c.req.url).origin).catch(() => {});
     return c.json({ kind: 'admin' });
   }
   const upper = clean.toUpperCase().replace(/\s+/g, '');
@@ -921,13 +924,18 @@ app.delete('/evaluations/:id', need('admin'), async (c) => {
 });
 
 registerJp(app, { need, httpError, all, one, run, uniqueCode, freshCodes, multiInsert, batch, parse });
-registerPlanning(app, { need, httpError, all, one, run, parse, batch, genCode, freshCodes, multiInsert });
+registerPlanning(app, { need, httpError, all, one, run, parse, batch, genCode, freshCodes, multiInsert, notifier });
 registerExtras(app, { need, httpError, all, one, run, parse });
-registerAccueil(app, { need, httpError, all, one, run, parse, genCode, freshCodes });
-registerBenevoles(app, { need, httpError, all, one, run, parse, freshCodes, batch, createSession });
+registerAccueil(app, { need, httpError, all, one, run, parse, genCode, freshCodes, notifier });
+registerBenevoles(app, { need, httpError, all, one, run, parse, freshCodes, batch, createSession, notifier });
 registerBanque(app, { need, httpError, all, one, run, parse, stationRights, STATION_LIST_SQL });
 registerProgression(app, { need, httpError, all, one });
+registerMail(app, { need, httpError, all, one, run, parse, batch });
 
 app.all('*', () => { throw httpError(404, 'Route inconnue'); });
 
-export default app;
+// la tâche planifiée (tous les jours en fin d'après-midi) envoie les rappels de la veille
+export default {
+  fetch: app.fetch,
+  scheduled: (event, env, ctx) => ctx.waitUntil(dailyReminders(env)),
+};

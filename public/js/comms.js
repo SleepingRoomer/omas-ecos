@@ -7,9 +7,12 @@ export async function commsView(app) {
   setTitle('Communication');
   const A = await api('/about');
   const st = { links: A.links.map((l) => ({ ...l })), events: A.events.map((e) => ({ ...e })) };
+  app.innerHTML = '<div id="cm-main"></div><div id="mails" style="margin-top:28px"></div>';
+  const root = app.querySelector('#cm-main');
+  import('./emails.js').then((m) => m.emailsPanel(app.querySelector('#mails'))).catch(() => {});
 
   const draw = (preview = A) => {
-    app.innerHTML = `
+    root.innerHTML = `
       <h1>Communication</h1>
       <p class="lede">Ce que les étudiants et les participants lisent en bas de leur espace : qui nous sommes, ce que propose OMAS Externat, et les prochains rendez-vous.</p>
       <div class="comms">
