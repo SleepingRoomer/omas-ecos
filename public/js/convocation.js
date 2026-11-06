@@ -23,14 +23,33 @@ function ics(C) {
   a.click();
 }
 
-export function parcoursHtml(s) {
-  const rows = [];
-  s.steps.forEach((st, i) => {
-    rows.push(`<li><span class="t">${frTime(st.start)}</span>${plate(st.slot, 'lg')}<span class="what"><strong>Station ${esc(st.slot)}</strong>${st.room ? `<span class="muted">${esc(st.room)}</span>` : ''}</span></li>`);
-    if (s.pause && st.end === s.pause.start) rows.push(`<li class="brk"><span class="t">${frTime(s.pause.start)}</span><span class="what">Pause, puis changement de circuit</span></li>`);
-  });
-  rows.push(`<li class="brk"><span class="t">${frTime(s.end)}</span><span class="what">Fin des stations${s.debrief ? `, débriefing et correction jusqu'à ${frTime(s.debrief.end)}` : ''}</span></li>`);
-  return `<ol class="parcours">${rows.join('')}</ol>`;
+// La journée en frise horizontale : accueil, circuit A, pause, circuit B, débrief
+export function parcoursHtml(s, opts = {}) {
+  const today = opts.day && opts.day === new Date().toISOString().slice(0, 10);
+  const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
+  const m = (hhmm) => { const [h, mi] = hhmm.split(':').map(Number); return h * 60 + mi; };
+  const state = (start, end) => (!today ? '' : nowMin >= m(end) ? 'done' : nowMin >= m(start) ? 'now' : '');
+  const half = Math.ceil(s.steps.length / 2);
+  const groups = [s.steps.slice(0, half), s.steps.slice(half)];
+  const step = (st) => `<li class="fr-step ${state(st.start, st.end)}">
+      <span class="fr-t">${frTime(st.start)}</span>${plate(st.slot)}<span class="fr-room">${esc(st.room || '')}</span></li>`;
+  const event = (cls, icon, time, title, sub, st = '') => `<li class="fr-ev ${cls} ${st}">
+      <span class="fr-t">${time}</span><span class="fr-ico" aria-hidden="true">${icon}</span>
+      <span class="fr-title">${esc(title)}</span>${sub ? `<span class="fr-sub">${esc(sub)}</span>` : ''}</li>`;
+  const circuit = (list) => {
+    const c = list[0]?.slot?.[0] || '';
+    return `<li class="fr-circuit c-${c.toLowerCase()}"><div class="fr-cap">Circuit ${esc(c)} <span>${frTime(list[0].start)} à ${frTime(list[list.length - 1].end)}</span></div>
+      <ol class="fr-steps">${list.map(step).join('')}</ol></li>`;
+  };
+  const conv = s.convocation || s.start;
+  return `<p class="frise-hint small muted">Fais glisser vers la gauche pour voir toute ta journée.</p><div class="frise-wrap"><ol class="frise">
+    ${event('welcome', '☕', frTime(conv), 'Accueil', opts.welcome || 'Émargement et consignes', state(conv, s.start))}
+    ${circuit(groups[0])}
+    ${s.pause ? event('pause', '⏸', frTime(s.pause.start), 'Pause', 'Changement de circuit', state(s.pause.start, s.pause.end)) : '<li class="fr-ev pause mini"><span class="fr-ico" aria-hidden="true">→</span></li>'}
+    ${circuit(groups[1])}
+    ${s.debrief ? event('debrief', '💬', frTime(s.debrief.start), 'Débrief et correction', `Jusqu'à ${frTime(s.debrief.end)}`, state(s.debrief.start, s.debrief.end))
+      : event('debrief', '🏁', frTime(s.end), 'Fin', '')}
+  </ol></div>`;
 }
 
 export async function convocationPanel(box, reload) {
@@ -46,7 +65,8 @@ export async function convocationPanel(box, reload) {
           <div class="kicker">Ta convocation</div>
           <div class="date">${esc(longDate(C.day))}</div>
           <div class="hour">${frTime(s.convocation || s.start)}</div>
-          <div class="muted">Passage de ${frTime(s.start)} à ${frTime(s.end)}${s.debrief ? `, débriefing jusqu'à ${frTime(s.debrief.end)}` : ''}. Tu commences par le circuit ${esc(first || '')}.</div>
+          <div class="muted">Passage de ${frTime(s.start)} à ${frTime(s.end)}${s.debrief ? `, puis débrief et correction jusqu'à ${frTime(s.debrief.end)}` : ''}. Tu commences par le circuit ${esc(first || '')}.</div>
+          ${C.welcome ? `<div class="welcome-note">☕ ${esc(C.welcome)}, dès ${frTime(s.convocation || s.start)}</div>` : ''}
           ${C.place ? `<div class="where">${nl(C.place)}</div>` : ''}
         </div>
         <div class="convoc-side">
@@ -60,10 +80,10 @@ export async function convocationPanel(box, reload) {
         <button class="small" id="ics">Ajouter à mon agenda</button>
         <button class="small quiet" data-print>Imprimer</button>
       </div>
+      <h2>Ta journée</h2>
+      <p class="small muted">Un tour toutes les ${C.rotation_minutes} minutes : lecture de la vignette devant la porte, puis la station. Les sujets restent secrets jusqu'au jour J. À la fin des deux circuits, l'équipe corrige les stations avec vous.</p>
+      ${parcoursHtml(s, { day: C.day, welcome: C.welcome })}
       ${C.instructions ? `<div class="panel"><h3 style="margin-top:0">À savoir avant de venir</h3><div>${nl(C.instructions)}</div></div>` : ''}
-      <h2>Ton parcours</h2>
-      <p class="small muted">Un tour toutes les ${C.rotation_minutes} minutes : lecture de la vignette devant la porte, puis la station. Les sujets restent secrets jusqu'au jour J.</p>
-      ${parcoursHtml(s)}
       ${S.enabled || S.history.length ? `<h2 id="echanges">Échanger mon créneau</h2>${swapHtml()}` : ''}`;
     const waiting = S.open ? S.board.filter((o) => o.compatible).length + (S.mine?.proposals.length || 0) : 0;
     if (waiting) box.insertAdjacentHTML('afterbegin', `<p class="alert info row between no-print"><span><strong>${waiting > 1 ? `${waiting} échanges t'attendent` : 'Un échange t\'attend'}</strong> : un étudiant cherche ton créneau ou te propose le sien.</span><a class="btn small" href="#/resultats" data-go="echanges">Voir</a></p>`);

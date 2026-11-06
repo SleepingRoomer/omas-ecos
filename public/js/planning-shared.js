@@ -18,6 +18,8 @@ export function normalizePlanning(p, exam = {}) {
     place: '', instructions: '', rooms: {}, days: [], swaps_open: false, swaps_close_hours: 48,
     // vœux : chaque billet donne droit à un créneau, attribué d'après les vœux de chacun
     wishes_open: false, wishes_until: '', wishes_min: 6, wishes_max_ideal: 3, publish: true,
+    // ce qui attend les étudiants à l'accueil, selon que la série est le matin ou l'après-midi
+    welcome_morning: 'Petit déjeuner à l\'accueil', welcome_afternoon: '',
     ...(p || {}),
   };
   if (!Array.isArray(out.days) || !out.days.length) {
@@ -136,3 +138,5 @@ export function checkWishes(planning, wishes) {
 
 export const wishesOpen = (planning, now = Date.now()) => planning.wishes_open
   && (!planning.wishes_until || now < new Date(planning.wishes_until).getTime());
+
+export const welcomeFor = (planning, start) => (toMin(start) < 12 * 60 ? planning.welcome_morning : planning.welcome_afternoon) || '';

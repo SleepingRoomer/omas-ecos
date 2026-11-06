@@ -75,7 +75,7 @@ export async function studentView(app) {
   const R0 = await api('/me/results');
   const passed = !!(R0.summary && R0.summary.evaluated > 0);
   const c = R0.candidate;
-  app.innerHTML = `<div class="narrow">
+  app.innerHTML = `<div class="narrow wide">
     <div class="row between" style="align-items:flex-end"><div><h1>${esc(c.first_name)} ${esc(c.last_name)}</h1>
       <div class="muted" style="margin-top:4px">${c.number ? `Candidat <span class="cand-no">${esc(c.number)}</span>, ` : ''}${esc(R0.exam.name)}</div></div>
       <span class="live" id="upd"></span></div>

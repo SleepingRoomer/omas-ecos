@@ -114,6 +114,9 @@ export async function planningTab(box, exam, draft = null) {
       </div>
       <h3>Convocation</h3>
       <label for="p-place">Lieu</label><textarea id="p-place" rows="2" placeholder="Faculté, bâtiment, étage, accès">${esc(P.place)}</textarea>
+      <div class="grid cols-2" style="gap:10px">
+        <div><label for="p-wm">À l'accueil, séries du matin</label><input id="p-wm" value="${esc(P.welcome_morning)}" placeholder="Petit déjeuner à l'accueil"></div>
+        <div><label for="p-wa">À l'accueil, séries de l'après-midi</label><input id="p-wa" value="${esc(P.welcome_afternoon)}" placeholder="Café et collation à l'accueil"></div></div>
       <label for="p-ins">À savoir avant de venir</label><textarea id="p-ins" rows="4" placeholder="Blouse, carte d'étudiant, arriver à l'heure de convocation, pas de téléphone pendant les stations…">${esc(P.instructions)}</textarea>
       <h3>Salles</h3><p class="small muted">Le nom de la salle de chaque station apparaît dans le parcours des étudiants.</p>
       <div class="grid cols-5" style="gap:8px">${slots.map((sl) => `<div><label for="room-${sl}">${plate(sl, 'sm')}</label><input id="room-${sl}" data-room="${sl}" value="${esc(P.rooms[sl] || '')}" placeholder="Salle"></div>`).join('')}</div>
@@ -167,6 +170,7 @@ export async function planningTab(box, exam, draft = null) {
     return { ...P, days, rooms, rotation_minutes: +box.querySelector('#p-rot').value, pause_after: +box.querySelector('#p-pa').value,
       pause_minutes: +box.querySelector('#p-pm').value, debrief_minutes: +box.querySelector('#p-db').value,
       place: box.querySelector('#p-place').value, instructions: box.querySelector('#p-ins').value,
+      welcome_morning: box.querySelector('#p-wm').value, welcome_afternoon: box.querySelector('#p-wa').value,
       swaps_open: box.querySelector('#p-swaps').checked, swaps_close_hours: +box.querySelector('#p-close').value };
   };
   const redrawCfg = (np) => planningTab(box, exam, np).then(() => box.querySelector('#cfg')?.scrollIntoView({ block: 'start' }));
