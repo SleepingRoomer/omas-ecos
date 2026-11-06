@@ -1,6 +1,8 @@
 import { api, esc, toast, setTitle, plate } from './ui.js';
 
 const app = document.getElementById('app');
+// copie locale de l'application pour la saisie hors connexion
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
 // boutons d'impression (pas de gestionnaire en ligne : la politique de sécurité du site les interdit)
 document.addEventListener('click', (e) => { if (e.target.closest('[data-print]')) window.print(); });
 const nav = document.getElementById('nav');

@@ -7,6 +7,37 @@ let ctx = null;
 const filters = { day: null, series: '', q: '' };
 let raceOpen = false;
 
+// ---------- file d'attente hors connexion ----------
+// Une grille qui ne part pas faute de réseau reste dans le téléphone et repart toute seule.
+const QKEY = 'omas_eval_queue';
+const DKEY = 'omas_eval_drafts';
+const readStore = (k) => { try { return JSON.parse(localStorage.getItem(k) || '{}'); } catch { return {}; } };
+const writeStore = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* stockage indisponible */ } };
+export const queued = () => readStore(QKEY);
+let flushing = false;
+let lastError = null;
+export async function flushQueue() {
+  if (flushing) return;
+  flushing = true;
+  try {
+    const q = readStore(QKEY);
+    for (const [key, item] of Object.entries(q)) {
+      try {
+        await api('/eval/evaluations', { method: 'PUT', body: item.body });
+        const now = readStore(QKEY); delete now[key]; writeStore(QKEY, now);
+        lastError = null;
+      } catch (err) {
+        if (err.status === undefined || err.status >= 500) break; // toujours pas de réseau : on réessaiera
+        lastError = err.message; // refus du serveur (saisie fermée…) : la grille reste, l'évaluateur est prévenu
+      }
+    }
+  } finally { flushing = false; }
+  const n = Object.keys(readStore(QKEY)).length;
+  document.querySelectorAll('[data-queue]').forEach((el) => { el.hidden = !n; el.querySelector('b').textContent = n; el.querySelector('.err').textContent = lastError ? ` Dernière erreur : ${lastError}` : ''; });
+}
+window.addEventListener('online', () => flushQueue());
+setInterval(() => { if (Object.keys(readStore(QKEY)).length) flushQueue(); }, 30000);
+
 async function loadCtx() {
   const [c, sch] = await Promise.all([api('/eval/context'), api('/eval/schedule').catch(() => null)]);
   ctx = c;
@@ -23,6 +54,7 @@ async function loadCtx() {
 }
 
 export async function roomView(app) {
+  await flushQueue().catch(() => {});
   await loadCtx();
   const s = ctx.station;
   setTitle(`Salle ${s.slot}`);
@@ -38,13 +70,15 @@ export async function roomView(app) {
       && (!filters.series || String(c.series) === filters.series)
       && (!filters.q || `${c.number} ${c.first_name} ${c.last_name}`.toLowerCase().includes(filters.q.toLowerCase())));
     const done = shown.filter((c) => c.eval_id).length;
-    const next = shown.find((c) => !c.eval_id && c.time);
+    const next = shown.find((c) => !c.eval_id && !queued()[`${s.id}|${c.id}`] && c.time);
     app.innerHTML = `
       <div class="room-head">${plate(s.slot, 'xl')}
         <div style="flex:1"><h1>${esc(s.title || s.domain || `Salle ${s.slot}`)}</h1>
           <div class="tags" style="margin-top:6px">${dom(s.domain)}${s.discipline ? `<span>${disc(s.discipline)}</span>` : ''}</div>
           <div class="muted small" style="margin-top:4px">${esc(ctx.evaluator)}, ${esc(ctx.exam.name)}</div></div></div>
       ${ctx.exam.eval_open ? '' : '<p class="alert warn">La saisie n\'est pas encore ouverte. L\'équipe l\'ouvre le matin du passage.</p>'}
+      <p class="alert warn row between" data-queue ${Object.keys(queued()).length ? '' : 'hidden'}><span><b>${Object.keys(queued()).length}</b> grille(s) gardée(s) sur ce téléphone, en attente de réseau. Elles partiront toutes seules.<span class="err small"></span></span>
+        <button class="small" data-flush>Envoyer maintenant</button></p>
       <details class="panel" style="padding:14px 18px"><summary style="cursor:pointer"><strong>Relire la vignette et les consignes</strong></summary>
         <div style="margin-top:10px"><p>${esc(v.role)}, ${esc(v.lieu)}</p><p>${nl(v.contexte)}</p>${v.infos ? `<p>${nl(v.infos)}</p>` : ''}
         ${list(v.doit) ? `<p><strong>Vous devez :</strong></p><ul>${list(v.doit)}</ul>` : ''}
@@ -65,13 +99,14 @@ export async function roomView(app) {
         <input id="q" type="text" placeholder="Numéro ou nom" value="${esc(filters.q)}" style="max-width:180px" aria-label="Chercher un candidat">
       </div>
       <p class="muted small" style="margin:12px 0 0">${done} grille${done > 1 ? 's' : ''} saisie${done > 1 ? 's' : ''} sur ${shown.length}. <button class="small quiet" id="reload">Actualiser</button></p>
-      <div class="cand-list">${shown.map((c) => `<button class="cand ${c.eval_id ? 'done' : ''} ${c === next ? 'next' : ''}" data-id="${c.id}">${c === next ? '<span class="next-tag">À suivre</span>' : ''}
+      <div class="cand-list">${shown.map((c) => `<button class="cand ${c.eval_id || queued()[`${s.id}|${c.id}`] ? 'done' : ''} ${c === next ? 'next' : ''}" data-id="${c.id}">${c === next ? '<span class="next-tag">À suivre</span>' : ''}
           <span class="cand-no">${esc(c.number || 'Sans numéro')}</span>${c.time ? `<span class="small muted">${frTime(c.time)}</span>` : ''}<span class="who">${esc(c.first_name)} ${esc((c.last_name || '').slice(0, 1))}.</span>
-          <span class="st">${c.eval_id ? (c.absent ? 'Absent' : `${fmt(c.score, 1)} sur 20`) : 'À évaluer'}${c.n_others ? `<small class="faint" style="display:block">${c.eval_id ? 'ton binôme aussi' : 'déjà notée par ton binôme'}</small>` : ''}</span></button>`).join('') || '<p class="muted">Aucun candidat avec ces filtres.</p>'}</div>`;
+          <span class="st">${queued()[`${s.id}|${c.id}`] ? 'En attente d\'envoi' : c.eval_id ? (c.absent ? 'Absent' : `${fmt(c.score, 1)} sur 20`) : 'À évaluer'}${c.n_others ? `<small class="faint" style="display:block">${c.eval_id ? 'ton binôme aussi' : 'déjà notée par ton binôme'}</small>` : ''}</span></button>`).join('') || '<p class="muted">Aucun candidat avec ces filtres.</p>'}</div>`;
     app.querySelector('#day')?.addEventListener('change', (e) => { filters.day = e.target.value; filters.series = ''; roomView(app); });
     app.querySelectorAll('[data-s]').forEach((b) => b.addEventListener('click', () => { filters.series = b.dataset.s; draw(); }));
     app.querySelector('#q').addEventListener('input', (e) => { filters.q = e.target.value; const pos = e.target.selectionStart; draw(); const q = app.querySelector('#q'); q.focus(); q.setSelectionRange(pos, pos); });
     app.querySelector('#reload').addEventListener('click', () => roomView(app));
+    app.querySelector('[data-flush]')?.addEventListener('click', () => flushQueue());
     app.querySelectorAll('.cand').forEach((b) => b.addEventListener('click', () => { location.hash = `#/eval/candidat/${b.dataset.id}`; }));
     const rp = app.querySelector('.race-panel');
     rp.addEventListener('toggle', () => { raceOpen = rp.open; });
@@ -89,7 +124,12 @@ export async function gridView(app, candidateId) {
   if (!ctx) await loadCtx();
   const cand = ctx.candidates.find((c) => String(c.id) === String(candidateId));
   if (!cand) { app.innerHTML = '<p class="alert error">Ce candidat n\'existe pas dans cette session.</p>'; return; }
-  const existing = await api(`/eval/evaluations/${candidateId}`);
+  const qkey = `${ctx.station.id}|${cand.id}`;
+  let existing = null;
+  try { existing = await api(`/eval/evaluations/${candidateId}`); } catch { existing = null; }
+  // une grille en attente d'envoi, ou un brouillon interrompu, passe avant la version du serveur
+  const pending = queued()[qkey]?.body || readStore(DKEY)[qkey];
+  if (pending) existing = { ...(existing || {}), ...pending, answers: pending.answers };
   const g = ctx.grille;
   const apt = g.apt.filter((i) => i.label?.trim());
   const com = g.com.filter((i) => i.label?.trim());
@@ -100,8 +140,11 @@ export async function gridView(app, candidateId) {
   let showMissing = false;
   setTitle(`${cand.number || ''}, salle ${ctx.station.slot}`);
 
+  const saveDraft = () => { const d = readStore(DKEY); d[qkey] = { candidate_id: cand.id, absent, answers: { apt: ans.apt, com: ans.com }, global, comment }; writeStore(DKEY, d); };
+  const dropDraft = () => { const d = readStore(DKEY); delete d[qkey]; writeStore(DKEY, d); };
   const draw = () => {
     const y = window.scrollY;
+    saveDraft();
     const miss = new Set(missingAnswers(g, ans, global, absent));
     const sc = computeScore(g, ans, absent);
     const flag = (id) => (showMissing && miss.has(id) ? 'missing' : '');
@@ -154,7 +197,7 @@ export async function gridView(app, candidateId) {
     app.querySelectorAll('[data-cmt]').forEach((inp) => inp.addEventListener('input', () => { ans.apt[inp.dataset.cmt].comment = inp.value; }));
     app.querySelectorAll('[data-com]').forEach((b) => b.addEventListener('click', () => { ans.com[b.dataset.com] = Number(b.dataset.v); draw(); }));
     app.querySelectorAll('[data-global]').forEach((b) => b.addEventListener('click', () => { global = Number(b.dataset.global); draw(); }));
-    app.querySelector('#comment')?.addEventListener('input', (e) => { comment = e.target.value; });
+    app.querySelector('#comment')?.addEventListener('input', (e) => { comment = e.target.value; saveDraft(); });
     app.querySelector('#save').addEventListener('click', async () => {
       if (miss.size && !absent) {
         showMissing = true; draw();
@@ -163,12 +206,19 @@ export async function gridView(app, candidateId) {
         return;
       }
       const clean = Object.fromEntries(Object.entries(ans.apt).map(([k, v]) => [k, { ok: v.ok, comment: (v.comment || '').trim() }]));
+      const body = { candidate_id: cand.id, absent, answers: { apt: clean, com: ans.com }, global, comment };
       try {
-        const r = await api('/eval/evaluations', { method: 'PUT', body: { candidate_id: cand.id, absent, answers: { apt: clean, com: ans.com }, global, comment } });
+        const r = await api('/eval/evaluations', { method: 'PUT', body });
         toast(absent ? `${cand.number} noté absent` : `Grille enregistrée : ${fmt(r.score, 1)} sur 20`);
-        ctx = null;
-        location.hash = '#/eval';
-      } catch (err) { toast(err.message, 'error'); }
+      } catch (err) {
+        if (err.status !== undefined && err.status < 500) { toast(err.message, 'error'); return; }
+        // pas de réseau : la grille attend dans le téléphone
+        const q = queued(); q[qkey] = { body, at: Date.now() }; writeStore(QKEY, q);
+        toast('Pas de réseau : grille gardée sur ce téléphone, elle partira toute seule.', 'error');
+      }
+      dropDraft();
+      ctx = null;
+      location.hash = '#/eval';
     });
   };
   draw();

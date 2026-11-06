@@ -40,6 +40,7 @@
 }
 
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 html { -webkit-text-size-adjust: 100%; }
 body { margin: 0; background: var(--paper); color: var(--ink); font: 400 16.5px/1.6 var(--text); -webkit-font-smoothing: antialiased; }
 a { color: var(--a); text-underline-offset: 3px; }
