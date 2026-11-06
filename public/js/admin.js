@@ -197,12 +197,12 @@ async function signsView(app, exam) {
 
 const FIELDS = [
   ['last_name', 'Nom'], ['first_name', 'Prénom'], ['email', 'E-mail'], ['phone', 'Téléphone'],
-  ['faculty', 'Faculté'], ['year', 'Année'], ['slot_label', 'Créneau de la billetterie'], ['prepa', 'Préparation (tutorat, prépa…)'],
+  ['faculty', 'Faculté'], ['year', 'Année'], ['slot_label', 'Créneau de la billetterie'], ['tarif', 'Tarif (adhérent ou non)'], ['prepa', 'Préparation (tutorat, prépa…)'],
 ];
 const GUESS = {
   last_name: /^nom( |$)|nom participant|last ?name/i, first_name: /pr[ée]nom/i, email: /e-?mail|courriel/i,
   phone: /t[ée]l[ée]phone|portable|phone/i, faculty: /facult|fac\b|universit/i, year: /ann[ée]e|niveau|promo/i,
-  slot_label: /tarif|cr[ée]neau|formule|billet/i, prepa: /pr[ée]pa|tutorat|pr[ée]paration/i,
+  slot_label: /cr[ée]neau|formule|s[ée]ance/i, tarif: /tarif|adh[ée]rent/i, prepa: /pr[ée]pa|tutorat|pr[ée]paration/i,
 };
 
 async function candidatesTab(box, exam) {

@@ -1,6 +1,6 @@
 // Espace étudiant : convocation, parcours de la journée, confirmation de venue et échanges de créneau
 import { api, esc, nl, toast, longDate, frDate, plate } from './ui.js';
-import { frTime } from './planning-shared.js';
+import { frTime, WISH_LEVELS } from './planning-shared.js';
 
 const when = (o) => `${longDate(o.date)}, série ${o.series}`;
 const conv = (o) => (o.convocation ? `convocation à ${frTime(o.convocation)}` : '');
@@ -39,6 +39,7 @@ export async function convocationPanel(box, reload) {
   const s = C.schedule;
   const first = s?.steps[0]?.slot?.[0];
   const draw = () => {
+    if (!C.published) { box.innerHTML = wishesHtml(); bindWishes(); return; }
     box.innerHTML = !C.placed ? `<div class="panel"><h2>Ta convocation</h2><p>Ton créneau de passage n'est pas encore fixé. Il apparaîtra ici dès que l'équipe aura établi le planning.</p></div>` : `
       <section class="convoc">
         <div class="convoc-main">
@@ -67,6 +68,43 @@ export async function convocationPanel(box, reload) {
     const waiting = S.open ? S.board.filter((o) => o.compatible).length + (S.mine?.proposals.length || 0) : 0;
     if (waiting) box.insertAdjacentHTML('afterbegin', `<p class="alert info row between no-print"><span><strong>${waiting > 1 ? `${waiting} échanges t'attendent` : 'Un échange t\'attend'}</strong> : un étudiant cherche ton créneau ou te propose le sien.</span><a class="btn small" href="#/resultats" data-go="echanges">Voir</a></p>`);
     bind();
+  };
+
+  // ---------- vœux ----------
+  const W = C.wishes;
+  const draft = { ...W.mine };
+  const wishesHtml = () => {
+    const until = W.until ? new Date(W.until).toLocaleString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }) : null;
+    if (!W.open) {
+      return `<div class="panel"><h2 style="margin-top:0">Ton créneau</h2><p>${W.saved_at ? 'Tes vœux sont enregistrés. ' : ''}L'équipe prépare l'attribution des créneaux : ta convocation et ton parcours apparaîtront ici dès qu'ils seront publiés.</p></div>`;
+    }
+    const ideal = Object.values(draft).filter((v) => v === 2).length;
+    const ok = Object.values(draft).filter((v) => v >= 1).length;
+    const byDay = {};
+    W.options.forEach((o) => { (byDay[o.date] ??= []).push(o); });
+    return `<h2>Tes vœux de créneau</h2>
+      <div class="panel">
+        <p style="margin-top:0">Ton billet te garantit une place. Dis-nous, pour chaque série, si elle est <strong>idéale</strong>, <strong>possible</strong> ou <strong>impossible</strong> pour toi. L'attribution respecte tes impossibles et donne un créneau idéal au plus grand nombre ; en cas d'égalité, un tirage au sort départage.</p>
+        <p class="small muted">Garde « impossible » pour les vraies contraintes (cours, stage, garde). Plus tu laisses de séries possibles, plus il est facile de placer tout le monde.${until ? ` Vœux modifiables jusqu'au ${esc(until)}.` : ''}</p>
+        ${Object.entries(byDay).map(([d, list]) => `<h3>${esc(longDate(d))}</h3>
+          ${list.map((o) => `<div class="wish-row"><div><strong>Série ${o.series}</strong> <span class="small muted">${conv(o)}, passage à ${frTime(o.start)}</span></div>
+            <div class="wish-seg" role="radiogroup" aria-label="Série ${o.series}, ${esc(longDate(d))}">${WISH_LEVELS.map((l) => `<button type="button" role="radio" aria-checked="${draft[o.key] === l.v}" class="${draft[o.key] === l.v ? `on w${l.v}` : ''}" data-key="${esc(o.key)}" data-v="${l.v}">${l.l}</button>`).join('')}</div></div>`).join('')}`).join('')}
+        <div class="row" style="margin-top:16px">
+          <button class="primary" id="save-wishes">${W.saved_at ? 'Mettre à jour mes vœux' : 'Enregistrer mes vœux'}</button>
+          <span class="small ${W.max_ideal && ideal > W.max_ideal ? 'bad' : 'muted'}">${ideal} ${ideal > 1 ? 'idéaux' : 'idéal'}${W.max_ideal ? ` sur ${W.max_ideal} au plus` : ''}</span>
+          <span class="small ${ok < W.min ? 'bad' : 'muted'}">${ok} série${ok > 1 ? 's' : ''} possible${ok > 1 ? 's' : ''} ou idéale${ok > 1 ? 's' : ''}, il en faut au moins ${W.min}</span>
+        </div>
+        ${W.saved_at ? `<p class="small muted" style="margin-bottom:0">Enregistrés le ${esc(new Date(`${W.saved_at.replace(' ', 'T')}Z`).toLocaleString('fr-FR'))}.</p>` : '<p class="small" style="margin-bottom:0">Sans vœux enregistrés, tu seras placé sur n\'importe quelle série.</p>'}
+      </div>`;
+  };
+  const bindWishes = () => {
+    box.querySelectorAll('.wish-seg button').forEach((b) => b.addEventListener('click', () => {
+      draft[b.dataset.key] = Number(b.dataset.v);
+      const y = window.scrollY; box.innerHTML = wishesHtml(); bindWishes(); window.scrollTo(0, y);
+    }));
+    box.querySelector('#save-wishes')?.addEventListener('click', async () => {
+      try { await api('/me/wishes', { method: 'POST', body: { wishes: draft } }); toast('Vœux enregistrés'); reload(); } catch (e) { toast(e.message, 'error'); }
+    });
   };
 
   const swapHtml = () => {

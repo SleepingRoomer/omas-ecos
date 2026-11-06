@@ -416,7 +416,12 @@ app.post('/exams/:id/candidates', need('admin'), async (c) => {
     exam_id: Number(examId), last_name: String(r.last_name || '').trim(), first_name: String(r.first_name || '').trim(),
     email: r.email || null, phone: r.phone || null, faculty: r.faculty || null, year: r.year || null, slot_label: r.slot_label || null,
     day: r.day || null, series: r.series ? Number(r.series) : null, status: r.status === 'annule' ? 'annule' : 'inscrit', code: codes[i],
-    extra: String(r.prepa || '').trim() ? JSON.stringify({ prepa: String(r.prepa).trim() }) : null,
+    extra: (() => {
+      const x = {};
+      if (String(r.prepa || '').trim()) x.prepa = String(r.prepa).trim();
+      if (String(r.tarif || '').trim()) { x.tarif = String(r.tarif).trim(); x.adherent = /adh[ée]rent/i.test(x.tarif) && !/non[\s-]*adh/i.test(x.tarif); }
+      return Object.keys(x).length ? JSON.stringify(x) : null;
+    })(),
   }))));
   return c.json({ imported: list.length });
 });
@@ -587,7 +592,7 @@ async function candidateReport(db, candidateId, asAdmin) {
     return out;
   });
   return {
-    candidate: { number: cand.number, first_name: cand.first_name, last_name: cand.last_name, day: cand.day, series: cand.series },
+    candidate: { number: asAdmin || parse(ex.planning, {})?.publish !== false ? cand.number : null, first_name: cand.first_name, last_name: cand.last_name, day: cand.day, series: cand.series },
     exam: { name: ex.name, show_results: !!showResults, show_details: !!showDetails, corrections_published: !!showCorr },
     summary: showResults ? {
       avg: me?.avg ?? null, done: !!me?.done, evaluated: me?.n ?? 0, total_stations: R.played.length,

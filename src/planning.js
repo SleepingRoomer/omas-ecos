@@ -1,6 +1,6 @@
 // Planning des passages, convocations et échanges de créneaux entre étudiants
 import {
-  normalizePlanning, candidateSchedule, candidateNumber, seriesStartsAt, rotationFor, DEFAULT_SERIES,
+  normalizePlanning, candidateSchedule, candidateNumber, seriesStartsAt, rotationFor, DEFAULT_SERIES, checkWishes, wishesOpen,
 } from '../public/js/planning-shared.js';
 
 const placeKey = (day, series) => `${day}|${series}`;
@@ -22,7 +22,7 @@ export function registerPlanning(app, h) {
     const db = c.env.DB;
     const { exam, planning, slots } = await load(db, c.req.param('id'));
     const [candidates, swaps, titles] = await Promise.all([
-      all(db, `SELECT c.id, c.number, c.last_name, c.first_name, c.email, c.phone, c.day, c.series, c.seat, c.status, c.confirmed_at, c.slot_label,
+      all(db, `SELECT c.id, c.number, c.last_name, c.first_name, c.email, c.phone, c.day, c.series, c.seat, c.status, c.confirmed_at, c.slot_label, c.wishes, c.wishes_at, c.extra,
         (SELECT COUNT(*) FROM evaluations v WHERE v.candidate_id = c.id) AS n_evaluations
         FROM candidates c WHERE c.exam_id = ? ORDER BY c.last_name, c.first_name`, exam.id),
       all(db, `SELECT s.id, s.status, s.from_place, s.to_place, s.created_at, s.done_at, s.wanted,
@@ -133,6 +133,7 @@ export function registerPlanning(app, h) {
 
   // Les échanges sont possibles si l'équipe les a ouverts, jusqu'à N heures avant la première des deux séries
   function swapWindow(planning, cand, other) {
+    if (!planning.publish) return { ok: false, why: 'Les créneaux ne sont pas encore publiés.' };
     if (!planning.swaps_open) return { ok: false, why: 'Les échanges ne sont pas ouverts.' };
     const firstOf = (x) => {
       const d = planning.days.find((y) => y.date === x.day);
@@ -161,7 +162,7 @@ export function registerPlanning(app, h) {
 
   app.get('/me/convocation', need('etudiant'), async (c) => {
     const { db, cand, exam, planning, slots } = await me(c);
-    const placed = !!(cand.day && cand.series && cand.seat);
+    const placed = planning.publish && !!(cand.day && cand.series && cand.seat);
     const schedule = placed ? candidateSchedule(planning, slots, cand.day, cand.series, cand.seat) : null;
     const [mine, board, counts, history, evals, myResp] = await Promise.all([
       one(db, "SELECT id, code, wanted, created_at FROM swaps WHERE candidate_id = ? AND status = 'open'", cand.id),
@@ -183,9 +184,15 @@ export function registerPlanning(app, h) {
     const toDesc = (k) => { const [d, n] = k.split('|'); return describe(planning, d, Number(n)); };
     return c.json({
       exam: { name: exam.name },
-      candidate: { first_name: cand.first_name, last_name: cand.last_name, number: cand.number, status: cand.status },
+      candidate: { first_name: cand.first_name, last_name: cand.last_name, number: placed ? cand.number : null, status: cand.status },
       place: planning.place, instructions: planning.instructions, rotation_minutes: planning.rotation_minutes,
-      placed, day: cand.day, series: cand.series, seat: cand.seat, schedule,
+      placed, day: placed ? cand.day : null, series: placed ? cand.series : null, seat: placed ? cand.seat : null, schedule,
+      published: planning.publish,
+      wishes: {
+        open: wishesOpen(planning), until: planning.wishes_until || null, min: planning.wishes_min, max_ideal: planning.wishes_max_ideal,
+        saved_at: cand.wishes_at, mine: checkWishes(planning, parse(cand.wishes, null)).wishes,
+        options: planning.days.flatMap((d) => d.series.map((_, i) => describe(planning, d.date, i + 1))),
+      },
       confirmed_at: cand.confirmed_at,
       swaps: {
         enabled: !!planning.swaps_open, open: win.ok, why: win.ok ? null : win.why, until: win.until || null,
@@ -210,6 +217,16 @@ export function registerPlanning(app, h) {
         history: history.map((x) => ({ from: x.from_place, to: x.to_place, done_at: x.done_at })),
       },
     });
+  });
+
+  app.post('/me/wishes', need('etudiant'), async (c) => {
+    const { db, cand, planning } = await me(c);
+    if (!wishesOpen(planning)) throw httpError(400, 'Les vœux sont fermés.');
+    if (cand.status === 'annule') throw httpError(400, 'Inscription annulée.');
+    const r = checkWishes(planning, (await c.req.json()).wishes);
+    if (r.errors.length) throw httpError(400, r.errors.join(' '));
+    await run(db, "UPDATE candidates SET wishes = ?, wishes_at = datetime('now') WHERE id = ?", JSON.stringify(r.wishes), cand.id);
+    return c.json({ ok: true, ideal: r.ideal, ok_count: r.ok });
   });
 
   app.post('/me/confirm', need('etudiant'), async (c) => {

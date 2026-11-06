@@ -514,3 +514,11 @@ td select { min-width: 112px; padding: 7px 8px; font-size: .9rem; }
 .swap-card .me { font-weight: 700; }
 .swap-card .acts { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
 @media (max-width: 640px) { .swap-card { grid-template-columns: 1fr; } .swap-card .acts { justify-content: flex-start; } }
+.wish-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 8px 0; border-bottom: 1px solid var(--line-2); }
+.wish-seg { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--surface); }
+.wish-seg button { min-height: 36px; padding: 6px 12px; border: none; border-radius: 0; background: transparent; font-weight: 600; color: var(--ink-2); }
+.wish-seg button + button { border-left: 1px solid var(--line); }
+.wish-seg button.on.w2 { background: var(--ok); color: #fff; }
+.wish-seg button.on.w1 { background: var(--ink); color: #fff; }
+.wish-seg button.on.w0 { background: var(--ko); color: #fff; }
+.small.bad { color: var(--ko); font-weight: 700; }

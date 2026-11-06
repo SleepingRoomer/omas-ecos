@@ -1,6 +1,6 @@
 // Onglet Planning d'une session : jours, séries, places, convocations, échanges
 import { api, esc, toast, frDate, longDate, plate, downloadCsv, setTitle } from './ui.js';
-import { normalizePlanning, rotationFor, seriesTimes, frTime } from './planning-shared.js';
+import { normalizePlanning, rotationFor, seriesTimes, frTime, checkWishes, seriesKeys, wishesOpen } from './planning-shared.js';
 
 const ui = { sel: null, moving: null };
 const key = (d, s) => `${d}|${s}`;
@@ -60,6 +60,7 @@ export async function planningTab(box, exam, draft = null) {
     </div>
     ${moving ? `<p class="alert info row between"><span>Déplacement de <strong>${esc(moving.first_name)} ${esc(moving.last_name)}</strong> : clique une place libre ou un autre candidat (dans n'importe quelle série) pour échanger.</span><button class="small" id="stop-move">Annuler</button></p>` : ''}
 
+    ${wishesPanel(P, active, cap, exam)}
     <div class="cal">${P.days.map((d) => `<div class="cal-day"><div class="cal-date">${esc(longDate(d.date))}</div>
       ${d.series.map((s, i) => {
         const l = at(d.date, i + 1); const T = seriesTimes(P, s, cap); const conf = l.filter((c) => c.confirmed_at).length;
@@ -123,6 +124,7 @@ export async function planningTab(box, exam, draft = null) {
     </details>`;
 
   const reload = () => planningTab(box, exam);
+  bindWishes(box, exam, P, active, cap, reload);
   box.querySelectorAll('[data-sel]').forEach((b) => b.addEventListener('click', () => { ui.sel = b.dataset.sel; reload(); }));
   box.querySelector('#stop-move')?.addEventListener('click', () => { ui.moving = null; reload(); });
   box.querySelector('#place').addEventListener('click', async () => {
@@ -186,6 +188,109 @@ export async function planningTab(box, exam, draft = null) {
     const lost = active.filter((x) => x.day && !c.days.some((d) => d.date === x.day && d.series.length >= x.series)).length;
     if (lost && !window.confirm(`${lost} candidat(s) sont placés sur un jour ou une série que tu retires. Ils garderont leur créneau mais sans horaire. Continuer ?`)) return;
     try { await api(`/exams/${exam.id}/planning`, { method: 'PUT', body: { planning: c } }); toast('Planning enregistré'); reload(); } catch (e) { toast(e.message, 'error'); }
+  });
+}
+
+// ---------- vœux et attribution ----------
+let preview = null;
+const localInput = (iso) => { if (!iso) return ''; const d = new Date(iso); return new Date(d.getTime() - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 16); };
+
+function wishesPanel(P, active, cap, exam) {
+  const keys = seriesKeys(P);
+  const filled = active.filter((c) => c.wishes);
+  const W = active.map((c) => checkWishes(P, c.wishes ? JSON.parse(c.wishes) : null).wishes);
+  const count = (k, v) => W.filter((w) => w[k] === v).length;
+  const open = wishesOpen(P);
+  const state = !P.publish ? (open ? 'Vœux ouverts' : 'Vœux fermés, attribution à faire') : 'Créneaux publiés';
+  const totalCap = keys.length * cap;
+  const maxR = Math.max(1, ...keys.map((k) => count(k, 2) / cap));
+  const fmtR = (r) => `${r.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} ×`;
+  return `<details class="panel wishes" ${!P.publish ? 'open' : ''}><summary style="cursor:pointer"><strong>Vœux et attribution des créneaux</strong>
+      <span class="pill ${!P.publish ? 'warn' : 'ok'}" style="margin-left:8px">${state}</span></summary>
+    <p class="small muted">Chaque billet donne droit à un créneau. Les étudiants indiquent pour chaque série si elle est idéale, possible ou impossible, puis l'attribution répartit tout le monde en respectant les impossibles et en donnant un créneau idéal au plus grand nombre. Les égalités se départagent par tirage au sort.</p>
+    ${active.length > totalCap ? `<p class="alert warn">${active.length} billets pour ${totalCap} places : ajoute des séries ou annule des inscriptions avant l'attribution.</p>` : ''}
+    <div class="row" style="align-items:flex-end;gap:14px">
+      <label class="check" style="margin:0"><input type="checkbox" id="w-open" ${P.wishes_open ? 'checked' : ''}><span><strong>Vœux ouverts</strong></span></label>
+      <div><label for="w-until" style="margin-top:0">Jusqu'au</label><input id="w-until" type="datetime-local" value="${esc(localInput(P.wishes_until))}"></div>
+      <div style="max-width:150px"><label for="w-min" style="margin-top:0">Créneaux possibles, au moins</label><input id="w-min" type="number" min="1" value="${P.wishes_min}"></div>
+      <div style="max-width:150px"><label for="w-max" style="margin-top:0">Créneaux idéaux, au plus</label><input id="w-max" type="number" min="0" value="${P.wishes_max_ideal}"></div>
+      <button class="small" id="w-save">Enregistrer</button>
+    </div>
+    <p class="small muted">Tant que les créneaux ne sont pas publiés, les étudiants ne voient ni leur créneau ni leur numéro, seulement le formulaire de vœux.</p>
+    <div class="facts" style="margin:12px 0"><div><div class="v">${filled.length}<span class="faint"> / ${active.length}</span></div><div class="l">ont donné leurs vœux (les autres sont placés n'importe où)</div></div>
+      ${active.some((c) => c.extra) ? (() => { const ad = active.filter((c) => { try { return JSON.parse(c.extra || '{}').adherent; } catch { return false; } }).length; return `<div><div class="v">${ad}<span class="faint"> / ${active.length}</span></div><div class="l">billets au tarif adhérent</div></div>`; })() : ''}</div>
+    <h3>Demande par série</h3>
+    <div class="table-wrap"><table class="small"><thead><tr><th>Série</th><th class="num">Idéal</th><th class="num">Possible</th><th class="num">Impossible</th><th style="width:36%">Vœux « idéal » par place</th></tr></thead><tbody>
+      ${keys.map((k) => { const [d, n] = k.split('|'); const i = count(k, 2); return `<tr><td>${esc(frDate(d))}, série ${n}</td><td class="num"><strong>${i}</strong></td><td class="num">${count(k, 1)}</td><td class="num">${count(k, 0)}</td>
+        <td><span class="row" style="flex-wrap:nowrap;gap:8px"><span class="viz-div" style="flex:1"><i class="viz-bar" style="left:0;width:${(i / cap / maxR) * 100}%;background:${i > cap ? 'var(--viz-warn)' : 'var(--viz-a)'}"></i></span><span class="small" style="width:3.5em;text-align:right">${fmtR(i / cap)}</span></span></td></tr>`; }).join('')}
+    </tbody></table></div>
+    <p class="small muted">Au-delà de 1 ×, la série est demandée par plus de monde qu'elle n'a de places : certains l'auront en « possible » seulement.</p>
+    <div class="row" style="margin-top:12px"><button class="primary" id="w-run">${preview ? 'Nouveau tirage' : 'Calculer l\'attribution'}</button>
+      ${P.publish ? '' : '<button id="w-publish">Publier les créneaux</button>'}
+      ${P.publish ? '<button class="small quiet" id="w-unpublish">Masquer les créneaux pour refaire une attribution</button>' : ''}</div>
+    <div id="w-preview">${preview ? previewHtml(P, active) : ''}</div>
+  </details>`;
+}
+
+function previewHtml(P, active) {
+  const st = preview.stats;
+  const byId = new Map(active.map((c) => [c.id, c]));
+  const bad = [...byId.values()].filter((c) => !preview.result.has(c.id));
+  return `<div class="panel" style="margin-top:12px"><h3 style="margin-top:0">Tirage n° ${preview.seed}</h3>
+    <div class="facts" style="margin:8px 0">
+      <div><div class="v">${st.placed}<span class="faint"> / ${st.total}</span></div><div class="l">placés</div></div>
+      <div><div class="v">${st.ideal}</div><div class="l">sur un créneau idéal (${st.idealWanted} en avaient indiqué)</div></div>
+      <div><div class="v">${st.possible}</div><div class="l">sur un créneau possible</div></div>
+      <div><div class="v">${st.impossible}</div><div class="l">sur un créneau impossible</div></div>
+    </div>
+    ${st.impossible ? '<p class="alert warn">Certains étudiants n\'ont pas pu être placés sur un créneau compatible : regarde la demande par série, ou ajoute une série.</p>' : ''}
+    ${bad.length ? `<p class="alert warn">${bad.length} sans place : ${bad.map((c) => esc(`${c.first_name} ${c.last_name}`)).join(', ')}.</p>` : ''}
+    <p class="small muted">Appliquer remplace les places actuelles. Les étudiants ne voient rien tant que tu ne publies pas.</p>
+    <button class="primary" id="w-apply">Appliquer ce tirage</button></div>`;
+}
+
+function bindWishes(box, exam, P, active, cap, reload) {
+  const save = async (patch, msg) => {
+    try { await api(`/exams/${exam.id}/planning`, { method: 'PUT', body: { planning: { ...P, ...patch } } }); toast(msg); reload(); } catch (e) { toast(e.message, 'error'); }
+  };
+  box.querySelector('#w-save')?.addEventListener('click', () => {
+    const open = box.querySelector('#w-open').checked;
+    const until = box.querySelector('#w-until').value;
+    save({ wishes_open: open, wishes_until: until ? new Date(until).toISOString() : '', wishes_min: +box.querySelector('#w-min').value,
+      wishes_max_ideal: +box.querySelector('#w-max').value, ...(open ? { publish: false } : {}) }, open ? 'Vœux ouverts, créneaux masqués' : 'Réglages enregistrés');
+  });
+  box.querySelector('#w-run')?.addEventListener('click', async () => {
+    const { assign } = await import('./matching.js');
+    preview = assign(P, active, cap, Math.floor(Math.random() * 90000) + 10000);
+    reload();
+  });
+  box.querySelector('#w-apply')?.addEventListener('click', async () => {
+    if (!window.confirm('Appliquer ce tirage ? Les places actuelles sont remplacées.')) return;
+    const groups = new Map();
+    for (const c of active) {
+      const k = preview.result.get(c.id);
+      if (!groups.has(k || '')) groups.set(k || '', []);
+      groups.get(k || '').push(c);
+    }
+    const moves = [];
+    for (const [k, list] of groups) {
+      list.sort((a, b) => `${a.last_name} ${a.first_name}`.localeCompare(`${b.last_name} ${b.first_name}`, 'fr'));
+      const [day, series] = k ? k.split('|') : [null, null];
+      list.forEach((c, i) => moves.push({ id: c.id, day, series: series ? Number(series) : null, seat: k ? i + 1 : null }));
+    }
+    try {
+      await api(`/exams/${exam.id}/seats`, { method: 'POST', body: { moves } });
+      toast(`Tirage n° ${preview.seed} appliqué`); preview = null; reload();
+    } catch (e) { toast(e.message, 'error'); }
+  });
+  box.querySelector('#w-publish')?.addEventListener('click', () => {
+    const unplaced = active.filter((c) => !c.seat).length;
+    if (!window.confirm(`Publier les créneaux ? Chaque étudiant verra sa convocation et son parcours, et les vœux seront fermés.${unplaced ? `\n\nAttention : ${unplaced} inscrit(s) n'ont pas encore de place.` : ''}`)) return;
+    save({ publish: true, wishes_open: false }, 'Créneaux publiés');
+  });
+  box.querySelector('#w-unpublish')?.addEventListener('click', () => {
+    if (!window.confirm('Masquer les créneaux ? Les étudiants ne verront plus leur convocation tant que tu ne republies pas.')) return;
+    save({ publish: false, swaps_open: false }, 'Créneaux masqués');
   });
 }
 

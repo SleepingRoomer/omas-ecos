@@ -51,7 +51,7 @@ function compute(D, filter) {
     return { ...s, apt: c.grille.apt.filter((i) => i.label?.trim()), com: c.grille.com.filter((i) => i.label?.trim()) };
   }).filter((s) => s.played);
   const stById = new Map(stations.map((s) => [s.id, s]));
-  const cands = D.candidates.map((c) => ({ ...c, prepa: c.extra?.prepa ?? null, weekend: weekendOf(c.day) })).filter((c) => c.status !== 'annule'
+  const cands = D.candidates.map((c) => ({ ...c, prepa: c.extra?.prepa ?? null, adherent: c.extra?.adherent === undefined ? null : (c.extra.adherent ? 'Adhérents' : 'Non adhérents'), weekend: weekendOf(c.day) })).filter((c) => c.status !== 'annule'
     && (!filter.day || c.day === filter.day) && (!filter.series || String(c.series) === filter.series)
     && (!filter.faculty || c.faculty === filter.faculty));
   const candIds = new Set(cands.map((c) => c.id));
@@ -161,7 +161,7 @@ function compute(D, filter) {
 
   return {
     stations: stStats, cands, grids, passages, complete, avgs, alpha, pairs, evaluators,
-    groups: [groupBy('weekend', 'Week-end'), groupBy('day', 'Jour'), groupBy('series', 'Série'), groupBy('faculty', 'Faculté'), groupBy('year', 'Année'), groupBy('prepa', 'Préparation')].filter(Boolean),
+    groups: [groupBy('weekend', 'Week-end'), groupBy('day', 'Jour'), groupBy('series', 'Série'), groupBy('faculty', 'Faculté'), groupBy('year', 'Année'), groupBy('prepa', 'Préparation'), groupBy('adherent', 'Adhésion')].filter(Boolean),
     hasGlobal: grids.some((g) => g.global !== null && g.global !== undefined),
   };
 }

@@ -16,6 +16,8 @@ export function normalizePlanning(p, exam = {}) {
   const out = {
     rotation_minutes: 10, pause_after: 5, pause_minutes: 10, debrief_minutes: 30,
     place: '', instructions: '', rooms: {}, days: [], swaps_open: false, swaps_close_hours: 48,
+    // vœux : chaque billet donne droit à un créneau, attribué d'après les vœux de chacun
+    wishes_open: false, wishes_until: '', wishes_min: 6, wishes_max_ideal: 3, publish: true,
     ...(p || {}),
   };
   if (!Array.isArray(out.days) || !out.days.length) {
@@ -34,7 +36,9 @@ export function normalizePlanning(p, exam = {}) {
       start: s.start || '08:30', convocation: s.convocation || shift(s.start || '08:30', -15), closed: !!s.closed, nopause: !!s.nopause,
     })),
   })).sort((a, b) => a.date.localeCompare(b.date));
-  for (const k of ['rotation_minutes', 'pause_after', 'pause_minutes', 'debrief_minutes', 'swaps_close_hours']) out[k] = Number(out[k]) || 0;
+  for (const k of ['rotation_minutes', 'pause_after', 'pause_minutes', 'debrief_minutes', 'swaps_close_hours', 'wishes_min', 'wishes_max_ideal']) out[k] = Number(out[k]) || 0;
+  out.publish = out.publish !== false;
+  out.wishes_open = !!out.wishes_open;
   if (!out.rooms || typeof out.rooms !== 'object') out.rooms = {};
   return out;
 }
@@ -111,3 +115,24 @@ export function seriesStartsAt(day, hhmm) {
   } catch { /* fuseau inconnu : heure d'hiver */ }
   return new Date(guess.getTime() - off * 3600e3);
 }
+
+// Vœux : 2 = idéal, 1 = possible, 0 = impossible. Sans vœux enregistrés, tout est possible.
+export const WISH_LEVELS = [
+  { v: 2, l: 'Idéal' }, { v: 1, l: 'Possible' }, { v: 0, l: 'Impossible' },
+];
+export const seriesKeys = (planning) => planning.days.flatMap((d) => d.series.map((_, i) => `${d.date}|${i + 1}`));
+
+export function checkWishes(planning, wishes) {
+  const keys = seriesKeys(planning);
+  const w = Object.fromEntries(keys.map((k) => [k, [0, 1, 2].includes(wishes?.[k]) ? wishes[k] : 1]));
+  const ideal = keys.filter((k) => w[k] === 2).length;
+  const ok = keys.filter((k) => w[k] >= 1).length;
+  const errors = [];
+  const min = Math.min(planning.wishes_min, keys.length);
+  if (ok < min) errors.push(`Laisse au moins ${min} créneaux idéaux ou possibles (tu en as ${ok}).`);
+  if (planning.wishes_max_ideal && ideal > planning.wishes_max_ideal) errors.push(`Choisis au plus ${planning.wishes_max_ideal} créneaux idéaux (tu en as ${ideal}).`);
+  return { wishes: w, ideal, ok, errors };
+}
+
+export const wishesOpen = (planning, now = Date.now()) => planning.wishes_open
+  && (!planning.wishes_until || now < new Date(planning.wishes_until).getTime());
