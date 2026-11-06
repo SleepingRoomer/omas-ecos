@@ -433,6 +433,11 @@ app.patch('/candidates/:id', need('admin'), async (c) => {
     if (f in b) { sets.push(`${f} = ?`); vals.push(b[f] === '' ? null : b[f]); }
   }
   if (b.regen_code) { sets.push('code = ?'); vals.push(await uniqueCode(c.env.DB)); }
+  if ('tarif' in b) {
+    const t = String(b.tarif || '').trim();
+    sets.push("extra = json_set(COALESCE(extra, '{}'), '$.tarif', ?, '$.adherent', json(?))");
+    vals.push(t, t ? String(/adh[ée]rent/i.test(t) && !/non[\s-]*adh/i.test(t)) : 'null');
+  }
   if (('day' in b || 'series' in b) && !('seat' in b)) sets.push('seat = NULL', 'number = NULL');
   if (b.status === 'annule') sets.push('seat = NULL', 'number = NULL');
   if (sets.length) await run(c.env.DB, `UPDATE candidates SET ${sets.join(', ')} WHERE id = ?`, ...vals, c.req.param('id'));
@@ -440,9 +445,14 @@ app.patch('/candidates/:id', need('admin'), async (c) => {
 });
 
 app.delete('/candidates/:id', need('admin'), async (c) => {
-  const n = await one(c.env.DB, 'SELECT COUNT(*) AS n FROM evaluations WHERE candidate_id = ?', c.req.param('id'));
-  if (n.n > 0) throw httpError(400, 'Ce candidat a des évaluations : passez-le plutôt en « annulé ».');
-  await run(c.env.DB, 'DELETE FROM candidates WHERE id = ?', c.req.param('id'));
+  const db = c.env.DB;
+  const id = c.req.param('id');
+  const n = await one(db, 'SELECT COUNT(*) AS n FROM evaluations WHERE candidate_id = ?', id);
+  if (n.n > 0 && c.req.query('force') !== '1') throw httpError(400, 'Ce candidat a des grilles saisies : confirme la suppression.');
+  await db.batch([
+    db.prepare("DELETE FROM auth_sessions WHERE kind = 'etudiant' AND subject_id = ?").bind(id),
+    db.prepare('DELETE FROM candidates WHERE id = ?').bind(id),
+  ]);
   return c.json({ ok: true });
 });
 
@@ -788,7 +798,7 @@ app.delete('/evaluations/:id', need('admin'), async (c) => {
 });
 
 registerJp(app, { need, httpError, all, one, run, uniqueCode, freshCodes, multiInsert, batch, parse });
-registerPlanning(app, { need, httpError, all, one, run, parse, batch, genCode });
+registerPlanning(app, { need, httpError, all, one, run, parse, batch, genCode, freshCodes, multiInsert });
 
 app.all('*', () => { throw httpError(404, 'Route inconnue'); });
 

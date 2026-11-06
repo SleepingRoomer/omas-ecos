@@ -6,7 +6,7 @@ import {
 const placeKey = (day, series) => `${day}|${series}`;
 
 export function registerPlanning(app, h) {
-  const { need, httpError, all, one, run, parse, batch, genCode } = h;
+  const { need, httpError, all, one, run, parse, batch, genCode, freshCodes, multiInsert } = h;
 
   async function load(db, examId) {
     const exam = await one(db, 'SELECT * FROM exams WHERE id = ?', examId);
@@ -120,6 +120,76 @@ export function registerPlanning(app, h) {
         .bind(r.day, r.series, r.seat, candidateNumber(planning, r.day, r.series, r.seat), r.id);
     }));
     return c.json({ ok: true });
+  });
+
+  // ---------- étudiants fictifs, pour tester les échanges et les vœux ----------
+  const FIRST = ['Amina', 'Yanis', 'Sarah', 'Ilyes', 'Inès', 'Rayan', 'Maryam', 'Adam', 'Lina', 'Bilal', 'Nour', 'Sofiane', 'Hajar', 'Mehdi',
+    'Yasmine', 'Karim', 'Salma', 'Anis', 'Myriam', 'Ismaël', 'Camille', 'Hugo', 'Léa', 'Moussa', 'Aïcha', 'Samy', 'Rania', 'Walid', 'Fatoumata', 'Elias'];
+  const LAST = ['Benali', 'Diallo', 'Haddad', 'Martin', 'Cherif', 'Traoré', 'Bouzid', 'Lefèvre', 'Mansouri', 'Kaci', 'Ndiaye', 'Rahmani',
+    'Garcia', 'Belkacem', 'Saidi', 'Toure', 'Amrani', 'Dupont', 'Hamidi', 'Keita', 'Brahimi', 'Moreau', 'Ziani', 'Camara'];
+
+  app.post('/exams/:id/test-candidates', need('admin'), async (c) => {
+    const db = c.env.DB;
+    const { exam, planning, slots } = await load(db, c.req.param('id'));
+    const b = await c.req.json();
+    const count = Math.min(200, Math.max(1, Number(b.count) || 30));
+    const place = b.place !== false;
+    const cap = slots.length || 10;
+    const keys = planning.days.flatMap((d) => d.series.map((_, i) => [d.date, i + 1]));
+    if (place && !keys.length) throw httpError(400, 'Ajoute d\'abord les jours de passage dans le planning.');
+    const taken = new Set((await all(db, "SELECT day, series, seat FROM candidates WHERE exam_id = ? AND status != 'annule' AND seat IS NOT NULL", exam.id))
+      .map((r) => `${r.day}|${r.series}|${r.seat}`));
+    const n0 = (await one(db, "SELECT COUNT(*) AS n FROM candidates WHERE exam_id = ? AND json_extract(extra, '$.test') = 1", exam.id)).n;
+    const codes = await freshCodes(db, count);
+    const rows = [];
+    let k = 0;
+    for (let i = 0; i < count; i++) {
+      const j = n0 + i;
+      const first = FIRST[j % FIRST.length]; const last = LAST[(j * 7 + Math.floor(j / FIRST.length)) % LAST.length];
+      const adherent = j % 5 !== 4;
+      let spot = null;
+      // réparti série après série, pour qu'il reste des places libres et des créneaux variés
+      for (let t = 0; place && t < keys.length && !spot; t++) {
+        const [day, series] = keys[(k + t) % keys.length];
+        for (let seat = 1; seat <= cap; seat++) if (!taken.has(`${day}|${series}|${seat}`)) { spot = { day, series, seat }; break; }
+        if (spot) k = (k + t + 1) % keys.length;
+      }
+      if (spot) taken.add(`${spot.day}|${spot.series}|${spot.seat}`);
+      rows.push({
+        exam_id: exam.id, last_name: `${last} (fictif)`, first_name: first, email: `${first}.${last}.${j}@exemple.org`.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''),
+        phone: null, faculty: ['Sorbonne Université', 'Université Paris Cité', 'Paris-Saclay', 'UPEC'][j % 4], year: 'DFASM2',
+        slot_label: null, day: spot?.day || null, series: spot?.series || null, seat: spot?.seat || null,
+        number: spot ? candidateNumber(planning, spot.day, spot.series, spot.seat) : null, status: 'inscrit', code: codes[i],
+        extra: JSON.stringify({ test: true, tarif: adherent ? 'Adhérent' : 'Non adhérent', adherent }),
+      });
+    }
+    await batch(db, multiInsert(db, 'candidates', ['exam_id', 'last_name', 'first_name', 'email', 'phone', 'faculty', 'year', 'slot_label',
+      'day', 'series', 'seat', 'number', 'status', 'code', 'extra'], rows));
+    // quelques demandes d'échange déjà publiées, pour que la bourse ne soit pas vide
+    const made = await all(db, "SELECT id, day, series FROM candidates WHERE exam_id = ? AND json_extract(extra, '$.test') = 1 AND seat IS NOT NULL ORDER BY id DESC LIMIT ?", exam.id, count);
+    const stmts = [];
+    const nReq = b.requests === false ? 0 : Math.min(4, Math.floor(made.length / 6));
+    for (let i = 0; i < nReq; i++) {
+      const cnd = made[i * 3];
+      const others = keys.map(([d, n]) => `${d}|${n}`).filter((x) => x !== `${cnd.day}|${cnd.series}`);
+      const wanted = others.filter((_, x) => (x + i) % 3 === 0).slice(0, 3);
+      stmts.push(db.prepare('INSERT INTO swaps (exam_id, candidate_id, wanted, code) VALUES (?,?,?,?)').bind(exam.id, cnd.id, JSON.stringify(wanted), genCode(6)));
+    }
+    await batch(db, stmts);
+    return c.json({ created: rows.length, placed: rows.filter((r) => r.seat).length, requests: nReq });
+  });
+
+  app.delete('/exams/:id/test-candidates', need('admin'), async (c) => {
+    const db = c.env.DB;
+    const id = c.req.param('id');
+    const n = await one(db, "SELECT COUNT(*) AS n FROM candidates WHERE exam_id = ? AND json_extract(extra, '$.test') = 1", id);
+    await db.batch([
+      db.prepare(`DELETE FROM auth_sessions WHERE kind = 'etudiant' AND subject_id IN
+        (SELECT id FROM candidates WHERE exam_id = ? AND json_extract(extra, '$.test') = 1)`).bind(id),
+      db.prepare("DELETE FROM swaps WHERE partner_id IN (SELECT id FROM candidates WHERE exam_id = ? AND json_extract(extra, '$.test') = 1)").bind(id),
+      db.prepare("DELETE FROM candidates WHERE exam_id = ? AND json_extract(extra, '$.test') = 1").bind(id),
+    ]);
+    return c.json({ deleted: n.n });
   });
 
   // ---------- étudiant ----------

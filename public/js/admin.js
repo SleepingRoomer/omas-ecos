@@ -212,6 +212,8 @@ async function candidatesTab(box, exam) {
   const active = cands.filter((c) => c.status !== 'annule');
   const unplaced = active.filter((c) => !c.day || !c.series).length;
   const unnumbered = active.filter((c) => !c.number).length;
+  const extraOf = (c) => { try { return JSON.parse(c.extra || '{}') || {}; } catch { return {}; } };
+  const nFake = cands.filter((c) => extraOf(c).test).length;
 
   box.innerHTML = `
     <div class="facts">
@@ -239,6 +241,8 @@ async function candidatesTab(box, exam) {
       <button id="renumber" class="${unnumbered ? 'primary' : ''}">Numéroter les candidats${unnumbered ? ` (${unnumbered} sans numéro)` : ''}</button>
       <button id="export">Exporter codes et liens</button>
       <button id="add" class="quiet">Ajouter un candidat</button>
+      <button id="fake" class="quiet">Ajouter des étudiants fictifs</button>
+      ${nFake ? `<button id="unfake" class="quiet danger">Supprimer les ${nFake} fictifs</button>` : ''}
       <span class="spacer"></span>
       <input id="q" type="text" placeholder="Chercher un nom ou un numéro" style="max-width:260px" aria-label="Chercher">
     </div>
@@ -251,7 +255,8 @@ async function candidatesTab(box, exam) {
     box.querySelector('#rows').innerHTML = cands.filter((c) => !qq || `${c.number} ${c.last_name} ${c.first_name} ${c.email}`.toLowerCase().includes(qq))
       .map((c) => `<tr data-id="${c.id}" ${c.status === 'annule' ? 'style="opacity:.5"' : ''}>
         <td><span class="cand-no" style="font-size:1.1rem">${esc(c.number || '')}</span></td>
-        <td><strong>${esc(c.last_name)}</strong> ${esc(c.first_name)}<div class="small muted">${esc(c.email || '')}${c.faculty ? `, ${esc(c.faculty)}` : ''}</div></td>
+        <td><strong>${esc(c.last_name)}</strong> ${esc(c.first_name)}
+          <div class="small muted">${esc(c.email || '')}${c.faculty ? `, ${esc(c.faculty)}` : ''}${extraOf(c).tarif ? `, ${esc(extraOf(c).tarif)}` : ''}</div></td>
         <td>${c.day ? `${frDate(c.day)}, série ${c.series ?? '?'}` : '<span class="pill warn">À placer</span>'}<div class="small faint">${esc(c.slot_label || '')}</div></td>
         <td><span class="code">${esc(c.code)}</span></td>
         <td><select data-status aria-label="Statut"><option value="inscrit" ${c.status === 'inscrit' ? 'selected' : ''}>Inscrit</option>
@@ -260,7 +265,8 @@ async function candidatesTab(box, exam) {
         <td><div class="row" style="flex-wrap:nowrap;gap:4px">
           <a class="btn small" href="#/admin/session/${exam.id}/candidat/${c.id}">Résultats</a>
           <button class="small" data-copy>Copier le lien</button>
-          <button class="small quiet" data-edit>Déplacer</button></div></td></tr>`).join('')
+          <button class="small" data-edit>Modifier</button>
+          <button class="small danger" data-del>Supprimer</button></div></td></tr>`).join('')
       || '<tr><td colspan="7" class="muted">Aucun candidat.</td></tr>';
     box.querySelectorAll('[data-status]').forEach((s) => s.addEventListener('change', async () => {
       await api(`/candidates/${s.closest('tr').dataset.id}`, { method: 'PATCH', body: { status: s.value } });
@@ -271,14 +277,43 @@ async function candidatesTab(box, exam) {
       await navigator.clipboard?.writeText(link('etudiant', c.code));
       toast('Lien copié');
     }));
-    box.querySelectorAll('[data-edit]').forEach((b) => b.addEventListener('click', async () => {
+    box.querySelectorAll('[data-edit]').forEach((b) => b.addEventListener('click', () => {
+      const tr = b.closest('tr');
+      const c = cands.find((x) => String(x.id) === tr.dataset.id);
+      const f = (name, label, value, type = 'text') => `<div><label for="e-${name}-${c.id}" style="margin-top:0">${label}</label><input id="e-${name}-${c.id}" name="${name}" type="${type}" value="${esc(value || '')}"></div>`;
+      tr.innerHTML = `<td colspan="7"><form class="cand-edit">
+        <div class="grid cols-4" style="gap:10px">${f('last_name', 'Nom', c.last_name)}${f('first_name', 'Prénom', c.first_name)}${f('email', 'E-mail', c.email, 'email')}${f('phone', 'Téléphone', c.phone)}
+          ${f('faculty', 'Faculté', c.faculty)}${f('year', 'Année', c.year)}${f('tarif', 'Tarif', extraOf(c).tarif)}</div>
+        <div class="row" style="margin-top:12px"><button class="primary">Enregistrer</button><button type="button" class="quiet" data-cancel>Annuler</button>
+          <span class="spacer"></span><button type="button" class="small quiet" data-regen>Nouveau code d'accès</button></div>
+        <p class="small muted" style="margin-bottom:0">Pour changer son créneau, passe par l'onglet Planning.</p></form></td>`;
+      tr.querySelector('input').focus();
+      tr.querySelector('[data-cancel]').addEventListener('click', () => drawRows(box.querySelector('#q').value));
+      tr.querySelector('[data-regen]').addEventListener('click', async () => {
+        if (!confirmBox(`Générer un nouveau code pour ${c.first_name} ${c.last_name} ? L'ancien code ne fonctionnera plus.`)) return;
+        await api(`/candidates/${c.id}`, { method: 'PATCH', body: { regen_code: true } });
+        toast('Nouveau code généré'); candidatesTab(box, exam);
+      });
+      tr.querySelector('form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const body = Object.fromEntries(new FormData(e.target));
+        if (!body.last_name.trim() && !body.first_name.trim()) { toast('Indique au moins un nom', 'error'); return; }
+        try { await api(`/candidates/${c.id}`, { method: 'PATCH', body }); toast('Candidat modifié'); candidatesTab(box, exam); } catch (err) { toast(err.message, 'error'); }
+      });
+    }));
+    box.querySelectorAll('[data-del]').forEach((b) => b.addEventListener('click', async () => {
       const c = cands.find((x) => String(x.id) === b.closest('tr').dataset.id);
-      const day = prompt('Jour de passage (AAAA-MM-JJ) :', c.day || exam.starts_on || '');
-      if (day === null) return;
-      const series = prompt('Série (1 à 4) :', c.series || '');
-      if (series === null) return;
-      await api(`/candidates/${c.id}`, { method: 'PATCH', body: { day, series: series ? Number(series) : null } });
-      candidatesTab(box, exam);
+      try {
+        if (c.n_evaluations > 0) {
+          const typed = prompt(`${c.first_name} ${c.last_name} a ${c.n_evaluations} grille(s) saisie(s), qui seront perdues. Pour garder ses notes, passe-le plutôt en « Annulé ».\n\nTape SUPPRIMER pour confirmer.`);
+          if (typed !== 'SUPPRIMER') return;
+          await api(`/candidates/${c.id}?force=1`, { method: 'DELETE' });
+        } else {
+          if (!confirmBox(`Supprimer ${c.first_name} ${c.last_name} ? Sa place se libère et son code ne fonctionnera plus.`)) return;
+          await api(`/candidates/${c.id}`, { method: 'DELETE' });
+        }
+        toast('Candidat supprimé'); candidatesTab(box, exam);
+      } catch (err) { toast(err.message, 'error'); }
     }));
   };
   drawRows();
@@ -299,6 +334,16 @@ async function candidatesTab(box, exam) {
   box.querySelector('#export').addEventListener('click', () => {
     downloadCsv(`codes-${exam.id}.csv`, [['Numéro', 'Nom', 'Prénom', 'E-mail', 'Téléphone', 'Jour', 'Série', 'Code', 'Lien personnel'],
       ...active.map((c) => [c.number, c.last_name, c.first_name, c.email, c.phone, c.day, c.series, c.code, link('etudiant', c.code)])]);
+  });
+  box.querySelector('#fake').addEventListener('click', async () => {
+    const n = prompt('Combien d\'étudiants fictifs ? Ils sont répartis dans les séries du planning, avec quelques demandes d\'échange déjà publiées. Ils se suppriment ensuite en un clic.', '30');
+    if (!n) return;
+    try { const r = await api(`/exams/${exam.id}/test-candidates`, { method: 'POST', body: { count: Number(n) } }); toast(`${r.created} étudiants fictifs, ${r.placed} placés, ${r.requests} demandes d'échange`); candidatesTab(box, exam); } catch (err) { toast(err.message, 'error'); }
+  });
+  box.querySelector('#unfake')?.addEventListener('click', async () => {
+    if (!confirmBox(`Supprimer les ${nFake} étudiants fictifs, leurs demandes d'échange et leurs grilles éventuelles ?`)) return;
+    const r = await api(`/exams/${exam.id}/test-candidates`, { method: 'DELETE' });
+    toast(`${r.deleted} étudiants fictifs supprimés`); candidatesTab(box, exam);
   });
   box.querySelector('#add').addEventListener('click', async () => {
     const last = prompt('Nom :'); if (!last) return;

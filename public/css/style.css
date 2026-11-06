@@ -192,7 +192,7 @@ td select { min-width: 112px; padding: 7px 8px; font-size: .9rem; }
 .tag-ico { display: inline-block; width: 1.35em; text-align: center; margin-right: .2em; font-style: normal; }
 .tags { display: flex; flex-wrap: wrap; gap: 6px 14px; color: var(--ink-2); font-size: .92rem; }
 .code { font-family: var(--display); font-weight: 700; font-size: 1em; letter-spacing: .06em; color: var(--ink); font-variant-numeric: tabular-nums; }
-.cand-no { font-family: var(--display); font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+.cand-no { white-space: nowrap; font-family: var(--display); font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
 
 .tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--line); margin: 22px 0 18px; overflow-x: auto; }
 .tabs a { padding: 10px 14px; text-decoration: none; color: var(--ink-2); border-bottom: 3px solid transparent; margin-bottom: -1px; white-space: nowrap; }
