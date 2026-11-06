@@ -22,7 +22,7 @@ export function registerPlanning(app, h) {
     const db = c.env.DB;
     const { exam, planning, slots } = await load(db, c.req.param('id'));
     const [candidates, swaps, titles] = await Promise.all([
-      all(db, `SELECT c.id, c.number, c.last_name, c.first_name, c.email, c.phone, c.day, c.series, c.seat, c.status, c.confirmed_at, c.slot_label, c.wishes, c.wishes_at, c.extra,
+      all(db, `SELECT c.id, c.number, c.last_name, c.first_name, c.email, c.phone, c.day, c.series, c.seat, c.status, c.confirmed_at, c.checked_in_at, c.slot_label, c.wishes, c.wishes_at, c.extra,
         (SELECT COUNT(*) FROM evaluations v WHERE v.candidate_id = c.id) AS n_evaluations
         FROM candidates c WHERE c.exam_id = ? ORDER BY c.last_name, c.first_name`, exam.id),
       all(db, `SELECT s.id, s.status, s.from_place, s.to_place, s.created_at, s.done_at, s.wanted,

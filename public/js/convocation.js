@@ -75,6 +75,8 @@ export async function convocationPanel(box, reload) {
         <div class="convoc-side">
           <div class="small muted">Ton numéro</div><div class="cand-no big">${esc(C.candidate.number || '')}</div>
           <div class="small muted">Série ${C.series}, place ${C.seat}</div>
+          <div class="qr" id="qr" aria-label="QR code d'émargement"></div>
+          <div class="small muted qr-cap">À montrer à l'accueil</div>
         </div>
       </section>
       <div class="row no-print" style="margin:10px 0 4px">
@@ -82,6 +84,8 @@ export async function convocationPanel(box, reload) {
           : '<button class="primary" data-confirm="1">Je confirme ma venue</button>'}
         <button class="small" id="ics">Ajouter à mon agenda</button>
         <button class="small quiet" data-print>Imprimer</button>
+        <span class="spacer"></span>
+        <button class="small quiet danger" id="release">Libérer ma place</button>
       </div>
       <h2>Ta journée</h2>
       <p class="small muted">Un tour toutes les ${C.rotation_minutes} minutes : lecture de la vignette devant la porte, puis la station. Les sujets restent secrets jusqu'au jour J. À la fin des deux circuits, l'équipe corrige les stations avec vous.</p>
@@ -176,6 +180,18 @@ export async function convocationPanel(box, reload) {
       reload();
     }));
     box.querySelector('#ics')?.addEventListener('click', () => ics(C));
+    const qr = box.querySelector('#qr');
+    if (qr) {
+      Promise.all([api('/me/checkin'), import('./vendor/qrcode.mjs')]).then(([K, mod]) => {
+        const q = mod.default(0, 'M'); q.addData(`${location.origin}/#/accueil/${K.token}`); q.make();
+        qr.innerHTML = q.createSvgTag({ cellSize: 3, margin: 2, scalable: true });
+        if (K.checked_in_at) box.querySelector('.qr-cap').textContent = 'Présence enregistrée ✓';
+      }).catch(() => { qr.remove(); });
+    }
+    box.querySelector('#release')?.addEventListener('click', async () => {
+      if (!window.confirm('Libérer ta place ? Elle sera proposée à un étudiant de la liste d\'attente et tu ne pourras plus la récupérer. Ton code ne fonctionnera plus. Pour un remboursement, contacte l\'équipe.')) return;
+      try { await api('/me/release', { method: 'POST' }); alert('Ta place est libérée. Merci de l\'avoir signalé : un autre étudiant va pouvoir en profiter.'); await api('/logout', { method: 'POST' }); location.href = '/'; } catch (e) { toast(e.message, 'error'); }
+    });
     box.querySelector('[data-go]')?.addEventListener('click', (e) => { e.preventDefault(); box.querySelector('#echanges')?.scrollIntoView({ behavior: 'smooth' }); });
     box.querySelectorAll('[data-accept]').forEach((b) => b.addEventListener('click', () => accept(b.dataset.accept)));
     const act = async (path, body, msg) => { try { await api(path, { method: 'POST', body }); toast(msg); reload(); } catch (e) { toast(e.message, 'error'); } };

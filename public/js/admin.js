@@ -109,7 +109,7 @@ export function rowActions(root, items, { save, remove, reload, days, weekend = 
 
 // ---------- une session ----------
 
-const TABS = [['stations', 'Stations'], ['candidats', 'Candidats'], ['planning', 'Planning'], ['direct', 'En direct'], ['resultats', 'Résultats'], ['analyse', 'Analyse'], ['reglages', 'Réglages']];
+const TABS = [['stations', 'Stations'], ['candidats', 'Candidats'], ['planning', 'Planning'], ['accueil', 'Accueil'], ['direct', 'En direct'], ['materiel', 'Matériel'], ['resultats', 'Résultats'], ['analyse', 'Analyse'], ['reglages', 'Réglages']];
 
 export async function examView(app, id, tab) {
   const exam = await api(`/exams/${id}`);
@@ -131,6 +131,8 @@ export async function examView(app, id, tab) {
   if (tab === 'candidats') return candidatesTab(box, exam);
   if (tab === 'resultats') return resultsTab(box, exam);
   if (tab === 'planning') return (await import('./planning.js')).planningTab(box, exam);
+  if (tab === 'accueil') return (await import('./accueil.js')).accueilTab(box, exam);
+  if (tab === 'materiel') return (await import('./materiel.js')).materielTab(box, exam);
   if (tab === 'direct') return (await import('./live.js')).liveTab(box, exam);
   if (tab === 'analyse') return (await import('./analytics.js')).analyticsTab(box, exam);
   if (tab === 'reglages') return settingsTab(box, exam);
@@ -256,6 +258,7 @@ async function candidatesTab(box, exam) {
       <textarea id="paste" placeholder="Nom	Prénom	E-mail	Tarif…"></textarea>
       <div id="mapping"></div>
     </details>
+    <div id="wlbox"></div>
     ${Object.keys(labels).length ? `<div class="panel"><h2>Créneaux de la billetterie</h2>
       <p class="muted small">Associe chaque créneau à un jour et une série, puis numérote. Dans une série, les candidats 01 à 05 commencent par le circuit A et 06 à 10 par le circuit B.</p>
       <div class="table-wrap"><table><thead><tr><th>Créneau</th><th class="num">Inscrits</th><th>Jour</th><th>Série</th><th></th></tr></thead><tbody>
@@ -277,6 +280,7 @@ async function candidatesTab(box, exam) {
       <thead><tr><th>Numéro</th><th>Candidat</th><th>Créneau</th><th>Code</th><th>Statut</th><th class="num">Grilles</th><th></th></tr></thead>
       <tbody id="rows"></tbody></table></div>`;
 
+  import('./waitlist.js').then((m) => m.waitlistPanel(box.querySelector('#wlbox'), exam)).catch(() => {});
   const drawRows = (q = '') => {
     const qq = q.toLowerCase();
     box.querySelector('#rows').innerHTML = cands.filter((c) => !qq || `${c.number} ${c.last_name} ${c.first_name} ${c.email}`.toLowerCase().includes(qq))

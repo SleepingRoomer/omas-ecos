@@ -71,7 +71,9 @@ function loginView() {
       try {
         const r = await api('/login', { method: 'POST', body: { role, code: app.querySelector('#code').value, name: app.querySelector('#name')?.value } });
         state.me = await api('/me');
-        location.hash = HOME[r.kind];
+        const back = sessionStorage.getItem('after_login'); sessionStorage.removeItem('after_login');
+        const target = back && back !== '#/' ? back : HOME[r.kind];
+        if (location.hash === target) route(); else location.hash = target;
       } catch (err) { toast(err.message, 'error'); }
     });
   };
@@ -79,6 +81,8 @@ function loginView() {
 }
 
 const routes = [
+  [/^#\/accueil\/([A-Z0-9]+)$/, 'admin', async (m) => (await import('./accueil.js')).scanView(app, m[1])],
+  [/^#\/attente\/(\d+)$/, [null, 'admin', 'etudiant', 'evaluateur', 'auteur', 'participant'], async (m) => (await import('./waitlist.js')).publicWaitlist(app, m[1])],
   [/^#\/admin\/communication$/, 'admin', async () => (await import('./comms.js')).commsView(app)],
   [/^#\/admin\/session\/(\d+)\/candidat\/(\d+)$/, 'admin', async (m) => (await import('./student.js')).adminReport(app, m[2], m[1])],
   [/^#\/admin\/session\/(\d+)(?:\/([\w-]+))?$/, 'admin', async (m) => (await import('./admin.js')).examView(app, m[1], m[2] || 'stations')],
@@ -107,7 +111,7 @@ export async function route() {
     const m = hash.match(re);
     if (!m) continue;
     const allowed = Array.isArray(kinds) ? kinds : [kinds];
-    if (!allowed.includes(state.me.kind)) break;
+    if (!allowed.includes(state.me.kind)) { if (!state.me.kind) sessionStorage.setItem('after_login', location.hash); break; }
     try { await fn(m); } catch (err) {
       if (err.status === 401) { state.me = { kind: null }; location.hash = '#/'; return; }
       app.innerHTML = `<div class="alert error">${esc(err.message)}</div>`;

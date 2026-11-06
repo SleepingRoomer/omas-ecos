@@ -659,3 +659,20 @@ body.kiosk .container { max-width: none; padding: 28px 40px; }
 .proj-exit { position: fixed; right: 16px; bottom: 16px; opacity: .4; }
 .proj-exit:hover { opacity: 1; }
 .fb-comments { margin: 10px 0 0; padding-left: 1.1rem; display: grid; gap: 8px; }
+
+/* ---------- accueil et émargement ---------- */
+.qr { width: 104px; height: 104px; margin: 12px 0 2px auto; background: #fff; border-radius: 10px; padding: 4px; }
+.qr svg { width: 100%; height: 100%; display: block; }
+.convoc-side .qr-cap { color: rgba(255,255,255,.8); }
+@media (max-width: 560px) { .qr { margin-left: 0; } }
+.scan { text-align: center; padding-top: 30px; }
+.scan-mark { width: 120px; height: 120px; margin: 0 auto 16px; border-radius: 50%; display: grid; place-items: center; font-size: 4rem; font-weight: 800; color: #fff; background: var(--ok); }
+.scan.again .scan-mark { background: var(--r); }
+.scan.ko .scan-mark { background: var(--ko); }
+.acc-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 6px; }
+.acc { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; text-align: left; font-weight: 500; justify-content: stretch; }
+.acc.here { background: var(--ok-soft); border-color: #b9dcc7; }
+.acc-st { font-size: .8rem; color: var(--ok); font-weight: 700; }
+.mat-rooms { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 0 14px; }
+.mat-room { margin: 8px 0; }
+.mat-check { margin: 4px 0; font-weight: 400; }
