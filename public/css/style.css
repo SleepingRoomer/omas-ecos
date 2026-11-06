@@ -522,3 +522,14 @@ td select { min-width: 112px; padding: 7px 8px; font-size: .9rem; }
 .wish-seg button.on.w1 { background: var(--ink); color: #fff; }
 .wish-seg button.on.w0 { background: var(--ko); color: #fff; }
 .small.bad { color: var(--ko); font-weight: 700; }
+.dp { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; background: var(--surface); max-width: 340px; }
+.dp-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; text-transform: capitalize; }
+.dp-head button { min-height: 32px; padding: 2px 10px; }
+.dp-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; text-align: center; }
+.dp-wd { font-size: .72rem; color: var(--ink-3); font-weight: 700; padding: 2px 0; }
+.dp-grid button { min-height: 34px; padding: 0; font-weight: 500; border: 1px solid transparent; background: transparent; border-radius: 8px; color: var(--ink); font-variant-numeric: tabular-nums; }
+.dp-grid button.we { background: var(--paper); }
+.dp-grid button:hover { border-color: var(--line); }
+.dp-grid button.on { background: var(--a); color: #fff; font-weight: 800; }
+.dp-sum { margin-top: 8px; line-height: 1.45; }
+button.link { background: none; border: none; padding: 0 0 0 6px; min-height: 0; color: var(--a); text-decoration: underline; font-weight: 600; font-size: inherit; }

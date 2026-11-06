@@ -1,10 +1,11 @@
-import { api, esc, nl, toast, fmt, frDate, setTitle, downloadCsv, parseTable, confirmBox, plate, atelierPlate, disc } from './ui.js';
+import { api, esc, nl, toast, fmt, frDate, setTitle, downloadCsv, parseTable, confirmBox, plate, atelierPlate, disc, daysLabel, daysPicker } from './ui.js';
 import { DISCIPLINES } from './shared.js';
 import { JP_STATUSES, ATELIER_EMOJIS, atelierNo } from './jp-shared.js';
 import { state } from './app.js';
 
 const link = (code) => `${location.origin}/#/?role=etudiant&code=${code}`;
-const dates = (j) => (j.starts_on ? `${frDate(j.starts_on)}${j.ends_on && j.ends_on !== j.starts_on ? ` et ${frDate(j.ends_on)}` : ''}` : 'Dates à fixer');
+const jpDays = (j) => (Array.isArray(j.days) ? j.days : String(j.days || '').split(',').filter(Boolean));
+const dates = (j) => daysLabel(jpDays(j).length ? jpDays(j) : [j.starts_on, j.ends_on]);
 const hm = (t) => String(t || '').replace(':', ' h ');
 const minutesLabel = (n, m, t) => { const tot = n * m + Math.max(0, n - 1) * t; return `${Math.floor(tot / 60)} h ${String(tot % 60).padStart(2, '0')}`; };
 const JP_FLOW = ['redaction', 'relecture', 'validee'];
@@ -25,8 +26,7 @@ export async function jpSection(box) {
     <div class="panel"><h2>Créer une journée procédure</h2>
       <form id="newjp"><div class="grid cols-2">
         <div><label for="jn">Nom</label><input id="jn" name="name" required placeholder="Journée procédure 1, décembre 2026"></div>
-        <div class="grid cols-2" style="gap:10px"><div><label for="j1">Premier jour</label><input id="j1" type="date" name="starts_on"></div>
-          <div><label for="j2">Dernier jour</label><input id="j2" type="date" name="ends_on"></div></div></div>
+        <div><label>Jours</label><div id="jpdays"></div></div></div>
         <label class="check" style="margin-top:16px"><input type="checkbox" name="prefill" checked>
           <span>Préremplir les 7 ateliers de la JP1 (suture, palpation mammaire, toucher rectal, otoscopie, gants stériles et injection IM, palpation testiculaire, arrêt cardio-respiratoire)</span></label>
         <p class="small muted">Deux créneaux par jour sont créés, à 9 h et à 14 h. Tu pourras les changer.</p>
@@ -36,7 +36,11 @@ export async function jpSection(box) {
     location.hash = `#/admin/jp/${tr.dataset.jp}`;
   }));
   (await import('./admin.js')).rowActions(box, list, {
-    save: (id, body) => api(`/jp/${id}`, { method: 'PATCH', body }),
+    days: jpDays,
+    save: async (id, { name, days }) => {
+      await api(`/jp/${id}`, { method: 'PATCH', body: { name } });
+      if (days.length) await api(`/jp/${id}/days`, { method: 'PUT', body: { days } });
+    },
     remove: async (j) => {
       if (!confirmBox(`Supprimer « ${j.name} », ses ateliers, ses créneaux et ses ${j.n_participants} inscrits ?`)) return false;
       await api(`/jp/${j.id}`, { method: 'DELETE' });
@@ -44,10 +48,11 @@ export async function jpSection(box) {
     },
     reload: () => jpSection(box),
   });
+  const jpPicker = daysPicker(box.querySelector('#jpdays'), []);
   box.querySelector('#newjp').addEventListener('submit', async (e) => {
     e.preventDefault();
     const f = new FormData(e.target);
-    const r = await api('/jp', { method: 'POST', body: { name: f.get('name'), starts_on: f.get('starts_on'), ends_on: f.get('ends_on'), prefill: !!f.get('prefill') } });
+    const r = await api('/jp', { method: 'POST', body: { name: f.get('name'), days: jpPicker.get(), prefill: !!f.get('prefill') } });
     location.hash = `#/admin/jp/${r.id}`;
   });
 }
@@ -285,16 +290,18 @@ async function reglagesTab(box, jp) {
     ${flag('keypoints_published', 'Points clés publiés', 'Les fiches points clés et les mini-grilles deviennent visibles. À cocher le soir de la journée.')}
     <form id="f" class="panel"><h2>Informations et durées</h2>
       <div class="grid cols-2"><div><label for="nm">Nom</label><input id="nm" name="name" value="${esc(jp.name)}"></div>
-        <div class="grid cols-2" style="gap:10px"><div><label for="s1">Premier jour</label><input id="s1" type="date" name="starts_on" value="${esc(jp.starts_on || '')}"></div>
-          <div><label for="s2">Dernier jour</label><input id="s2" type="date" name="ends_on" value="${esc(jp.ends_on || '')}"></div></div>
+        <div><label>Jours</label><div id="jpsetdays"></div><p class="small muted">Un jour ajouté reçoit deux créneaux (9 h et 14 h) ; un jour retiré perd les siens, ses inscrits sont à replacer.</p></div>
         <div><label for="am">Durée d'un atelier (minutes)</label><input id="am" type="number" min="5" name="atelier_minutes" value="${jp.atelier_minutes}"></div>
         <div><label for="tm">Temps pour changer d'atelier (minutes)</label><input id="tm" type="number" min="0" name="transition_minutes" value="${jp.transition_minutes}"></div></div>
       <button class="primary" style="margin-top:14px">Enregistrer</button></form>
     <div class="panel"><h2>Supprimer la journée</h2><p class="small muted">Les ateliers, créneaux et inscrits sont supprimés avec elle.</p><button class="danger" id="del">Supprimer la journée</button></div>`;
   box.querySelectorAll('[data-k]').forEach((cb) => cb.addEventListener('change', async () => { await api(`/jp/${jp.id}`, { method: 'PATCH', body: { [cb.dataset.k]: cb.checked ? 1 : 0 } }); jp[cb.dataset.k] = cb.checked ? 1 : 0; toast(cb.checked ? 'Activé' : 'Désactivé'); }));
+  const jpSetPicker = daysPicker(box.querySelector('#jpsetdays'), jpDays(jp));
   box.querySelector('#f').addEventListener('submit', async (e) => {
     e.preventDefault(); const f = new FormData(e.target);
-    await api(`/jp/${jp.id}`, { method: 'PATCH', body: { name: f.get('name'), starts_on: f.get('starts_on'), ends_on: f.get('ends_on'), atelier_minutes: Number(f.get('atelier_minutes')), transition_minutes: Number(f.get('transition_minutes')) } });
+    await api(`/jp/${jp.id}`, { method: 'PATCH', body: { name: f.get('name'), atelier_minutes: Number(f.get('atelier_minutes')), transition_minutes: Number(f.get('transition_minutes')) } });
+    const days = jpSetPicker.get();
+    if (days.length) await api(`/jp/${jp.id}/days`, { method: 'PUT', body: { days } });
     toast('Enregistré');
   });
   box.querySelector('#del').addEventListener('click', async () => { if (!confirmBox('Supprimer définitivement cette journée ?')) return; await api(`/jp/${jp.id}`, { method: 'DELETE' }); location.hash = '#/admin'; });

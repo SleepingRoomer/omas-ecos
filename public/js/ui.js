@@ -114,3 +114,69 @@ export function atelierPlate(code, emoji, size = '') {
   if (!emoji) return plate(code, size);
   return `<span class="aplate ${size}" role="img" aria-label="Atelier ${esc(n)}"><span class="emo">${esc(emoji)}</span><span class="no">${esc(n)}</span></span>`;
 }
+
+// ---------- choix de jours précis (deux week-ends, par exemple) ----------
+
+// Résumé lisible : « sam. 18, dim. 19, sam. 25 et dim. 26 avril 2026 »
+export function daysLabel(days) {
+  const list = [...new Set((days || []).filter(Boolean))].sort();
+  if (!list.length) return 'Dates à fixer';
+  const fmtDay = (iso) => new Date(`${iso}T12:00:00`).toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric' });
+  const byMonth = [];
+  for (const d of list) {
+    const m = d.slice(0, 7);
+    if (!byMonth.length || byMonth[byMonth.length - 1].m !== m) byMonth.push({ m, days: [] });
+    byMonth[byMonth.length - 1].days.push(d);
+  }
+  const parts = byMonth.map((g, i) => {
+    const month = new Date(`${g.days[0]}T12:00:00`).toLocaleDateString('fr-FR', { month: 'long', ...(i === byMonth.length - 1 ? { year: 'numeric' } : {}) });
+    return `${g.days.map(fmtDay).join(', ')} ${month}`;
+  });
+  const s = parts.join(', ');
+  const k = s.lastIndexOf(', ');
+  return list.length > 1 && byMonth.length === 1 ? s.replace(/, ([^,]*)$/, ' et $1') : (k > 0 && byMonth.length > 1 ? `${s.slice(0, k)} et ${s.slice(k + 2)}` : s);
+}
+
+// Petit calendrier : un clic ajoute ou retire un jour. `onChange(days)` reçoit la liste triée.
+export function daysPicker(el, initial = [], onChange = () => {}, opts = {}) {
+  let days = [...new Set(initial.filter(Boolean))].sort();
+  const first = days[0] || new Date().toISOString().slice(0, 10);
+  let view = new Date(`${first.slice(0, 7)}-01T12:00:00`);
+  const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const draw = () => {
+    const y = view.getFullYear(); const m = view.getMonth();
+    const start = (new Date(y, m, 1).getDay() + 6) % 7;
+    const n = new Date(y, m + 1, 0).getDate();
+    const cells = [];
+    for (let i = 0; i < start; i++) cells.push('<span></span>');
+    for (let d = 1; d <= n; d++) {
+      const k = iso(new Date(y, m, d));
+      const wd = (start + d - 1) % 7;
+      cells.push(`<button type="button" data-day="${k}" class="${days.includes(k) ? 'on' : ''} ${wd >= 5 ? 'we' : ''}" aria-pressed="${days.includes(k)}">${d}</button>`);
+    }
+    el.innerHTML = `<div class="dp">
+      <div class="dp-head"><button type="button" data-nav="-1" aria-label="Mois précédent">‹</button>
+        <strong>${new Date(y, m, 1).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })}</strong>
+        <button type="button" data-nav="1" aria-label="Mois suivant">›</button></div>
+      <div class="dp-grid">${['lu', 'ma', 'me', 'je', 've', 'sa', 'di'].map((x) => `<span class="dp-wd">${x}</span>`).join('')}${cells.join('')}</div>
+      <div class="dp-sum small">${days.length ? `<strong>${days.length} jour${days.length > 1 ? 's' : ''}</strong> : ${esc(daysLabel(days))}
+        <button type="button" class="link" data-clear>Tout effacer</button>` : `<span class="muted">Clique les jours de la session.${opts.weekend ? ' Un clic sur un samedi ajoute aussi le dimanche.' : ''}</span>`}</div></div>`;
+    el.querySelectorAll('[data-nav]').forEach((b) => b.addEventListener('click', () => { view = new Date(view.getFullYear(), view.getMonth() + Number(b.dataset.nav), 1, 12); draw(); }));
+    el.querySelectorAll('[data-day]').forEach((b) => b.addEventListener('click', () => {
+      const k = b.dataset.day;
+      if (days.includes(k)) days = days.filter((x) => x !== k);
+      else {
+        days.push(k);
+        // un samedi ajouté seul entraîne son dimanche : nos sessions tiennent sur des week-ends entiers
+        const d = new Date(`${k}T12:00:00`);
+        const sun = iso(new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1));
+        if (opts.weekend && d.getDay() === 6 && !days.includes(sun)) days.push(sun);
+      }
+      days = [...new Set(days)].sort();
+      onChange(days); draw();
+    }));
+    el.querySelector('[data-clear]')?.addEventListener('click', () => { days = []; onChange(days); draw(); });
+  };
+  draw();
+  return { get: () => days };
+}

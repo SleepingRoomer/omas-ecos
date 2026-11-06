@@ -1,8 +1,16 @@
-import { api, esc, toast, fmt, pct, frDate, setTitle, downloadCsv, parseTable, confirmBox, plate, rail, disc } from './ui.js';
+import { api, esc, toast, fmt, pct, frDate, setTitle, downloadCsv, parseTable, confirmBox, plate, rail, disc, daysLabel, daysPicker } from './ui.js';
 import { DOMAINS, TYPES, STATUSES, domainIcon } from './shared.js';
 
 const link = (role, code) => `${location.origin}/#/?role=${role}&code=${code}`;
-const dates = (e) => (!e.starts_on ? 'Dates à fixer' : !e.ends_on || e.ends_on === e.starts_on ? frDate(e.starts_on) : `${frDate(e.starts_on)} au ${frDate(e.ends_on)}`);
+// Jours d'une session : ceux du planning s'il existe, sinon l'intervalle d'origine
+export const examDays = (e) => {
+  try { const p = JSON.parse(e.planning || 'null'); if (p?.days?.length) return p.days.map((d) => d.date); } catch { /* ancien format */ }
+  if (!e.starts_on) return [];
+  const out = []; const end = e.ends_on || e.starts_on;
+  for (let d = new Date(`${e.starts_on}T12:00:00Z`); d.toISOString().slice(0, 10) <= end && out.length < 31; d = new Date(d.getTime() + 864e5)) out.push(d.toISOString().slice(0, 10));
+  return out;
+};
+const dates = (e) => daysLabel(examDays(e));
 
 // ---------- liste des sessions ----------
 
@@ -25,10 +33,7 @@ export async function examsView(app) {
       <form id="new">
         <div class="grid cols-2">
           <div><label for="n">Nom</label><input id="n" name="name" required placeholder="ECOS blancs 1, janvier 2027"></div>
-          <div class="grid cols-2" style="gap:10px">
-            <div><label for="d1">Premier jour</label><input id="d1" type="date" name="starts_on"></div>
-            <div><label for="d2">Dernier jour</label><input id="d2" type="date" name="ends_on"></div>
-          </div>
+          <div><label>Jours de la session</label><div id="newdays"></div></div>
         </div>
         <label class="check" style="margin-top:16px"><input type="checkbox" name="slots" checked>
           <span>Préparer les 12 stations du guide : A1 à A5, B1 à B5 et deux réserves, avec leurs domaines</span></label>
@@ -39,10 +44,11 @@ export async function examsView(app) {
     <div id="jpbox"></div>`;
   (await import('./backup.js')).importPanel(app.querySelector('#impbox'), (id) => { location.hash = `#/admin/session/${id}/analyse`; });
   (await import('./jp.js')).jpSection(app.querySelector('#jpbox'));
+  const picker = daysPicker(app.querySelector('#newdays'), [], () => {}, { weekend: true });
   app.querySelector('#new').addEventListener('submit', async (e) => {
     e.preventDefault();
     const f = new FormData(e.target);
-    const r = await api('/exams', { method: 'POST', body: { name: f.get('name'), starts_on: f.get('starts_on'), ends_on: f.get('ends_on'), create_slots: !!f.get('slots') } });
+    const r = await api('/exams', { method: 'POST', body: { name: f.get('name'), days: picker.get(), create_slots: !!f.get('slots') } });
     location.hash = `#/admin/session/${r.id}`;
   });
   app.querySelectorAll('tr[data-id]').forEach((tr) => tr.addEventListener('click', (e) => {
@@ -50,7 +56,14 @@ export async function examsView(app) {
     location.hash = `#/admin/session/${tr.dataset.id}`;
   }));
   rowActions(app, exams, {
-    save: (id, body) => api(`/exams/${id}`, { method: 'PATCH', body }),
+    days: examDays, weekend: true,
+    save: async (id, { name, days }) => {
+      await api(`/exams/${id}`, { method: 'PATCH', body: { name } });
+      if (days.length) {
+        const r = await api(`/exams/${id}/days`, { method: 'PUT', body: { days } });
+        if (r.orphans) alert(`${r.orphans} candidat(s) étaient placés sur un jour retiré : ils gardent leur créneau mais sans horaire. Replace-les dans l'onglet Planning.`);
+      }
+    },
     remove: async (e) => {
       if (e.n_evaluations > 0) {
         const typed = prompt(`« ${e.name} » contient ${e.n_evaluations} grilles saisies. Elles seront perdues avec la session, ses stations et ses inscrits.\n\nTape SUPPRIMER pour confirmer.`);
@@ -67,24 +80,24 @@ export async function examsView(app) {
 }
 
 // Boutons Modifier et Supprimer d'une liste de sessions (ECOS ou journées procédure)
-export function rowActions(root, items, { save, remove, reload }) {
+export function rowActions(root, items, { save, remove, reload, days, weekend = false }) {
   root.querySelectorAll('tr[data-id] [data-edit], tr[data-jp] [data-edit]').forEach((b) => b.addEventListener('click', () => {
     const tr = b.closest('tr');
     const id = tr.dataset.id || tr.dataset.jp;
     const it = items.find((x) => String(x.id) === id);
     const cols = tr.children.length;
     tr.classList.remove('clickable');
-    tr.innerHTML = `<td colspan="${cols}"><form class="row" style="align-items:flex-end">
-      <div style="flex:2;min-width:220px"><label for="en${id}" style="margin-top:0">Nom</label><input id="en${id}" name="name" value="${esc(it.name)}" required></div>
-      <div><label for="es${id}" style="margin-top:0">Premier jour</label><input id="es${id}" type="date" name="starts_on" value="${esc(it.starts_on || '')}"></div>
-      <div><label for="ee${id}" style="margin-top:0">Dernier jour</label><input id="ee${id}" type="date" name="ends_on" value="${esc(it.ends_on || '')}"></div>
-      <button class="primary">Enregistrer</button><button type="button" class="quiet" data-cancel>Annuler</button></form></td>`;
+    tr.innerHTML = `<td colspan="${cols}"><form class="row" style="align-items:flex-start;gap:18px">
+      <div style="flex:1;min-width:220px"><label for="en${id}" style="margin-top:0">Nom</label><input id="en${id}" name="name" value="${esc(it.name)}" required>
+        <div class="row" style="margin-top:14px"><button class="primary">Enregistrer</button><button type="button" class="quiet" data-cancel>Annuler</button></div></div>
+      <div><label style="margin-top:0">Jours</label><div data-days></div></div></form></td>`;
+    const picker = daysPicker(tr.querySelector('[data-days]'), days(it), () => {}, { weekend });
     tr.querySelector('input').focus();
     tr.querySelector('[data-cancel]').addEventListener('click', reload);
     tr.querySelector('form').addEventListener('submit', async (ev) => {
       ev.preventDefault();
       const f = new FormData(ev.target);
-      try { await save(id, { name: f.get('name'), starts_on: f.get('starts_on') || null, ends_on: f.get('ends_on') || null }); toast('Modifications enregistrées'); reload(); } catch (err) { toast(err.message, 'error'); }
+      try { await save(id, { name: f.get('name'), days: picker.get() }); toast('Modifications enregistrées'); reload(); } catch (err) { toast(err.message, 'error'); }
     });
   }));
   root.querySelectorAll('tr[data-id] [data-del], tr[data-jp] [data-del]').forEach((b) => b.addEventListener('click', async () => {
@@ -428,19 +441,27 @@ async function settingsTab(box, exam) {
     <form id="f" class="panel">
       <h2>Informations</h2>
       <div class="grid cols-2"><div><label for="nm">Nom</label><input id="nm" name="name" value="${esc(exam.name)}"></div>
-        <div class="grid cols-2" style="gap:10px"><div><label for="s1">Premier jour</label><input id="s1" type="date" name="starts_on" value="${esc(exam.starts_on || '')}"></div>
-        <div><label for="s2">Dernier jour</label><input id="s2" type="date" name="ends_on" value="${esc(exam.ends_on || '')}"></div></div></div>
+        <div><label>Jours de la session</label><div id="setdays"></div>
+          <p class="small muted">Les horaires de chaque série se règlent dans l'onglet Planning.</p></div></div>
       <button class="primary" style="margin-top:14px">Enregistrer</button>
     </form>
     <div class="panel"><h2>Sauvegarde</h2><p class="small muted">Un fichier avec les stations, les candidats et toutes les grilles. Il se réimporte depuis la liste des sessions. Il contient des données personnelles : garde-le dans un dossier partagé restreint.</p>
       <a class="btn" href="/api/exams/${exam.id}/export">Télécharger la sauvegarde</a></div>
     <div class="panel"><h2>Supprimer la session</h2><p class="small muted">Les stations, les inscrits et les grilles saisies sont supprimés avec elle.</p>
       <button class="danger" id="del">Supprimer la session</button></div>`;
+  const setPicker = daysPicker(box.querySelector('#setdays'), examDays(exam), () => {}, { weekend: true });
   box.querySelector('#f').addEventListener('submit', async (e) => {
     e.preventDefault();
     const f = new FormData(e.target);
-    await api(`/exams/${exam.id}`, { method: 'PATCH', body: { name: f.get('name'), starts_on: f.get('starts_on'), ends_on: f.get('ends_on') } });
-    toast('Informations enregistrées');
+    try {
+      await api(`/exams/${exam.id}`, { method: 'PATCH', body: { name: f.get('name') } });
+      const days = setPicker.get();
+      if (days.length) {
+        const r = await api(`/exams/${exam.id}/days`, { method: 'PUT', body: { days } });
+        if (r.orphans) alert(`${r.orphans} candidat(s) étaient placés sur un jour retiré : replace-les dans l'onglet Planning.`);
+      }
+      toast('Informations enregistrées');
+    } catch (err) { toast(err.message, 'error'); }
   });
   box.querySelectorAll('[data-k]').forEach((cb) => cb.addEventListener('change', async () => {
     await api(`/exams/${exam.id}`, { method: 'PATCH', body: { [cb.dataset.k]: cb.checked ? 1 : 0 } });

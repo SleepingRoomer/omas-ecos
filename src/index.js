@@ -4,6 +4,7 @@ import {
   DEFAULT_SLOTS, STATUSES, normalizeContent, qualityChecks, computeScore, missingAnswers, rankMap,
 } from '../public/js/shared.js';
 import { registerJp } from './jp.js';
+import { normalizePlanning } from '../public/js/planning-shared.js';
 import { registerPlanning } from './planning.js';
 
 const app = new Hono().basePath('/api');
@@ -169,7 +170,11 @@ app.post('/exams', need('admin'), async (c) => {
   const b = await c.req.json();
   if (!String(b.name || '').trim()) throw httpError(400, 'Nom requis');
   const db = c.env.DB;
-  const r = await run(db, 'INSERT INTO exams (name, starts_on, ends_on) VALUES (?,?,?)', b.name.trim(), b.starts_on || null, b.ends_on || null);
+  // jours précis de la session (par exemple deux week-ends) : ils fixent aussi le planning
+  const days = [...new Set((Array.isArray(b.days) ? b.days : []).filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d)))].sort();
+  const planning = days.length ? JSON.stringify(normalizePlanning({ days: days.map((date) => ({ date })) })) : null;
+  const r = await run(db, 'INSERT INTO exams (name, starts_on, ends_on, planning) VALUES (?,?,?,?)', b.name.trim(),
+    days[0] || b.starts_on || null, days[days.length - 1] || b.ends_on || null, planning);
   const id = r.meta.last_row_id;
   if (b.create_slots !== false) {
     const codes = await freshCodes(db, DEFAULT_SLOTS.length);

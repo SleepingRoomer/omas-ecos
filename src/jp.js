@@ -13,14 +13,17 @@ export function registerJp(app, h) {
   // ---------- journées ----------
   app.get('/jp', need('admin'), async (c) => c.json(await all(c.env.DB, `SELECT j.*,
     (SELECT COUNT(*) FROM jp_ateliers WHERE jp_id = j.id AND active = 1) AS n_ateliers,
-    (SELECT COUNT(*) FROM jp_participants WHERE jp_id = j.id AND status != 'annule') AS n_participants
+    (SELECT COUNT(*) FROM jp_participants WHERE jp_id = j.id AND status != 'annule') AS n_participants,
+    (SELECT group_concat(day) FROM (SELECT DISTINCT day FROM jp_slots WHERE jp_id = j.id ORDER BY day)) AS days
     FROM jp_days j ORDER BY j.id DESC`)));
 
   app.post('/jp', need('admin'), async (c) => {
     const b = await c.req.json();
     if (!String(b.name || '').trim()) throw httpError(400, 'Nom requis');
     const db = c.env.DB;
-    const r = await run(db, 'INSERT INTO jp_days (name, starts_on, ends_on) VALUES (?,?,?)', b.name.trim(), b.starts_on || null, b.ends_on || null);
+    const picked = [...new Set((Array.isArray(b.days) ? b.days : []).filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d)))].sort();
+    const r = await run(db, 'INSERT INTO jp_days (name, starts_on, ends_on) VALUES (?,?,?)', b.name.trim(),
+      picked[0] || b.starts_on || null, picked[picked.length - 1] || b.ends_on || null);
     const id = r.meta.last_row_id;
     const stmts = [];
     if (b.prefill) {
@@ -29,8 +32,8 @@ export function registerJp(app, h) {
           content: JSON.stringify(normalizeAtelier({ ...a.content, emoji: a.emoji })) }))));
     }
     // deux créneaux par jour, à 9 h et à 14 h
-    const days = [];
-    if (b.starts_on) {
+    const days = [...picked];
+    if (!days.length && b.starts_on) {
       const d0 = new Date(`${b.starts_on}T12:00:00Z`);
       const d1 = new Date(`${b.ends_on || b.starts_on}T12:00:00Z`);
       for (let d = d0; d <= d1 && days.length < 7; d = new Date(d.getTime() + 864e5)) days.push(d.toISOString().slice(0, 10));
@@ -41,7 +44,30 @@ export function registerJp(app, h) {
     return c.json({ id });
   });
 
-  app.get('/jp/:id', need('admin'), async (c) => c.json(await jpOr404(c.env.DB, c.req.param('id'))));
+  app.get('/jp/:id', need('admin'), async (c) => {
+    const jp = await jpOr404(c.env.DB, c.req.param('id'));
+    const ds = await all(c.env.DB, 'SELECT DISTINCT day FROM jp_slots WHERE jp_id = ? ORDER BY day', jp.id);
+    return c.json({ ...jp, days: ds.map((d) => d.day) });
+  });
+
+  // Jours de la journée procédure : un jour ajouté reçoit deux créneaux (9 h et 14 h), un jour retiré perd les siens
+  app.put('/jp/:id/days', need('admin'), async (c) => {
+    const db = c.env.DB;
+    const jp = await jpOr404(db, c.req.param('id'));
+    const days = [...new Set(((await c.req.json()).days || []).filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d)))].sort();
+    if (!days.length) throw httpError(400, 'Choisis au moins un jour.');
+    const had = new Set((await all(db, 'SELECT DISTINCT day FROM jp_slots WHERE jp_id = ?', jp.id)).map((d) => d.day));
+    const gone = [...had].filter((d) => !days.includes(d));
+    const added = days.filter((d) => !had.has(d));
+    const stmts = [db.prepare('UPDATE jp_days SET starts_on = ?, ends_on = ? WHERE id = ?').bind(days[0], days[days.length - 1], jp.id)];
+    for (const d of gone) {
+      stmts.push(db.prepare('UPDATE jp_participants SET slot_id = NULL, group_no = NULL WHERE slot_id IN (SELECT id FROM jp_slots WHERE jp_id = ? AND day = ?)').bind(jp.id, d));
+      stmts.push(db.prepare('DELETE FROM jp_slots WHERE jp_id = ? AND day = ?').bind(jp.id, d));
+    }
+    stmts.push(...multiInsert(db, 'jp_slots', ['jp_id', 'day', 'start_time'], added.flatMap((day) => ['09:00', '14:00'].map((t) => ({ jp_id: jp.id, day, start_time: t })))));
+    await batch(db, stmts);
+    return c.json({ ok: true, added: added.length, removed: gone.length });
+  });
 
   app.patch('/jp/:id', need('admin'), async (c) => {
     const b = await c.req.json();

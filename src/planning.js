@@ -38,9 +38,27 @@ export function registerPlanning(app, h) {
     const db = c.env.DB;
     const { exam, slots } = await load(db, c.req.param('id'));
     const planning = normalizePlanning((await c.req.json()).planning, exam);
-    await run(db, 'UPDATE exams SET planning = ? WHERE id = ?', JSON.stringify(planning), exam.id);
+    const ds = planning.days.map((d) => d.date);
+    await run(db, 'UPDATE exams SET planning = ?, starts_on = ?, ends_on = ? WHERE id = ?', JSON.stringify(planning),
+      ds[0] || exam.starts_on, ds[ds.length - 1] || exam.ends_on, exam.id);
     await refreshNumbers(db, exam.id, planning, slots.length);
     return c.json({ ok: true, planning });
+  });
+
+  // Jours de la session : on garde les horaires déjà réglés des jours conservés
+  app.put('/exams/:id/days', need('admin'), async (c) => {
+    const db = c.env.DB;
+    const { exam, planning, slots } = await load(db, c.req.param('id'));
+    const days = [...new Set(((await c.req.json()).days || []).filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d)))].sort();
+    if (!days.length) throw httpError(400, 'Choisis au moins un jour.');
+    const keep = new Map(planning.days.map((d) => [d.date, d]));
+    planning.days = days.map((date) => keep.get(date) || { date, series: DEFAULT_SERIES.map((x) => ({ ...x })) });
+    const next = normalizePlanning(planning, exam);
+    await run(db, 'UPDATE exams SET planning = ?, starts_on = ?, ends_on = ? WHERE id = ?', JSON.stringify(next), days[0], days[days.length - 1], exam.id);
+    await refreshNumbers(db, exam.id, next, slots.length);
+    const orphans = await one(db, `SELECT COUNT(*) AS n FROM candidates WHERE exam_id = ? AND status != 'annule' AND day IS NOT NULL
+      AND day NOT IN (${days.map(() => '?').join(',')})`, exam.id, ...days);
+    return c.json({ ok: true, days, orphans: orphans.n });
   });
 
   // Recalcule les numéros (le rang d'un jour peut changer quand on ajoute ou retire un jour)
