@@ -112,7 +112,7 @@ export function registerMail(app, h) {
     const [S, log, counts] = await Promise.all([getSettings(db),
       all(db, 'SELECT m.id, m.kind, m.to_email, m.subject, m.status, m.error, m.created_at, e.name AS exam_name FROM mail_log m LEFT JOIN exams e ON e.id = m.exam_id ORDER BY m.id DESC LIMIT 60'),
       all(db, "SELECT status, COUNT(*) AS n FROM mail_log WHERE created_at > datetime('now', '-30 days') GROUP BY status")]);
-    return c.json({ ready: mailReady(c.env), from: c.env.MAIL_FROM || null, settings: S, log, counts: Object.fromEntries(counts.map((r) => [r.status, r.n])) });
+    return c.json({ ready: mailReady(c.env), from: c.env.MAIL_FROM || null, missing: ['BREVO_API_KEY', 'MAIL_FROM'].filter((k) => !c.env[k]), settings: S, log, counts: Object.fromEntries(counts.map((r) => [r.status, r.n])) });
   });
   app.put('/mail/settings', need('admin'), async (c) => {
     const b = await c.req.json();
@@ -127,7 +127,10 @@ export function registerMail(app, h) {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(to || ''))) throw httpError(400, 'Adresse invalide');
     const url = await siteUrl(c.env, c.env.DB, c);
     const r = await sendMails(c.env, c.env.DB, [{ kind: 'test', to, subject: 'Test des e-mails ECOS blancs', html: layout({ title: 'Ça marche !', intro: 'Les e-mails automatiques de la plateforme ECOS blancs sont bien configurés.', button: { url, label: 'Ouvrir la plateforme' } }) }]);
-    if (!r.ready) throw httpError(400, 'Les e-mails ne sont pas configurés : ajoute la clé Brevo dans les secrets du Worker.');
+    if (!r.ready) {
+      const miss = ['BREVO_API_KEY', 'MAIL_FROM'].filter((k) => !c.env[k]);
+      throw httpError(400, `Il manque ${miss.join(' et ')} dans les variables du Worker (Paramètres, Variables et secrets, pas les variables de build).`);
+    }
     if (r.failed) throw httpError(502, 'Brevo a refusé l\'envoi : regarde le journal ci-dessous.');
     return c.json(r);
   });

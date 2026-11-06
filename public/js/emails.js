@@ -11,7 +11,7 @@ export async function emailsPanel(box) {
   const tog = (k, l, d) => `<label class="check" style="margin:8px 0"><input type="checkbox" data-s="${k}" ${S[k] ? 'checked' : ''}><span><strong>${l}</strong><br><span class="small muted">${d}</span></span></label>`;
   box.innerHTML = `<div class="panel"><h2 style="margin-top:0">E-mails automatiques</h2>
     ${M.ready ? `<p class="alert ok small">Branchés sur Brevo, expéditeur <strong>${esc(M.from)}</strong>. ${M.counts.sent || 0} envoyés ces 30 derniers jours${M.counts.failed ? `, <strong>${M.counts.failed} en échec</strong>` : ''}.</p>`
-    : `<div class="alert warn small"><strong>Pas encore branchés.</strong> Rien ne part tant que la clé n'est pas en place : les messages sont seulement notés dans le journal.
+    : `<div class="alert warn small"><strong>Pas encore branchés.</strong> Il manque : <code>${M.missing.join('</code> et <code>')}</code>. Rien ne part tant que la clé n'est pas en place : les messages sont seulement notés dans le journal.
       <ol style="margin:6px 0 0;padding-left:18px"><li>Crée un compte gratuit sur brevo.com (300 e-mails par jour) et valide l'adresse d'expédition (par exemple ecos@omas…).</li>
       <li>Dans Brevo : SMTP et API, puis Clés API, crée une clé.</li>
       <li>Dans Cloudflare : le Worker omas-ecos, Paramètres, Variables et secrets. Ajoute <code>BREVO_API_KEY</code> (secret) et <code>MAIL_FROM</code> (l'adresse validée), et si tu veux <code>MAIL_FROM_NAME</code>.</li></ol></div>`}
