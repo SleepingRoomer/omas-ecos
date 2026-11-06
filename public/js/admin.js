@@ -438,8 +438,10 @@ export async function peopleView(app) {
         <td><strong>${esc(p.name)}</strong><div class="small muted">${esc(p.email || '')}</div></td><td>${esc(p.specialty || '')}</td>
         <td><span class="code">${esc(p.code)}</span></td><td class="num">${p.n_author}</td><td class="num">${p.n_review}</td>
         <td><div class="row" style="flex-wrap:nowrap;gap:4px"><button class="small" data-copy>Copier le lien</button>
+          <button class="small" data-pedit>Modifier</button>
           <button class="small quiet" data-regen>Nouveau code</button>
-          <button class="small quiet" data-active>${p.active ? 'Désactiver' : 'Réactiver'}</button></div></td></tr>`).join('')}</tbody>
+          <button class="small quiet" data-active>${p.active ? 'Désactiver' : 'Réactiver'}</button>
+          <button class="small danger" data-pdel>Supprimer</button></div></td></tr>`).join('')}</tbody>
     </table></div>` : '<p class="alert info">Personne pour l\'instant. Ajoute l\'équipe ci-dessous.</p>'}
     <div class="panel"><h2>Ajouter des personnes</h2>
       <p class="small muted">Une personne par ligne : nom ; e-mail ; spécialité. L'e-mail et la spécialité sont facultatifs.</p>
@@ -466,5 +468,33 @@ export async function peopleView(app) {
   app.querySelectorAll('[data-active]').forEach((b) => b.addEventListener('click', async () => {
     const p = byRow(b);
     await api(`/people/${p.id}`, { method: 'PATCH', body: { active: p.active ? 0 : 1 } }); peopleView(app);
+  }));
+  app.querySelectorAll('[data-pedit]').forEach((b) => b.addEventListener('click', () => {
+    const p = byRow(b);
+    const tr = b.closest('tr');
+    tr.innerHTML = `<td colspan="${tr.children.length}"><form class="row" style="align-items:flex-end">
+      <div style="flex:2;min-width:200px"><label for="pn${p.id}" style="margin-top:0">Nom</label><input id="pn${p.id}" name="name" value="${esc(p.name)}" required></div>
+      <div style="flex:2;min-width:200px"><label for="pe${p.id}" style="margin-top:0">E-mail</label><input id="pe${p.id}" name="email" type="text" value="${esc(p.email || '')}"></div>
+      <div style="flex:1;min-width:160px"><label for="pt${p.id}" style="margin-top:0">Téléphone</label><input id="pt${p.id}" name="phone" value="${esc(p.phone || '')}"></div>
+      <div style="flex:1.5;min-width:180px"><label for="ps${p.id}" style="margin-top:0">Spécialité</label><input id="ps${p.id}" name="specialty" value="${esc(p.specialty || '')}"></div>
+      <button class="primary">Enregistrer</button><button type="button" class="quiet" data-cancel>Annuler</button></form></td>`;
+    tr.querySelector('input').focus();
+    tr.querySelector('[data-cancel]').addEventListener('click', () => peopleView(app));
+    tr.querySelector('form').addEventListener('submit', async (ev) => {
+      ev.preventDefault();
+      const f = new FormData(ev.target);
+      try {
+        await api(`/people/${p.id}`, { method: 'PATCH', body: { name: f.get('name').trim(), email: f.get('email').trim() || null, phone: f.get('phone').trim() || null, specialty: f.get('specialty').trim() || null } });
+        toast('Modifications enregistrées'); peopleView(app);
+      } catch (err) { toast(err.message, 'error'); }
+    });
+  }));
+  app.querySelectorAll('[data-pdel]').forEach((b) => b.addEventListener('click', async () => {
+    const p = byRow(b);
+    const n = p.n_author + p.n_review;
+    const msg = n ? `Supprimer ${p.name} ? Il ou elle suit ${n} station(s) ou atelier(s), qui repasseront « à attribuer » pour son rôle. Son code ne fonctionnera plus.`
+      : `Supprimer ${p.name} ? Son code ne fonctionnera plus.`;
+    if (!confirmBox(msg)) return;
+    try { await api(`/people/${p.id}`, { method: 'DELETE' }); toast(`${p.name} supprimé(e)`); peopleView(app); } catch (err) { toast(err.message, 'error'); }
   }));
 }

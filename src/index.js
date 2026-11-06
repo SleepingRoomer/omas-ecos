@@ -185,8 +185,8 @@ app.delete('/exams/:id', need('admin'), async (c) => {
 
 app.get('/people', need('admin'), async (c) => {
   const rows = await all(c.env.DB, `SELECT p.*,
-    (SELECT COUNT(*) FROM stations WHERE author_id = p.id) AS n_author,
-    (SELECT COUNT(*) FROM stations WHERE peer_id = p.id OR expert_id = p.id) AS n_review
+    (SELECT COUNT(*) FROM stations WHERE author_id = p.id) + (SELECT COUNT(*) FROM jp_ateliers WHERE author_id = p.id) AS n_author,
+    (SELECT COUNT(*) FROM stations WHERE peer_id = p.id OR expert_id = p.id) + (SELECT COUNT(*) FROM jp_ateliers WHERE reviewer_id = p.id) AS n_review
     FROM people p ORDER BY p.active DESC, p.name`);
   return c.json(rows);
 });
@@ -210,6 +210,22 @@ app.patch('/people/:id', need('admin'), async (c) => {
   for (const f of ['name', 'email', 'phone', 'specialty', 'active']) if (f in b) { sets.push(`${f} = ?`); vals.push(b[f]); }
   if (b.regen_code) { sets.push('code = ?'); vals.push(await uniqueCode(c.env.DB, 'people')); }
   if (sets.length) await run(c.env.DB, `UPDATE people SET ${sets.join(', ')} WHERE id = ?`, ...vals, c.req.param('id'));
+  return c.json({ ok: true });
+});
+
+app.delete('/people/:id', need('admin'), async (c) => {
+  const db = c.env.DB;
+  const id = c.req.param('id');
+  // les stations et ateliers qu'il suivait repassent « à attribuer » pour ce rôle
+  await db.batch([
+    db.prepare('UPDATE stations SET author_id = NULL WHERE author_id = ?').bind(id),
+    db.prepare('UPDATE stations SET peer_id = NULL WHERE peer_id = ?').bind(id),
+    db.prepare('UPDATE stations SET expert_id = NULL WHERE expert_id = ?').bind(id),
+    db.prepare('UPDATE jp_ateliers SET author_id = NULL WHERE author_id = ?').bind(id),
+    db.prepare('UPDATE jp_ateliers SET reviewer_id = NULL WHERE reviewer_id = ?').bind(id),
+    db.prepare("DELETE FROM auth_sessions WHERE kind = 'auteur' AND subject_id = ?").bind(id),
+    db.prepare('DELETE FROM people WHERE id = ?').bind(id),
+  ]);
   return c.json({ ok: true });
 });
 
