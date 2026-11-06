@@ -440,3 +440,71 @@ td select { min-width: 112px; padding: 7px 8px; font-size: .9rem; }
 #viz-tip strong { display: block; font-size: .95rem; font-variant-numeric: tabular-nums; }
 #viz-tip div { color: #cfd2e6; }
 @media (max-width: 640px) { .viz-row { grid-template-columns: 1fr 52px; } .viz-row .viz-name { grid-column: 1 / -1; } }
+
+/* ---------- planning ---------- */
+.cols-5 { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); }
+.cal { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin: 6px 0 8px; }
+.cal-day { display: flex; flex-direction: column; gap: 6px; }
+.cal-date { font-weight: 700; font-size: .95rem; padding: 0 2px 2px; border-bottom: 2px solid var(--ink); margin-bottom: 2px; }
+.cal-ser { display: flex; flex-direction: column; align-items: stretch; gap: 4px; text-align: left; padding: 9px 12px; min-height: 0;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 10px; font-weight: 400; color: var(--ink); }
+.cal-ser:hover { border-color: var(--ink-3); }
+.cal-ser.on { border-color: var(--a); box-shadow: 0 0 0 2px var(--a); }
+.cal-ser.closed { background: var(--paper); }
+.cal-ser .fill { display: block; height: 6px; border-radius: 4px; background: var(--line-2); overflow: hidden; }
+.cal-ser .fill i { display: block; height: 100%; background: var(--viz-a); border-radius: 4px; }
+.cal-ser .fill i.full { background: var(--ok); }
+.cal-ser .fill i.over { background: var(--ko); }
+.ser-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+.ser-grid > * { min-width: 0; }
+.g-table { table-layout: fixed; width: 100%; min-width: 860px; }
+.g-table th, .g-table td { padding: 6px 6px; font-size: .82rem; border-bottom: 1px solid var(--line-2); line-height: 1.25; }
+.g-table thead th { white-space: nowrap; }
+.g-table thead th { text-align: center; background: var(--paper); }
+.g-time { font-variant-numeric: tabular-nums; width: 62px; color: var(--ink-2); background: var(--paper); text-align: left !important; }
+.g-cell.ga { background: #f3f3fc; } .g-cell.gb { background: #eef8f6; }
+.g-break td { background: var(--surface); color: var(--ink-2); font-style: italic; font-size: .82rem; }
+.g-no { display: inline-block; min-width: 1.6em; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--ink-2); }
+.seats { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 6px; }
+.seats > p { grid-column: 1 / -1; margin: 0; }
+.seat { display: flex; align-items: center; gap: 8px; text-align: left; padding: 6px 10px; min-height: 0; font-weight: 400; background: var(--surface);
+  border: 1px solid var(--line); border-radius: 8px; color: var(--ink); width: 100%; }
+.seat.free { border-style: dashed; background: transparent; }
+.seat.moving { border-color: var(--r); box-shadow: 0 0 0 2px var(--r); background: var(--r-soft); }
+.seat .nm { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ok-mark { color: var(--ok); font-weight: 800; }
+.chips-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 6px; }
+.chips-list .seat { flex-direction: column; align-items: flex-start; gap: 0; }
+.cfg-day { border: 1px solid var(--line-2); border-radius: 10px; padding: 10px 12px; margin: 8px 0; }
+.cfg-ser { margin: 8px 0; } .cfg-ser td, .cfg-ser th { padding: 4px 8px; } .cfg-ser input[type=time] { width: auto; }
+.plan-sheet { padding: 10mm 10mm; font-size: 9pt; }
+.plan-sheet .g-table th, .plan-sheet .g-table td { font-size: 10pt; padding: 6px 5px; }
+.plan-sheet .table-wrap { border-radius: 0; overflow: visible; }
+
+/* convocation de l'étudiant */
+.convoc { display: grid; grid-template-columns: 1fr auto; gap: 20px; background: var(--a); color: #fff; border-radius: var(--r-lg); padding: 22px 24px; margin: 18px 0 4px; }
+.convoc .kicker { text-transform: uppercase; letter-spacing: .08em; font-size: .78rem; font-weight: 700; opacity: .8; }
+.convoc .date { font-size: 1.45rem; font-weight: 800; margin-top: 4px; }
+.convoc .hour { font-size: 2.6rem; font-weight: 800; line-height: 1.05; font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+.convoc .muted { color: rgba(255,255,255,.82); margin-top: 6px; }
+.convoc .where { margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,.25); }
+.convoc-side { text-align: right; align-self: center; }
+.convoc-side .muted { color: rgba(255,255,255,.75); }
+.cand-no.big { font-size: 2rem; line-height: 1.1; }
+@media (max-width: 560px) { .convoc { grid-template-columns: 1fr; } .convoc-side { text-align: left; } }
+.parcours { list-style: none; padding: 0; margin: 0; border-left: 2px solid var(--line); }
+.parcours li { display: flex; align-items: center; gap: 12px; padding: 7px 0 7px 14px; position: relative; }
+.parcours li::before { content: ""; position: absolute; left: -6px; width: 10px; height: 10px; border-radius: 50%; background: var(--surface); border: 2px solid var(--ink-3); }
+.parcours .t { width: 64px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.parcours .what { display: flex; flex-direction: column; }
+.parcours li.brk { color: var(--ink-2); font-style: italic; }
+.parcours li.brk::before { border-color: var(--line); }
+.panel.hl { border-color: var(--r); background: var(--r-soft); }
+.swap-offer { padding: 8px 0; border-top: 1px solid rgba(0,0,0,.06); }
+.swap-opts { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 4px 14px; }
+.big-code { font-size: 1.8rem; display: inline-block; padding: 6px 14px; border: 2px dashed var(--line); border-radius: 10px; }
+@media print { .convoc { color: #000; background: #fff; border: 2px solid #000; } .convoc .muted, .convoc-side .muted { color: #333; } }
+.plan-sheet .g-table { table-layout: fixed; width: 100%; }
+.plan-sheet .g-table th, .plan-sheet .g-table td { white-space: normal; overflow-wrap: anywhere; line-height: 1.2; }
+.plan-sheet .g-table .g-time { width: 13mm; }
+.plan-sheet .plate.sm { transform: scale(.85); }

@@ -12,7 +12,7 @@ function renderNav() {
     admin: [['#/admin', 'Sessions'], ['#/admin/personnes', 'Rédacteurs et relecteurs']],
     auteur: [['#/redaction', 'Mes stations et ateliers']],
     evaluateur: [['#/eval', 'Ma salle']],
-    etudiant: [['#/resultats', 'Mes résultats']],
+    etudiant: [['#/resultats', 'Mon espace']],
     participant: [['#/journee', 'Ma journée']],
   }[k] || [];
   const here = location.hash || '#/';
@@ -76,7 +76,7 @@ function loginView() {
 
 const routes = [
   [/^#\/admin\/session\/(\d+)\/candidat\/(\d+)$/, 'admin', async (m) => (await import('./student.js')).adminReport(app, m[2], m[1])],
-  [/^#\/admin\/session\/(\d+)(?:\/(\w+))?$/, 'admin', async (m) => (await import('./admin.js')).examView(app, m[1], m[2] || 'stations')],
+  [/^#\/admin\/session\/(\d+)(?:\/([\w-]+))?$/, 'admin', async (m) => (await import('./admin.js')).examView(app, m[1], m[2] || 'stations')],
   [/^#\/admin\/jp\/(\d+)(?:\/(\w+))?$/, 'admin', async (m) => (await import('./jp.js')).jpView(app, m[1], m[2] || 'ateliers')],
   [/^#\/atelier\/(\d+)$/, ['admin', 'auteur'], async (m) => (await import('./jp.js')).atelierEditor(app, m[1])],
   [/^#\/journee$/, 'participant', async () => (await import('./jp.js')).participantView(app)],

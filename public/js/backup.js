@@ -21,8 +21,7 @@ export function importPanel(root, onDone) {
     const nEval = data.evaluations?.length || 0;
     const pairs = new Set((data.evaluations || []).map((v) => `${v.station}|${v.candidate}`)).size;
     out.innerHTML = `<p class="alert info">« ${esc(data.exam?.name)} »${data.source ? `, ${esc(data.source)}` : ''} :
-      ${data.stations.length} stations, ${data.candidates?.length || 0} candidats, ${nEval} grilles
-      ${nEval > pairs ? `, dont ${nEval - pairs} remplies par un second évaluateur` : ''}.</p>
+      ${data.stations.length} stations, ${data.candidates?.length || 0} candidats, ${nEval} grilles${nEval > pairs ? `, dont ${nEval - pairs} remplies par un second évaluateur` : ''}.</p>
       <label for="imp-name">Nom de la session importée</label><input id="imp-name" value="${esc(data.exam?.name || '')}">
       <p class="small muted">Une nouvelle session est créée, l'import ne touche à aucune session existante. Les codes d'accès des candidats sont conservés quand ils sont libres.</p>
       <button class="primary" id="imp-go">Importer</button><div id="imp-prog" style="margin-top:12px"></div>`;

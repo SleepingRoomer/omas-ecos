@@ -46,6 +46,12 @@ export function frDate(iso) {
   return d.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' });
 }
 
+export function longDate(iso) {
+  if (!iso) return '';
+  const s = new Date(`${iso}T12:00:00`).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
 export function setTitle(t) { document.title = t ? `${t} · ECOS OMAS` : 'ECOS OMAS'; }
 
 // Téléchargement d'un CSV construit côté navigateur

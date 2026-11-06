@@ -1,7 +1,7 @@
 // Onglet Analyse d'une session : qualité de l'examen, des stations, des items et des évaluateurs.
 // Tous les calculs se font dans le navigateur à partir du jeu de données brut (/dataset),
 // pour ne pas charger le serveur.
-import { api, esc, fmt, pct, plate, downloadCsv, dom } from './ui.js';
+import { api, esc, fmt, pct, plate, downloadCsv, dom, longDate, frDate } from './ui.js';
 import { normalizeContent, GLOBAL_LEVELS } from './shared.js';
 
 // ---------- statistiques ----------
@@ -31,6 +31,13 @@ function icc(pairs) {
   const msw = pairs.reduce((a, [x, y]) => { const m = (x + y) / 2; return a + (x - m) ** 2 + (y - m) ** 2; }, 0) / n;
   return msb + msw ? (msb - msw) / (msb + msw) : null;
 }
+// Samedi du week-end d'une date (le dimanche est rattaché à la veille)
+function weekendOf(day) {
+  if (!day) return null;
+  const d = new Date(`${day}T12:00:00Z`);
+  const back = d.getUTCDay() === 0 ? 1 : (d.getUTCDay() + 1) % 7;
+  return new Date(d.getTime() - back * 864e5).toISOString().slice(0, 10);
+}
 const circuitColor = (slot) => (/^A/i.test(slot) ? 'var(--viz-a)' : /^B/i.test(slot) ? 'var(--viz-b)' : 'var(--viz-n)');
 const tip = (lines) => `data-tip="${esc(lines.join('\n'))}" tabindex="0"`;
 const r2 = (x) => (x === null ? '–' : fmt(x, 2));
@@ -44,7 +51,7 @@ function compute(D, filter) {
     return { ...s, apt: c.grille.apt.filter((i) => i.label?.trim()), com: c.grille.com.filter((i) => i.label?.trim()) };
   }).filter((s) => s.played);
   const stById = new Map(stations.map((s) => [s.id, s]));
-  const cands = D.candidates.map((c) => ({ ...c, prepa: c.extra?.prepa ?? null })).filter((c) => c.status !== 'annule'
+  const cands = D.candidates.map((c) => ({ ...c, prepa: c.extra?.prepa ?? null, weekend: weekendOf(c.day) })).filter((c) => c.status !== 'annule'
     && (!filter.day || c.day === filter.day) && (!filter.series || String(c.series) === filter.series)
     && (!filter.faculty || c.faculty === filter.faculty));
   const candIds = new Set(cands.map((c) => c.id));
@@ -154,7 +161,7 @@ function compute(D, filter) {
 
   return {
     stations: stStats, cands, grids, passages, complete, avgs, alpha, pairs, evaluators,
-    groups: [groupBy('day', 'Jour'), groupBy('series', 'Série'), groupBy('faculty', 'Faculté'), groupBy('year', 'Année'), groupBy('prepa', 'Préparation')].filter(Boolean),
+    groups: [groupBy('weekend', 'Week-end'), groupBy('day', 'Jour'), groupBy('series', 'Série'), groupBy('faculty', 'Faculté'), groupBy('year', 'Année'), groupBy('prepa', 'Préparation')].filter(Boolean),
     hasGlobal: grids.some((g) => g.global !== null && g.global !== undefined),
   };
 }
@@ -359,7 +366,10 @@ function render(box, D, A, filter, exam) {
       <p class="muted small">Si la grille est bien construite, la note monte avec l'impression globale de l'évaluateur.</p>
       <div class="panel">${bars([0, 1, 2, 3, 4].map((l) => { const xs = A.grids.filter((g) => g.global === l && !g.absent); return { label: GLOBAL_LEVELS[l], value: mean(xs.map((g) => g.score)), extra: [`${xs.length} grilles`] }; }), { max: 20, format: (v) => `${fmt(v, 1)} / 20` })}</div>` : ''}
 
-    ${A.groups.map((g) => `<h2>Par ${g.label.toLowerCase()}</h2><div class="panel">${bars(g.rows.map((r) => ({ label: g.key === 'series' ? `Série ${r.v}` : String(r.v), value: r.mean, extra: [`${r.n} candidats`] })), { max: 20, format: (v) => `${fmt(v, 1)} / 20` })}</div>`).join('')}
+    ${A.groups.length ? `<h2>Selon le moment du passage et le profil</h2><p class="muted small">Moyenne sur 20 des candidats de chaque groupe. Un écart de moins d'un point entre groupes de cette taille relève du hasard.</p>` : ''}
+    ${A.groups.map((g) => `<h3>Par ${g.label.toLowerCase()}</h3><div class="panel">${bars(g.rows.map((r) => ({
+      label: g.key === 'series' ? `Série ${r.v}` : g.key === 'day' ? longDate(r.v) : g.key === 'weekend' ? `Week-end du ${frDate(r.v)}` : String(r.v),
+      value: r.mean, extra: [`${r.n} candidats`] })), { max: 20, format: (v) => fmt(v, 1) })}</div>`).join('')}
 
     ${missing.length ? `<div class="panel"><h2>Pour aller plus loin</h2><p class="small muted">Ces informations manquent dans cette session. Avec elles, l'analyse s'enrichit d'elle-même.</p>
       <ul>${missing.map(([a, b]) => `<li><strong>${a}</strong>, ${b}</li>`).join('')}</ul></div>` : ''}`;

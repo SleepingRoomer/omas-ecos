@@ -4,6 +4,7 @@ import {
   DEFAULT_SLOTS, STATUSES, normalizeContent, qualityChecks, computeScore, missingAnswers, rankMap,
 } from '../public/js/shared.js';
 import { registerJp } from './jp.js';
+import { registerPlanning } from './planning.js';
 
 const app = new Hono().basePath('/api');
 const COOKIE = 'omas_s';
@@ -427,6 +428,8 @@ app.patch('/candidates/:id', need('admin'), async (c) => {
     if (f in b) { sets.push(`${f} = ?`); vals.push(b[f] === '' ? null : b[f]); }
   }
   if (b.regen_code) { sets.push('code = ?'); vals.push(await uniqueCode(c.env.DB)); }
+  if (('day' in b || 'series' in b) && !('seat' in b)) sets.push('seat = NULL', 'number = NULL');
+  if (b.status === 'annule') sets.push('seat = NULL', 'number = NULL');
   if (sets.length) await run(c.env.DB, `UPDATE candidates SET ${sets.join(', ')} WHERE id = ?`, ...vals, c.req.param('id'));
   return c.json({ ok: true });
 });
@@ -441,30 +444,12 @@ app.delete('/candidates/:id', need('admin'), async (c) => {
 // Attribue un créneau (jour + série) à tous les candidats d'un même libellé de billetterie
 app.post('/exams/:id/candidates/assign-slot', need('admin'), async (c) => {
   const { slot_label, day, series } = await c.req.json();
-  await run(c.env.DB, 'UPDATE candidates SET day = ?, series = ? WHERE exam_id = ? AND slot_label = ?',
+  await run(c.env.DB, 'UPDATE candidates SET day = ?, series = ?, seat = NULL, number = NULL WHERE exam_id = ? AND slot_label = ?',
     day || null, series ? Number(series) : null, c.req.param('id'), slot_label);
   return c.json({ ok: true });
 });
 
-// Numérote les candidats : J<jour>-S<série>-<nn>, dans l'ordre alphabétique
-app.post('/exams/:id/candidates/renumber', need('admin'), async (c) => {
-  const db = c.env.DB;
-  const examId = c.req.param('id');
-  const rows = await all(db, `SELECT id, day, series FROM candidates WHERE exam_id = ? AND status != 'annule'
-    AND day IS NOT NULL AND series IS NOT NULL ORDER BY day, series, last_name, first_name`, examId);
-  const days = [...new Set(rows.map((r) => r.day))].sort();
-  const counters = {};
-  const stmts = [];
-  for (const r of rows) {
-    const key = `${r.day}|${r.series}`;
-    counters[key] = (counters[key] || 0) + 1;
-    const num = `J${days.indexOf(r.day) + 1}-S${r.series}-${String(counters[key]).padStart(2, '0')}`;
-    stmts.push(db.prepare('UPDATE candidates SET number = ? WHERE id = ?').bind(num, r.id));
-  }
-  stmts.push(db.prepare("UPDATE candidates SET number = NULL WHERE exam_id = ? AND (status = 'annule' OR day IS NULL OR series IS NULL)").bind(examId));
-  await db.batch(stmts);
-  return c.json({ numbered: rows.length });
-});
+// La numérotation (places dans les séries) est dans planning.js
 
 // ---------- résultats ----------
 
@@ -629,7 +614,7 @@ async function examDataset(db, examId, full) {
   const exam = await one(db, 'SELECT * FROM exams WHERE id = ?', examId);
   if (!exam) throw httpError(404, 'Session introuvable');
   const candCols = full
-    ? "'key', id, 'number', number, 'last_name', last_name, 'first_name', first_name, 'email', email, 'phone', phone, 'faculty', faculty, 'year', year, 'slot_label', slot_label, 'day', day, 'series', series, 'status', status, 'code', code, 'extra', json(COALESCE(extra, 'null'))"
+    ? "'key', id, 'number', number, 'last_name', last_name, 'first_name', first_name, 'email', email, 'phone', phone, 'faculty', faculty, 'year', year, 'slot_label', slot_label, 'day', day, 'series', series, 'seat', seat, 'status', status, 'code', code, 'confirmed_at', confirmed_at, 'extra', json(COALESCE(extra, 'null'))"
     : "'id', id, 'number', number, 'faculty', faculty, 'year', year, 'day', day, 'series', series, 'status', status, 'extra', json(COALESCE(extra, 'null'))";
   const [stations, candidates, evaluations] = await Promise.all([
     jsonRows(db, `SELECT json_object('${full ? 'key' : 'id'}', id, 'slot', slot, 'played', played, 'domain', domain, 'type', type, 'discipline', discipline,
@@ -641,7 +626,7 @@ async function examDataset(db, examId, full) {
   ]);
   const head = full
     ? { format: 'omas-ecos-session', version: 1, exported_at: new Date().toISOString(),
-      exam: { name: exam.name, starts_on: exam.starts_on, ends_on: exam.ends_on } }
+      exam: { name: exam.name, starts_on: exam.starts_on, ends_on: exam.ends_on, planning: parse(exam.planning, null) } }
     : { exam };
   return `${JSON.stringify(head).slice(0, -1)},"stations":${stations},"candidates":${candidates},"evaluations":${evaluations}}`;
 }
@@ -663,7 +648,8 @@ app.post('/import/exam', need('admin'), async (c) => {
   if (!String(b.exam?.name || '').trim()) throw httpError(400, 'Nom de session manquant');
   const stations = Array.isArray(b.stations) ? b.stations : [];
   if (!stations.length) throw httpError(400, 'Aucune station dans le fichier');
-  const r = await run(db, 'INSERT INTO exams (name, starts_on, ends_on) VALUES (?,?,?)', b.exam.name.trim(), b.exam.starts_on || null, b.exam.ends_on || null);
+  const r = await run(db, 'INSERT INTO exams (name, starts_on, ends_on, planning) VALUES (?,?,?,?)', b.exam.name.trim(), b.exam.starts_on || null, b.exam.ends_on || null,
+    b.exam.planning ? JSON.stringify(b.exam.planning) : null);
   const examId = r.meta.last_row_id;
   const codes = await freshCodes(db, stations.length);
   await batch(db, multiInsert(db, 'stations', ['exam_id', 'slot', 'played', 'domain', 'type', 'discipline', 'title', 'status', 'content', 'eval_code'],
@@ -698,10 +684,10 @@ app.post('/import/:examId/candidates', need('admin'), async (c) => {
       exam_id: examId, number: r.number ?? null, last_name: String(r.last_name || '').trim() || '?', first_name: String(r.first_name || '').trim(),
       email: r.email || null, phone: r.phone || null, faculty: r.faculty || null, year: r.year || null, slot_label: r.slot_label || null,
       day: r.day || null, series: r.series ? Number(r.series) : null, status: r.status === 'annule' ? 'annule' : 'inscrit', code,
-      extra: r.extra ? JSON.stringify(r.extra) : null, key: r.key,
+      extra: r.extra ? JSON.stringify(r.extra) : null, seat: r.seat ? Number(r.seat) : null, confirmed_at: r.confirmed_at || null, key: r.key,
     };
   });
-  await batch(db, multiInsert(db, 'candidates', [...CAND_COLS, 'number', 'extra'], out));
+  await batch(db, multiInsert(db, 'candidates', [...CAND_COLS, 'number', 'extra', 'seat', 'confirmed_at'], out));
   const ids = await all(db, 'SELECT id, code FROM candidates WHERE exam_id = ?', examId);
   const byCode = Object.fromEntries(ids.map((x) => [x.code, x.id]));
   return c.json({ imported: out.length, codes_changed: changed, candidates: out.map((r) => [r.key ?? r.code, byCode[r.code]]) });
@@ -743,7 +729,7 @@ app.get('/eval/context', need('evaluateur'), async (c) => {
   if (!st) throw httpError(404, 'Station introuvable');
   const exam = await one(db, 'SELECT id, name, eval_open FROM exams WHERE id = ?', st.exam_id);
   const content = normalizeContent(parse(st.content, {}));
-  const candidates = await all(db, `SELECT c.id, c.number, c.first_name, c.last_name, c.day, c.series,
+  const candidates = await all(db, `SELECT c.id, c.number, c.first_name, c.last_name, c.day, c.series, c.seat,
     v.id AS eval_id, v.absent, v.score, v.evaluator_name,
     (SELECT COUNT(*) FROM evaluations o WHERE o.candidate_id = c.id AND o.station_id = ? AND o.evaluator_name != ?) AS n_others
     FROM candidates c LEFT JOIN evaluations v ON v.candidate_id = c.id AND v.station_id = ? AND v.evaluator_name = ?
@@ -797,6 +783,7 @@ app.delete('/evaluations/:id', need('admin'), async (c) => {
 });
 
 registerJp(app, { need, httpError, all, one, run, uniqueCode, freshCodes, multiInsert, batch, parse });
+registerPlanning(app, { need, httpError, all, one, run, parse, batch, genCode });
 
 app.all('*', () => { throw httpError(404, 'Route inconnue'); });
 

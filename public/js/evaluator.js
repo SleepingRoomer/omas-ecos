@@ -1,10 +1,24 @@
 import { api, esc, nl, toast, fmt, frDate, setTitle, plate, dom, disc } from './ui.js';
 import { COM_LEVELS, GLOBAL_LEVELS, TYPE_LINE, missingAnswers, computeScore } from './shared.js';
+import { seriesTimes, frTime } from './planning-shared.js';
 
 let ctx = null;
 const filters = { day: null, series: '', q: '' };
 
-async function loadCtx() { ctx = await api('/eval/context'); return ctx; }
+async function loadCtx() {
+  const [c, sch] = await Promise.all([api('/eval/context'), api('/eval/schedule').catch(() => null)]);
+  ctx = c;
+  // heure de passage de chaque candidat dans cette salle, d'après sa place dans la série
+  if (sch) {
+    for (const cand of ctx.candidates) {
+      const ser = sch.planning.days.find((d) => d.date === cand.day)?.series[cand.series - 1];
+      const r = sch.roundOf[cand.seat];
+      cand.time = ser && r ? seriesTimes(sch.planning, ser, sch.slots.length).rounds[r - 1].start : null;
+    }
+    ctx.candidates.sort((a, b) => (a.day || '').localeCompare(b.day || '') || (a.series || 0) - (b.series || 0) || (a.time || '99').localeCompare(b.time || '99'));
+  }
+  return ctx;
+}
 
 export async function roomView(app) {
   await loadCtx();
@@ -47,7 +61,7 @@ export async function roomView(app) {
       </div>
       <p class="muted small" style="margin:12px 0 0">${done} grille${done > 1 ? 's' : ''} saisie${done > 1 ? 's' : ''} sur ${shown.length}. <button class="small quiet" id="reload">Actualiser</button></p>
       <div class="cand-list">${shown.map((c) => `<button class="cand ${c.eval_id ? 'done' : ''}" data-id="${c.id}">
-          <span class="cand-no">${esc(c.number || 'Sans numéro')}</span><span class="who">${esc(c.first_name)} ${esc((c.last_name || '').slice(0, 1))}.</span>
+          <span class="cand-no">${esc(c.number || 'Sans numéro')}</span>${c.time ? `<span class="small muted">${frTime(c.time)}</span>` : ''}<span class="who">${esc(c.first_name)} ${esc((c.last_name || '').slice(0, 1))}.</span>
           <span class="st">${c.eval_id ? (c.absent ? 'Absent' : `${fmt(c.score, 1)} sur 20`) : 'À évaluer'}${c.n_others ? `<small class="faint" style="display:block">${c.eval_id ? 'ton binôme aussi' : 'déjà notée par ton binôme'}</small>` : ''}</span></button>`).join('') || '<p class="muted">Aucun candidat avec ces filtres.</p>'}</div>`;
     app.querySelector('#day')?.addEventListener('change', (e) => { filters.day = e.target.value; filters.series = ''; roomView(app); });
     app.querySelectorAll('[data-s]').forEach((b) => b.addEventListener('click', () => { filters.series = b.dataset.s; draw(); }));

@@ -1,5 +1,6 @@
 import { api, esc, nl, fmt, setTitle, plate, dom, disc } from './ui.js';
 import { COM_LEVELS } from './shared.js';
+import { convocationPanel } from './convocation.js';
 
 let timer = null;
 const ord = (n) => (n === 1 ? 'er' : 'e');
@@ -12,14 +13,16 @@ function render(R, opts = {}) {
   const scored = R.stations.filter((s) => s.score !== undefined && s.score !== null);
   const gaps = scored.filter((s) => s.mean !== null).map((s) => ({ ...s, gap: s.score - s.mean })).sort((a, b) => b.gap - a.gap);
 
-  const head = `
+  const head = opts.noHead ? '' : `
     ${opts.back ? `<a class="back no-print" href="${opts.back}">Classement de la session</a>` : ''}
-    <div class="row between" style="align-items:flex-end">
+    <div class="row between st-head" style="align-items:flex-end">
       <div><h1>${esc(c.first_name)} ${esc(c.last_name)}</h1>
         <div class="muted" style="margin-top:4px">${c.number ? `Candidat <span class="cand-no">${esc(c.number)}</span>, ` : ''}${esc(R.exam.name)}</div></div>
       <span class="live">Mis à jour à ${time(R.updated_at)}</span></div>`;
 
-  if (!S) return `${head}<div class="panel"><p>Tes résultats s'afficheront ici dès que l'équipe les ouvrira.</p></div>`;
+  if (!S) return opts.compact ? `${head}<h2>Tes résultats</h2><p class="muted">Ils s'afficheront ici après ton passage, dès que l'équipe les ouvrira.</p>`
+    : `${head}<div class="panel"><p>Tes résultats s'afficheront ici dès que l'équipe les ouvrira.</p></div>`;
+  if (opts.compact && !S.evaluated) return `${head}<h2>Tes résultats</h2><p class="muted">Ils s'afficheront ici station par station, au fil des grilles saisies le jour de ton passage.</p>`;
 
   const hero = S.rank
     ? `<div class="rank-hero"><div><div class="rank">${S.rank}<sup>${ord(S.rank)}</sup></div>
@@ -68,16 +71,30 @@ function render(R, opts = {}) {
 }
 
 export async function studentView(app) {
-  setTitle('Mes résultats');
-  const load = async () => {
-    const open = [...app.querySelectorAll('details.st-res')].map((d) => d.open);
-    const R = await api('/me/results');
-    app.innerHTML = `<div class="narrow">${render(R)}</div>`;
-    app.querySelectorAll('details.st-res').forEach((d, i) => { if (open[i]) d.open = true; });
+  setTitle('Mon espace');
+  const R0 = await api('/me/results');
+  const passed = !!(R0.summary && R0.summary.evaluated > 0);
+  const c = R0.candidate;
+  app.innerHTML = `<div class="narrow">
+    <div class="row between" style="align-items:flex-end"><div><h1>${esc(c.first_name)} ${esc(c.last_name)}</h1>
+      <div class="muted" style="margin-top:4px">${c.number ? `Candidat <span class="cand-no">${esc(c.number)}</span>, ` : ''}${esc(R0.exam.name)}</div></div>
+      <span class="live" id="upd"></span></div>
+    ${passed ? '<div id="res"></div><div id="conv"></div>' : '<div id="conv"></div><div id="res"></div>'}</div>`;
+  const resBox = app.querySelector('#res');
+  const convBox = app.querySelector('#conv');
+  const drawRes = (R) => {
+    const open = [...resBox.querySelectorAll('details.st-res')].map((d) => d.open);
+    resBox.innerHTML = render(R, { noHead: true, compact: !passed });
+    resBox.querySelectorAll('details.st-res').forEach((d, i) => { if (open[i]) d.open = true; });
+    app.querySelector('#upd').textContent = `Mis à jour à ${time(R.updated_at)}`;
   };
-  await load();
+  drawRes(R0);
+  const loadConv = () => convocationPanel(convBox, loadConv).catch(() => { convBox.innerHTML = ''; });
+  await loadConv();
   clearInterval(timer);
-  timer = setInterval(() => { if (location.hash.startsWith('#/resultats') && document.visibilityState === 'visible') load().catch(() => {}); }, 60000);
+  timer = setInterval(() => {
+    if (location.hash.startsWith('#/resultats') && document.visibilityState === 'visible') api('/me/results').then(drawRes).catch(() => {});
+  }, 60000);
 }
 
 export async function adminReport(app, candidateId, examId) {
