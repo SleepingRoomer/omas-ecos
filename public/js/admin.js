@@ -150,7 +150,7 @@ async function stationsTab(box, exam) {
     </div>
     ${active.length ? '' : '<p class="alert warn">Ajoute d\'abord des rédacteurs et des relecteurs dans <a href="#/admin/personnes">Rédacteurs et relecteurs</a> pour attribuer les stations.</p>'}
     <div class="row" style="margin:6px 0 12px"><span class="spacer"></span>
-      <button id="codes" class="small">Affiches des salles</button>
+      <button id="codes" class="small">Codes des salles</button>
       <button id="add" class="small">Ajouter une station</button></div>
     <div class="table-wrap"><table>
       <thead><tr><th>Station</th><th>Contenu</th><th>Rédaction</th><th>Relecture pair</th><th>Relecture expert</th><th>Étape</th><th></th></tr></thead>
@@ -189,21 +189,32 @@ async function stationsTab(box, exam) {
 
 async function signsView(app, exam) {
   const stations = (await api(`/exams/${exam.id}/stations`)).filter((s) => s.played);
-  setTitle(`Affiches, ${exam.name}`);
-  app.innerHTML = `<div class="row no-print" style="margin-bottom:10px"><button class="primary" onclick="window.print()">Imprimer les ${stations.length} affiches</button>
-    <span class="small muted">Une affiche par porte. Générer un nouveau code invalide l'ancien.</span></div>
+  setTitle(`Codes des salles, ${exam.name}`);
+  app.innerHTML = `<div class="no-print" style="margin-bottom:12px">
+    <p class="alert warn" style="margin-top:0"><strong>Ces fiches ne vont pas sur les portes.</strong> Avec un code de salle, on lit la grille de la station et on peut saisir des notes. Remets chaque fiche à l'évaluateur de la salle, à garder sur sa table. Sur la porte, n'affiche que la plaque de la station.</p>
+    <div class="row"><button class="primary" data-print>Imprimer les ${stations.length} fiches</button>
+      <button id="regen-all">Nouveaux codes pour toutes les salles</button>
+      <span class="small muted">À faire entre deux week-ends : les anciens codes et les évaluateurs connectés avec eux sont coupés.</span></div></div>
     ${stations.map((s) => `<div class="sheet landscape" style="display:flex;flex-direction:column;justify-content:center;gap:12mm">
       <div class="door-sign" style="border:none">${plate(s.slot, 'xl')}
-        <div><div style="font-size:16pt;color:#555">Évaluateur, connecte-toi sur</div>
+        <div><div style="font-size:13pt;color:#a00;font-weight:700;margin-bottom:4mm">Réservé à l'évaluateur, à garder dans la salle</div>
+        <div style="font-size:16pt;color:#555">Connecte-toi sur</div>
         <div style="font-size:24pt;font-weight:700">${esc(location.host)}</div>
         <div style="font-size:16pt;color:#555;margin-top:6mm">avec le code de cette salle</div>
-        <div class="code" style="font-size:44pt">${esc(s.eval_code)}</div></div></div>
+        <div class="code" style="font-size:44pt">${esc(s.eval_code)}</div>
+        <div style="font-size:11pt;color:#555;margin-top:4mm">Le code ne fonctionne que pendant les heures de saisie.</div></div></div>
       <div class="no-print"><button class="small quiet" data-regen="${s.id}">Générer un nouveau code pour ${esc(s.slot)}</button></div></div>`).join('')}`;
   app.querySelectorAll('[data-regen]').forEach((b) => b.addEventListener('click', async () => {
     if (!confirmBox('Générer un nouveau code ? L\'ancien ne fonctionnera plus.')) return;
     await api(`/stations/${b.dataset.regen}`, { method: 'PATCH', body: { regen_code: true } });
     signsView(app, exam);
   }));
+  app.querySelector('#regen-all').addEventListener('click', async () => {
+    if (!confirmBox('Générer de nouveaux codes pour toutes les salles ? Les fiches déjà imprimées ne fonctionneront plus et les évaluateurs connectés devront se reconnecter.')) return;
+    await api(`/exams/${exam.id}/regen-room-codes`, { method: 'POST' });
+    toast('Nouveaux codes générés : réimprime les fiches');
+    signsView(app, exam);
+  });
 }
 
 // ---------- candidats ----------

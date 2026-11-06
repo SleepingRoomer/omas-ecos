@@ -301,7 +301,7 @@ export async function planningPrint(app, exam) {
   setTitle(`Planning, ${exam.name}`);
   const active = D.candidates.filter((c) => c.status !== 'annule' && c.seat);
   const pages = P.days.flatMap((d) => d.series.map((s, i) => ({ d, s, n: i + 1 })));
-  app.innerHTML = `<div class="row no-print" style="margin-bottom:10px"><button class="primary" onclick="window.print()">Imprimer</button>
+  app.innerHTML = `<div class="row no-print" style="margin-bottom:10px"><button class="primary" data-print>Imprimer</button>
     <span class="small muted">Une page par série, à afficher à l'accueil et dans le couloir.</span></div>
     ${pages.map(({ d, s, n }) => `<div class="sheet landscape plan-sheet"><h2 style="margin:0 0 2mm">${esc(longDate(d.date))}, série ${n}</h2>
       <div style="margin:0 0 3mm">Convocation ${frTime(s.convocation)}, passage à ${frTime(s.start)}</div>

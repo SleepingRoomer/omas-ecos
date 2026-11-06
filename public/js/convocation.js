@@ -58,7 +58,7 @@ export async function convocationPanel(box, reload) {
         ${C.confirmed_at ? `<span class="pill ok">Venue confirmée</span><button class="small quiet" data-confirm="0">Je ne peux plus venir</button>`
           : '<button class="primary" data-confirm="1">Je confirme ma venue</button>'}
         <button class="small" id="ics">Ajouter à mon agenda</button>
-        <button class="small quiet" onclick="window.print()">Imprimer</button>
+        <button class="small quiet" data-print>Imprimer</button>
       </div>
       ${C.instructions ? `<div class="panel"><h3 style="margin-top:0">À savoir avant de venir</h3><div>${nl(C.instructions)}</div></div>` : ''}
       <h2>Ton parcours</h2>

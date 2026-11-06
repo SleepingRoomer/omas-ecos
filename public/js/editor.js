@@ -384,7 +384,7 @@ export async function preview(app, id, kind) {
   const st = data.station;
   const c = data.content;
   setTitle(`${kind === 'vignette' ? 'Vignette' : kind === 'grille' ? 'Grille' : 'Dossier'} ${st.slot}`);
-  const bar = `<div class="row no-print" style="margin-bottom:8px">${plate(st.slot)}<button class="primary" onclick="window.print()">Imprimer</button>
+  const bar = `<div class="row no-print" style="margin-bottom:8px">${plate(st.slot)}<button class="primary" data-print>Imprimer</button>
     <span class="small muted">${kind === 'vignette' ? 'Format national : A4 paysage, Arial 14, interligne 1,5, texte non justifié. Deux exemplaires : porte et table.' : ''}</span></div>`;
   if (kind === 'vignette') {
     app.innerHTML = `${bar}<div class="sheet landscape">${vignetteHtml(st, c)}</div><div class="sheet landscape">${vignetteHtml(st, c)}</div>`;

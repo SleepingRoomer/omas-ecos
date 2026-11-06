@@ -54,9 +54,12 @@ export function longDate(iso) {
 
 export function setTitle(t) { document.title = t ? `${t} · ECOS OMAS` : 'ECOS OMAS'; }
 
+// Une cellule qui commence par = + - @ serait exécutée comme formule par le tableur : on la neutralise
+export const csvCell = (v) => { let t = String(v ?? ''); if (/^[=+\-@\t\r]/.test(t) && !/^-?\d[\d,.]*$/.test(t)) t = `'${t}`; return `"${t.replace(/"/g, '""')}"`; };
+
 // Téléchargement d'un CSV construit côté navigateur
 export function downloadCsv(filename, rows) {
-  const csv = '﻿' + rows.map((r) => r.map((v) => `"${String(v ?? '').replace(/"/g, '""')}"`).join(';')).join('\r\n');
+  const csv = '﻿' + rows.map((r) => r.map(csvCell).join(';')).join('\r\n');
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
   a.download = filename;

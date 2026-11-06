@@ -238,7 +238,7 @@ async function planningTab(box, jp) {
 async function printPlanning(app, jp) {
   const P = await api(`/jp/${jp.id}/plan`);
   setTitle(`Plannings, ${jp.name}`);
-  app.innerHTML = `<div class="row no-print" style="margin-bottom:10px"><button class="primary" onclick="window.print()">Imprimer</button>
+  app.innerHTML = `<div class="row no-print" style="margin-bottom:10px"><button class="primary" data-print>Imprimer</button>
     <span class="small muted">Une page par créneau : la rotation, les animateurs et les groupes.</span></div>
     ${P.slots.map((s) => `<div class="sheet landscape">
       <div class="print-head"><span>${esc(jp.name)}</span><span>${frDate(s.day)}, ${hm(s.start_time)} à ${hm(s.end)}, convocation ${hm(s.convocation)}</span></div>
@@ -252,7 +252,7 @@ async function printPlanning(app, jp) {
 async function printPosters(app, jp) {
   const ats = (await api(`/jp/${jp.id}/ateliers`)).filter((a) => a.active);
   setTitle(`Affiches, ${jp.name}`);
-  app.innerHTML = `<div class="row no-print" style="margin-bottom:10px"><button class="primary" onclick="window.print()">Imprimer les ${ats.length} affiches</button>
+  app.innerHTML = `<div class="row no-print" style="margin-bottom:10px"><button class="primary" data-print>Imprimer les ${ats.length} affiches</button>
     <span class="small muted">Une affiche A4 paysage par atelier, à coller sur la porte ou sur la table.</span></div>
     ${ats.map((a) => `<div class="sheet landscape poster">
       ${a.emoji ? `<div class="big-emo">${esc(a.emoji)}</div>` : ''}
@@ -270,7 +270,7 @@ async function materielTab(box, jp) {
   });
   box.innerHTML = `
     <p class="lede">Calculé à partir des fiches et des ${P.participants} inscrits placés dans un créneau, avec 20 % de marge sur les consommables.</p>
-    <div class="row no-print" style="margin:12px 0"><button onclick="window.print()">Imprimer</button>
+    <div class="row no-print" style="margin:12px 0"><button data-print>Imprimer</button>
       <button id="mexp">Exporter en CSV</button></div>
     <h2>Liste de courses</h2>
     <div class="table-wrap"><table><thead><tr><th>Article</th><th class="num">À installer</th><th class="num">Consommables</th></tr></thead><tbody>

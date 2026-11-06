@@ -13,6 +13,9 @@ const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
 // ---------- utilitaires ----------
 
+// Une cellule qui commence par = + - @ serait exécutée comme formule par le tableur : on la neutralise
+const csvCell = (v) => { let t = String(v ?? ''); if (/^[=+\-@\t\r]/.test(t) && !/^-?\d[\d,.]*$/.test(t)) t = `'${t}`; return `"${t.replace(/"/g, '""')}"`; };
+
 function genCode(len = 8) {
   const bytes = new Uint8Array(len);
   crypto.getRandomValues(bytes);
@@ -87,6 +90,20 @@ async function createSession(c, kind, subjectId, name, hours = 24 * 30) {
   });
 }
 
+// Défense contre les requêtes venues d'un autre site : une écriture doit venir de nos propres pages
+app.use('*', async (c, next) => {
+  if (!['GET', 'HEAD', 'OPTIONS'].includes(c.req.method)) {
+    const origin = c.req.header('Origin');
+    if (origin && new URL(origin).host !== new URL(c.req.url).host) throw httpError(403, 'Origine refusée');
+  }
+  await next();
+  // les réponses de l'API contiennent des données personnelles : jamais en cache, jamais interprétées autrement
+  c.header('Cache-Control', 'no-store');
+  c.header('X-Content-Type-Options', 'nosniff');
+  c.header('Referrer-Policy', 'no-referrer');
+  c.header('X-Frame-Options', 'DENY');
+});
+
 app.use('*', async (c, next) => {
   const token = getCookie(c, COOKIE);
   if (token) {
@@ -103,13 +120,32 @@ const need = (...kinds) => async (c, next) => {
   await next();
 };
 
+// Limite de tentatives : au-delà, on bloque l'adresse IP 15 minutes. Une salle de faculté partage souvent
+// une même adresse, d'où une marge large pour les codes ; le mot de passe de l'équipe est plus strict.
+const LIMITS = { admin: 8, other: 40 };
+const clientIp = (c) => c.req.header('CF-Connecting-IP') || 'local';
+async function checkAttempts(c, role) {
+  const r = await one(c.env.DB, "SELECT COUNT(*) AS n FROM login_failures WHERE ip = ? AND at > datetime('now', '-15 minutes') AND (role = 'admin') = ?",
+    clientIp(c), role === 'admin' ? 1 : 0);
+  if (r.n >= (role === 'admin' ? LIMITS.admin : LIMITS.other)) throw httpError(429, 'Trop de tentatives : réessaie dans 15 minutes.');
+}
+async function failed(c, role, message) {
+  const db = c.env.DB;
+  await db.batch([
+    db.prepare('INSERT INTO login_failures (ip, role) VALUES (?, ?)').bind(clientIp(c), role === 'admin' ? 'admin' : role || null),
+    db.prepare("DELETE FROM login_failures WHERE at < datetime('now', '-1 day')"),
+  ]);
+  return httpError(401, message);
+}
+
 app.post('/login', async (c) => {
   const { role, code, name } = await c.req.json();
   const db = c.env.DB;
   const clean = String(code || '').trim();
   if (!clean) throw httpError(400, 'Code requis');
+  await checkAttempts(c, role);
   if (role === 'admin') {
-    if (!c.env.ADMIN_PASSWORD || !safeEqual(clean, c.env.ADMIN_PASSWORD)) throw httpError(401, 'Mot de passe incorrect');
+    if (!c.env.ADMIN_PASSWORD || !safeEqual(clean, c.env.ADMIN_PASSWORD)) throw await failed(c, 'admin', 'Mot de passe incorrect');
     await createSession(c, 'admin', null, 'Administrateur', 12);
     return c.json({ kind: 'admin' });
   }
@@ -121,19 +157,20 @@ app.post('/login', async (c) => {
       return c.json({ kind: 'etudiant' });
     }
     const part = await one(db, "SELECT * FROM jp_participants WHERE code = ? AND status != 'annule'", upper);
-    if (!part) throw httpError(401, 'Code inconnu');
+    if (!part) throw await failed(c, role, 'Code inconnu');
     await createSession(c, 'participant', part.id, `${part.first_name} ${part.last_name}`);
     return c.json({ kind: 'participant' });
   }
   if (role === 'redaction') {
     const p = await one(db, 'SELECT * FROM people WHERE code = ? AND active = 1', upper);
-    if (!p) throw httpError(401, 'Code inconnu');
+    if (!p) throw await failed(c, role, 'Code inconnu');
     await createSession(c, 'auteur', p.id, p.name);
     return c.json({ kind: 'auteur' });
   }
   if (role === 'evaluateur') {
-    const st = await one(db, 'SELECT * FROM stations WHERE eval_code = ?', upper);
-    if (!st) throw httpError(401, 'Code de salle inconnu');
+    const st = await one(db, 'SELECT s.*, e.eval_open FROM stations s JOIN exams e ON e.id = s.exam_id WHERE s.eval_code = ?', upper);
+    if (!st) throw await failed(c, role, 'Code de salle inconnu');
+    if (!st.eval_open) throw httpError(403, 'La salle n\'est pas encore ouverte : l\'équipe ouvre la saisie le matin du passage.');
     const n = String(name || '').trim();
     if (n.length < 2) throw httpError(400, 'Indiquez votre nom');
     await createSession(c, 'evaluateur', st.id, n, 14);
@@ -303,6 +340,19 @@ app.patch('/stations/:id', need('admin'), async (c) => {
   return c.json({ ok: true });
 });
 
+// Nouveaux codes pour toutes les salles d'une session (entre deux week-ends, par exemple) :
+// les anciens codes et les évaluateurs connectés avec eux sont coupés
+app.post('/exams/:id/regen-room-codes', need('admin'), async (c) => {
+  const db = c.env.DB;
+  const st = await all(db, 'SELECT id FROM stations WHERE exam_id = ?', c.req.param('id'));
+  const codes = await freshCodes(db, st.length);
+  await batch(db, [
+    ...st.map((x, i) => db.prepare('UPDATE stations SET eval_code = ? WHERE id = ?').bind(codes[i], x.id)),
+    db.prepare(`DELETE FROM auth_sessions WHERE kind = 'evaluateur' AND subject_id IN (SELECT id FROM stations WHERE exam_id = ?)`).bind(c.req.param('id')),
+  ]);
+  return c.json({ ok: true, n: st.length });
+});
+
 app.delete('/stations/:id', need('admin'), async (c) => {
   const n = await one(c.env.DB, 'SELECT COUNT(*) AS n FROM evaluations WHERE station_id = ?', c.req.param('id'));
   if (n.n > 0) throw httpError(400, 'Cette station a déjà des évaluations.');
@@ -335,8 +385,11 @@ app.get('/stations/:id', need('admin', 'auteur', 'evaluateur'), async (c) => {
   if (!st) throw httpError(404, 'Station introuvable');
   const rights = stationRights(c.get('session'), st);
   if (!rights.read) throw httpError(403, 'Accès refusé');
+  if (rights.isEval && !rights.involved) await openRoom(c);
   const full = await one(db, 'SELECT content FROM stations WHERE id = ?', st.id);
   const content = normalizeContent(parse(full.content, {}));
+  // l'évaluateur n'a besoin ni de la correction ni des références
+  if (rights.isEval && !rights.involved) content.pedago = { correction: '', references: '' };
   const reviews = rights.involved
     ? await all(db, 'SELECT * FROM reviews WHERE station_id = ? ORDER BY id DESC', st.id) : [];
   if (!rights.isAdmin) delete st.eval_code;
@@ -556,7 +609,7 @@ app.get('/exams/:id/results.csv', need('admin'), async (c) => {
       p.avg === null ? '' : p.avg.toFixed(2).replace('.', ','), p.done ? 'oui' : 'non',
       ...R.played.map((s) => { const e = p.ev.find((x) => x.station_id === s.id); return !e ? '' : e.absent ? 'absent' : e.score.toFixed(2).replace('.', ','); })]);
   }
-  const csv = '﻿' + lines.map((l) => l.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(';')).join('\r\n');
+  const csv = '﻿' + lines.map((l) => l.map(csvCell).join(';')).join('\r\n');
   return new Response(csv, { headers: { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': 'attachment; filename="resultats.csv"' } });
 });
 
@@ -742,14 +795,21 @@ app.post('/import/:examId/evaluations', need('admin'), async (c) => {
 
 const evalName = (s) => String(s.name || '').trim().replace(/\s+/g, ' ');
 
+// Hors des heures de saisie, un code de salle (même photographié) ne donne plus accès à rien
+async function openRoom(c) {
+  const st = await one(c.env.DB, 'SELECT s.*, e.eval_open FROM stations s JOIN exams e ON e.id = s.exam_id WHERE s.id = ?', c.get('session').subject_id);
+  if (!st) throw httpError(404, 'Station introuvable');
+  if (!st.eval_open) throw httpError(403, 'La saisie est fermée : la salle rouvrira au prochain passage.');
+  return st;
+}
+
 app.get('/eval/context', need('evaluateur'), async (c) => {
   const db = c.env.DB;
   const s = c.get('session');
-  const st = await one(db, 'SELECT * FROM stations WHERE id = ?', s.subject_id);
-  if (!st) throw httpError(404, 'Station introuvable');
+  const st = await openRoom(c);
   const exam = await one(db, 'SELECT id, name, eval_open FROM exams WHERE id = ?', st.exam_id);
   const content = normalizeContent(parse(st.content, {}));
-  const candidates = await all(db, `SELECT c.id, c.number, c.first_name, c.last_name, c.day, c.series, c.seat,
+  const candidates = await all(db, `SELECT c.id, c.number, c.first_name, substr(c.last_name, 1, 1) || '.' AS last_name, c.day, c.series, c.seat,
     v.id AS eval_id, v.absent, v.score, v.evaluator_name,
     (SELECT COUNT(*) FROM evaluations o WHERE o.candidate_id = c.id AND o.station_id = ? AND o.evaluator_name != ?) AS n_others
     FROM candidates c LEFT JOIN evaluations v ON v.candidate_id = c.id AND v.station_id = ? AND v.evaluator_name = ?
@@ -766,6 +826,7 @@ app.get('/eval/context', need('evaluateur'), async (c) => {
 
 app.get('/eval/evaluations/:candidateId', need('evaluateur'), async (c) => {
   const s = c.get('session');
+  await openRoom(c);
   const e = await one(c.env.DB, 'SELECT * FROM evaluations WHERE station_id = ? AND candidate_id = ? AND evaluator_name = ?',
     s.subject_id, c.req.param('candidateId'), evalName(s));
   return c.json(e ? { ...e, answers: parse(e.answers, {}) } : null);
@@ -787,13 +848,13 @@ app.put('/eval/evaluations', need('evaluateur'), async (c) => {
   const miss = missingAnswers(grille, answers, global, absent);
   if (miss.length) throw httpError(400, `${miss.length} élément(s) de la grille non rempli(s).`);
   const { points, max, score } = computeScore(grille, answers, absent);
-  await run(db, `INSERT INTO evaluations (exam_id, station_id, candidate_id, evaluator_name, absent, answers, global, comment, points, max_points, score)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?)
+  await run(db, `INSERT INTO evaluations (exam_id, station_id, candidate_id, evaluator_name, absent, answers, global, comment, points, max_points, score, ip)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
     ON CONFLICT(station_id, candidate_id, evaluator_name) DO UPDATE SET absent = excluded.absent,
       answers = excluded.answers, global = excluded.global, comment = excluded.comment, points = excluded.points,
-      max_points = excluded.max_points, score = excluded.score, updated_at = datetime('now')`,
+      max_points = excluded.max_points, score = excluded.score, ip = excluded.ip, updated_at = datetime('now')`,
   st.exam_id, st.id, cand.id, evalName(s), absent ? 1 : 0, JSON.stringify(answers), absent ? null : global,
-  absent ? null : (String(b.comment || '').trim() || null), points, max, score);
+  absent ? null : (String(b.comment || '').trim() || null), points, max, score, clientIp(c));
   return c.json({ ok: true, score });
 });
 
