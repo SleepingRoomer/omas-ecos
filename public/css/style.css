@@ -508,3 +508,9 @@ td select { min-width: 112px; padding: 7px 8px; font-size: .9rem; }
 .plan-sheet .g-table th, .plan-sheet .g-table td { white-space: normal; overflow-wrap: anywhere; line-height: 1.2; }
 .plan-sheet .g-table .g-time { width: 13mm; }
 .plan-sheet .plate.sm { transform: scale(.85); }
+.swap-board { display: grid; gap: 8px; margin-bottom: 14px; }
+.swap-card { display: grid; grid-template-columns: 1fr 1fr auto; gap: 14px; align-items: center; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+.swap-card.match { border-color: var(--r); background: var(--r-soft); }
+.swap-card .me { font-weight: 700; }
+.swap-card .acts { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+@media (max-width: 640px) { .swap-card { grid-template-columns: 1fr; } .swap-card .acts { justify-content: flex-start; } }

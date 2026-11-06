@@ -1,0 +1,2 @@
+CREATE TABLE swap_responses ( id INTEGER PRIMARY KEY AUTOINCREMENT, swap_id INTEGER NOT NULL REFERENCES swaps(id) ON DELETE CASCADE, candidate_id INTEGER NOT NULL REFERENCES candidates(id) ON DELETE CASCADE, kind TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending', created_at TEXT NOT NULL DEFAULT (datetime('now')), answered_at TEXT, UNIQUE (swap_id, candidate_id) );
+CREATE INDEX idx_swap_resp ON swap_responses(swap_id, status);

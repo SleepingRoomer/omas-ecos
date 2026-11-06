@@ -63,26 +63,45 @@ export async function convocationPanel(box, reload) {
       <h2>Ton parcours</h2>
       <p class="small muted">Un tour toutes les ${C.rotation_minutes} minutes : lecture de la vignette devant la porte, puis la station. Les sujets restent secrets jusqu'au jour J.</p>
       ${parcoursHtml(s)}
-      ${S.enabled || S.history.length ? `<h2>Échanger mon créneau</h2>${swapHtml()}` : ''}`;
+      ${S.enabled || S.history.length ? `<h2 id="echanges">Échanger mon créneau</h2>${swapHtml()}` : ''}`;
+    const waiting = S.open ? S.board.filter((o) => o.compatible).length + (S.mine?.proposals.length || 0) : 0;
+    if (waiting) box.insertAdjacentHTML('afterbegin', `<p class="alert info row between no-print"><span><strong>${waiting > 1 ? `${waiting} échanges t'attendent` : 'Un échange t\'attend'}</strong> : un étudiant cherche ton créneau ou te propose le sien.</span><a class="btn small" href="#/resultats" data-go="echanges">Voir</a></p>`);
     bind();
   };
 
   const swapHtml = () => {
     const hist = S.history.length ? `<p class="small muted">Échanges déjà faits : ${S.history.length}. Ton créneau actuel est celui affiché plus haut.</p>` : '';
     if (!S.open) return `<div class="panel"><p style="margin:0">${esc(S.why || 'Échanges fermés.')}</p>${hist}</div>`;
-    const offers = S.offers.length ? `<div class="panel hl"><h3 style="margin-top:0">${S.offers.length > 1 ? `${S.offers.length} étudiants veulent ta place` : 'Un étudiant veut ta place'}</h3>
-      ${S.offers.map((o) => `<div class="row between swap-offer"><div><strong>${esc(when(o))}</strong><div class="small muted">${conv(o)}</div></div>
-        <button class="primary small" data-accept="${esc(o.code)}">Échanger avec ce créneau</button></div>`).join('')}
-      <p class="small muted" style="margin-bottom:0">L'échange est immédiat : tu prends son créneau et il prend le tien.</p></div>` : '';
-    const mine = S.mine ? `<div class="panel"><h3 style="margin-top:0">Ta demande est en ligne</h3>
-      ${S.mine.wanted.length ? `<p>Tu cherches : ${S.mine.wanted.map((k) => { const o = S.options.find((x) => x.key === k); return o ? `<strong>${esc(when(o))}</strong>` : ''; }).filter(Boolean).join(', ')}. Les étudiants de ces créneaux voient ta demande et peuvent l'accepter.</p>` : '<p>Ta demande n\'est visible par personne : elle ne sert qu\'avec le code ci-dessous.</p>'}
-      <p>Tu t'es arrangé avec quelqu'un ? Donne-lui ce code, il l'entre dans son espace :</p><div class="code big-code">${esc(S.mine.code)}</div>
-      <button class="small quiet" id="cancel-swap" style="margin-top:12px">Retirer ma demande</button></div>`
-      : `<details class="panel"><summary style="cursor:pointer"><strong>Je voudrais un autre créneau</strong></summary>
-        <p class="small muted">Coche les créneaux qui t'arrangent. Si un étudiant de l'un d'eux accepte, vos places sont échangées tout de suite. Sans rien cocher, ta demande reste privée et passe par un code à donner à un ami.</p>
+    const M = S.mine;
+    const mine = M ? `<div class="panel ${M.proposals.length ? 'hl' : ''}"><h3 style="margin-top:0">Ta demande</h3>
+      ${M.wanted.length ? `<p>Tu quittes ton créneau et tu cherches : ${M.wanted.map((k) => { const o = S.options.find((x) => x.key === k); return o ? `<strong>${esc(when(o))}</strong>` : ''; }).filter(Boolean).join(', ')}.
+        Tous les étudiants la voient : ceux de ces créneaux peuvent l'accepter directement, les autres peuvent te proposer le leur.</p>`
+        : '<p>Ta demande est privée : elle ne sert qu\'avec le code ci-dessous.</p>'}
+      ${M.proposals.length ? `<h3>${M.proposals.length > 1 ? `${M.proposals.length} propositions reçues` : 'Une proposition reçue'}</h3>
+        ${M.proposals.map((p) => `<div class="row between swap-offer"><div><strong>${esc(when(p))}</strong><div class="small muted">${conv(p)}</div></div>
+          <div class="row" style="gap:6px"><button class="primary small" data-prop-accept="${p.id}">Accepter</button><button class="small" data-prop-refuse="${p.id}">Refuser</button></div></div>`).join('')}` : ''}
+      ${M.declined || M.refused ? `<p class="small muted">${M.declined ? `${M.declined} étudiant${M.declined > 1 ? 's ont' : ' a'} décliné ta demande. ` : ''}${M.refused ? `Tu as refusé ${M.refused} proposition${M.refused > 1 ? 's' : ''}.` : ''}</p>` : ''}
+      <p class="small">Tu t'es arrangé avec quelqu'un ? Donne-lui ce code : <span class="code big-code">${esc(M.code)}</span></p>
+      <button class="small quiet" id="cancel-swap">Retirer ma demande</button></div>`
+      : `<details class="panel"><summary style="cursor:pointer"><strong>Demander un autre créneau</strong></summary>
+        <p class="small muted">Coche les créneaux qui t'arrangent. Ta demande est visible par tous les étudiants : ceux d'un créneau coché peuvent l'accepter et l'échange est immédiat, les autres peuvent te proposer leur créneau et c'est toi qui décides.</p>
+        <label class="check"><input type="checkbox" id="all-opts"><span><strong>N'importe quel autre créneau</strong></span></label>
         <div class="swap-opts">${S.options.map((o) => `<label class="check"><input type="checkbox" value="${esc(o.key)}"><span><strong>${esc(when(o))}</strong><br><span class="small muted">${conv(o)}</span></span></label>`).join('')}</div>
-        <button class="primary" id="post-swap" style="margin-top:12px">Publier ma demande</button></details>`;
-    return `${offers}${mine}
+        <div class="row" style="margin-top:12px"><button class="primary" id="post-swap">Publier ma demande</button>
+          <button class="small quiet" id="post-private">Créer seulement un code pour un ami</button></div></details>`;
+    const board = [...S.board].sort((x, y) => Number(y.compatible) - Number(x.compatible));
+    const card = (o) => `<div class="swap-card ${o.compatible ? 'match' : ''}">
+      <div><div class="small muted">Quitte</div><strong>${esc(when(o.from))}</strong><div class="small muted">${conv(o.from)}</div></div>
+      <div><div class="small muted">Cherche</div>${o.wanted.map((w) => `<div class="${w.key === `${C.day}|${C.series}` ? 'me' : ''}">${esc(when(w))}</div>`).join('')}</div>
+      <div class="acts">${o.compatible
+        ? `<button class="primary small" data-accept="${esc(o.code)}">Accepter l'échange</button><button class="small" data-decline="${esc(o.code)}">Refuser</button>`
+        : o.proposed === 'pending' ? '<span class="pill">Proposition envoyée</span>'
+          : o.proposed === 'refused' ? '<span class="pill">Proposition refusée</span><button class="small quiet" data-decline="' + esc(o.code) + '">Masquer</button>'
+            : `<button class="small" data-propose="${esc(o.code)}">Proposer mon créneau</button><button class="small quiet" data-decline="${esc(o.code)}">Refuser</button>`}</div></div>`;
+    return `${mine}
+      <h3>Demandes des autres étudiants${board.length ? ` (${board.length})` : ''}</h3>
+      ${board.length ? `<p class="small muted">${board.some((o) => o.compatible) ? 'En haut, celles qui cherchent ton créneau : tu peux les accepter tout de suite. ' : ''}Pour les autres, tu peux proposer ton créneau : l'étudiant accepte ou refuse.</p>
+        <div class="swap-board">${board.map(card).join('')}</div>` : '<p class="muted small">Aucune demande pour l\'instant.</p>'}
       <details class="panel"><summary style="cursor:pointer"><strong>J'ai reçu un code d'échange</strong></summary>
         <form id="code-form" class="row" style="margin-top:10px"><input id="swap-code" class="code-input" maxlength="8" placeholder="K7XP2Q" style="max-width:180px" aria-label="Code d'échange" autocomplete="off">
         <button class="small">Voir le créneau</button></form><div id="code-out"></div></details>
@@ -96,11 +115,25 @@ export async function convocationPanel(box, reload) {
       reload();
     }));
     box.querySelector('#ics')?.addEventListener('click', () => ics(C));
+    box.querySelector('[data-go]')?.addEventListener('click', (e) => { e.preventDefault(); box.querySelector('#echanges')?.scrollIntoView({ behavior: 'smooth' }); });
     box.querySelectorAll('[data-accept]').forEach((b) => b.addEventListener('click', () => accept(b.dataset.accept)));
-    box.querySelector('#post-swap')?.addEventListener('click', async () => {
+    const act = async (path, body, msg) => { try { await api(path, { method: 'POST', body }); toast(msg); reload(); } catch (e) { toast(e.message, 'error'); } };
+    box.querySelectorAll('[data-decline]').forEach((b) => b.addEventListener('click', () => act('/me/swaps/decline', { code: b.dataset.decline }, 'Demande retirée de ton espace')));
+    box.querySelectorAll('[data-propose]').forEach((b) => b.addEventListener('click', () => act('/me/swaps/propose', { code: b.dataset.propose }, 'Proposition envoyée : l\'étudiant va pouvoir accepter ou refuser')));
+    box.querySelectorAll('[data-prop-refuse]').forEach((b) => b.addEventListener('click', () => act(`/me/proposals/${b.dataset.propRefuse}/refuse`, {}, 'Proposition refusée')));
+    box.querySelectorAll('[data-prop-accept]').forEach((b) => b.addEventListener('click', async () => {
+      if (!window.confirm('Accepter cette proposition ? Ton parcours et ton numéro changent tout de suite.')) return;
+      try { const r = await api(`/me/proposals/${b.dataset.propAccept}/accept`, { method: 'POST' }); toast(`C'est fait : tu passes ${frDate(r.now.date)}, série ${r.now.series}`); reload(); } catch (e) { toast(e.message, 'error'); }
+    }));
+    const allBox = box.querySelector('#all-opts');
+    allBox?.addEventListener('change', () => box.querySelectorAll('.swap-opts input').forEach((i) => { i.checked = allBox.checked; }));
+    const publish = async (wanted) => { try { await api('/me/swaps', { method: 'POST', body: { wanted } }); toast(wanted.length ? 'Demande publiée' : 'Code créé'); reload(); } catch (e) { toast(e.message, 'error'); } };
+    box.querySelector('#post-swap')?.addEventListener('click', () => {
       const wanted = [...box.querySelectorAll('.swap-opts input:checked')].map((i) => i.value);
-      try { await api('/me/swaps', { method: 'POST', body: { wanted } }); toast('Demande publiée'); reload(); } catch (e) { toast(e.message, 'error'); }
+      if (!wanted.length) { toast('Coche au moins un créneau, ou crée seulement un code pour un ami', 'error'); return; }
+      publish(wanted);
     });
+    box.querySelector('#post-private')?.addEventListener('click', () => publish([]));
     box.querySelector('#cancel-swap')?.addEventListener('click', async () => { await api('/me/swaps', { method: 'DELETE' }); toast('Demande retirée'); reload(); });
     box.querySelector('#code-form')?.addEventListener('submit', async (e) => {
       e.preventDefault();

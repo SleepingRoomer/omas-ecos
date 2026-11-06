@@ -151,22 +151,36 @@ export function registerPlanning(app, h) {
     return { key: placeKey(day, series), date: day, series, convocation: s?.convocation || null, start: s?.start || null };
   };
 
+  // Une demande d'échange est publique : tous les étudiants de la session la voient.
+  // - si ton créneau fait partie de ceux recherchés, tu peux accepter : l'échange se fait tout de suite ;
+  // - sinon, tu peux proposer ton créneau : l'auteur de la demande accepte ou refuse depuis son espace ;
+  // - dans tous les cas, tu peux refuser (la demande disparaît de ton espace).
+  // Une demande sans créneau recherché reste privée : on y accède seulement avec son code.
+
+  const isOpen = (cand, planning) => (cand.day && cand.series && cand.seat ? swapWindow(planning, cand) : { ok: false, why: 'Tu n\'as pas encore de créneau.' });
+
   app.get('/me/convocation', need('etudiant'), async (c) => {
     const { db, cand, exam, planning, slots } = await me(c);
     const placed = !!(cand.day && cand.series && cand.seat);
     const schedule = placed ? candidateSchedule(planning, slots, cand.day, cand.series, cand.seat) : null;
-    const [mine, offers, counts, history, evals] = await Promise.all([
-      one(db, "SELECT code, wanted, created_at FROM swaps WHERE candidate_id = ? AND status = 'open'", cand.id),
-      placed ? all(db, `SELECT s.code, s.wanted, c.day, c.series FROM swaps s JOIN candidates c ON c.id = s.candidate_id
-        WHERE s.exam_id = ? AND s.status = 'open' AND s.candidate_id != ? AND c.status != 'annule'`, exam.id, cand.id) : [],
+    const [mine, board, counts, history, evals, myResp] = await Promise.all([
+      one(db, "SELECT id, code, wanted, created_at FROM swaps WHERE candidate_id = ? AND status = 'open'", cand.id),
+      all(db, `SELECT s.id, s.code, s.wanted, s.created_at, c.day, c.series FROM swaps s JOIN candidates c ON c.id = s.candidate_id
+        WHERE s.exam_id = ? AND s.status = 'open' AND s.candidate_id != ? AND c.status != 'annule' AND s.wanted != '[]' ORDER BY s.id DESC`, exam.id, cand.id),
       all(db, "SELECT day, series, COUNT(*) AS n FROM candidates WHERE exam_id = ? AND status != 'annule' AND day IS NOT NULL GROUP BY day, series", exam.id),
       all(db, "SELECT from_place, to_place, done_at FROM swaps WHERE status = 'done' AND (candidate_id = ? OR partner_id = ?) ORDER BY id DESC", cand.id, cand.id),
       one(db, 'SELECT COUNT(*) AS n FROM evaluations WHERE candidate_id = ?', cand.id),
+      all(db, 'SELECT r.swap_id, r.kind, r.status FROM swap_responses r WHERE r.candidate_id = ?', cand.id),
     ]);
+    // propositions reçues sur ma demande, et bilan des refus
+    const received = mine ? await all(db, `SELECT r.id, r.kind, r.status, r.created_at, c.day, c.series FROM swap_responses r
+      JOIN candidates c ON c.id = r.candidate_id WHERE r.swap_id = ? AND c.status != 'annule'`, mine.id) : [];
     const myKey = placed ? placeKey(cand.day, cand.series) : null;
-    const win = placed ? swapWindow(planning, cand) : { ok: false, why: 'Tu n\'as pas encore de créneau.' };
+    const win = isOpen(cand, planning);
     if (evals.n) Object.assign(win, { ok: false, why: 'Tu as déjà passé tes stations.' });
     const fill = Object.fromEntries(counts.map((r) => [placeKey(r.day, r.series), r.n]));
+    const resp = new Map(myResp.map((r) => [r.swap_id, r]));
+    const toDesc = (k) => { const [d, n] = k.split('|'); return describe(planning, d, Number(n)); };
     return c.json({
       exam: { name: exam.name },
       candidate: { first_name: cand.first_name, last_name: cand.last_name, number: cand.number, status: cand.status },
@@ -176,11 +190,23 @@ export function registerPlanning(app, h) {
       swaps: {
         enabled: !!planning.swaps_open, open: win.ok, why: win.ok ? null : win.why, until: win.until || null,
         close_hours: planning.swaps_close_hours,
-        mine: mine ? { code: mine.code, wanted: parse(mine.wanted, []), created_at: mine.created_at } : null,
-        options: planning.days.flatMap((d) => d.series.map((s, i) => ({ ...describe(planning, d.date, i + 1), filled: fill[placeKey(d.date, i + 1)] || 0, closed: s.closed })))
+        mine: mine ? {
+          code: mine.code, created_at: mine.created_at, wanted: parse(mine.wanted, []),
+          proposals: received.filter((r) => r.kind === 'proposed' && r.status === 'pending').map((r) => ({ id: r.id, ...describe(planning, r.day, r.series) })),
+          declined: received.filter((r) => r.kind === 'declined').length,
+          refused: received.filter((r) => r.kind === 'proposed' && r.status === 'refused').length,
+        } : null,
+        options: planning.days.flatMap((d) => d.series.map((sr, i) => ({ ...describe(planning, d.date, i + 1), filled: fill[placeKey(d.date, i + 1)] || 0, closed: sr.closed })))
           .filter((o) => o.key !== myKey && !o.closed),
-        offers: offers.filter((o) => parse(o.wanted, []).includes(myKey) && placeKey(o.day, o.series) !== myKey)
-          .map((o) => ({ code: o.code, ...describe(planning, o.day, o.series) })),
+        board: board.filter((o) => placeKey(o.day, o.series) !== myKey && resp.get(o.id)?.kind !== 'declined').map((o) => {
+          const wanted = parse(o.wanted, []);
+          const r = resp.get(o.id);
+          return {
+            code: o.code, created_at: o.created_at, from: describe(planning, o.day, o.series),
+            wanted: wanted.map(toDesc), compatible: wanted.includes(myKey),
+            proposed: r?.kind === 'proposed' ? r.status : null,
+          };
+        }),
         history: history.map((x) => ({ from: x.from_place, to: x.to_place, done_at: x.done_at })),
       },
     });
@@ -195,8 +221,7 @@ export function registerPlanning(app, h) {
 
   app.post('/me/swaps', need('etudiant'), async (c) => {
     const { db, cand, planning } = await me(c);
-    if (!cand.seat) throw httpError(400, 'Tu n\'as pas encore de créneau.');
-    const win = swapWindow(planning, cand);
+    const win = isOpen(cand, planning);
     if (!win.ok) throw httpError(400, win.why);
     const valid = new Set(planning.days.flatMap((d) => d.series.map((_, i) => placeKey(d.date, i + 1))));
     const wanted = [...new Set(((await c.req.json()).wanted || []).filter((k) => valid.has(k) && k !== placeKey(cand.day, cand.series)))];
@@ -218,9 +243,34 @@ export function registerPlanning(app, h) {
   async function findOffer(db, cand, code) {
     const offer = await one(db, `SELECT s.*, c.day, c.series, c.seat, c.status AS c_status, c.slot_label FROM swaps s
       JOIN candidates c ON c.id = s.candidate_id WHERE s.code = ? AND s.exam_id = ?`, String(code || '').toUpperCase().trim(), cand.exam_id);
-    if (!offer || offer.status !== 'open' || offer.c_status === 'annule') throw httpError(404, 'Cette proposition n\'existe pas ou n\'est plus valable.');
-    if (offer.candidate_id === cand.id) throw httpError(400, 'C\'est ta propre proposition.');
+    if (!offer || offer.status !== 'open' || offer.c_status === 'annule') throw httpError(404, 'Cette demande n\'existe pas ou n\'est plus valable.');
+    if (offer.candidate_id === cand.id) throw httpError(400, 'C\'est ta propre demande.');
     return offer;
+  }
+
+  // Vérifie que deux candidats peuvent échanger, puis échange leurs places
+  async function doSwap(db, planning, offer, owner, other) {
+    if (!owner.seat || !other.seat) throw httpError(400, 'Créneau manquant.');
+    if (owner.status === 'annule' || other.status === 'annule') throw httpError(400, 'Inscription annulée.');
+    if (owner.day === other.day && owner.series === other.series) throw httpError(400, 'Vous êtes déjà dans la même série.');
+    const win = swapWindow(planning, owner, other);
+    if (!win.ok) throw httpError(400, win.why);
+    const ev = await one(db, 'SELECT COUNT(*) AS n FROM evaluations WHERE candidate_id IN (?, ?)', owner.id, other.id);
+    if (ev.n) throw httpError(400, 'L\'un de vous a déjà passé ses stations.');
+    const label = (x) => `${x.day}|${x.series}|${x.seat}`;
+    const set = (id, x) => db.prepare('UPDATE candidates SET day = ?, series = ?, seat = ?, number = ?, slot_label = ?, confirmed_at = NULL WHERE id = ?')
+      .bind(x.day, x.series, x.seat, candidateNumber(planning, x.day, x.series, x.seat), x.slot_label, id);
+    await db.batch([
+      set(other.id, owner),
+      set(owner.id, other),
+      db.prepare("UPDATE swaps SET status = 'done', partner_id = ?, from_place = ?, to_place = ?, done_at = datetime('now') WHERE id = ?")
+        .bind(other.id, label(owner), label(other), offer.id),
+      db.prepare("UPDATE swaps SET status = 'cancelled' WHERE status = 'open' AND candidate_id IN (?, ?)").bind(owner.id, other.id),
+      // les propositions encore en attente, sur ces demandes ou faites par ces deux étudiants, tombent
+      db.prepare(`UPDATE swap_responses SET status = 'expired', answered_at = datetime('now') WHERE status = 'pending' AND kind = 'proposed'
+        AND (candidate_id IN (?, ?) OR swap_id IN (SELECT id FROM swaps WHERE candidate_id IN (?, ?)))`).bind(owner.id, other.id, owner.id, other.id),
+      db.prepare("UPDATE swap_responses SET status = 'accepted', answered_at = datetime('now') WHERE swap_id = ? AND candidate_id = ?").bind(offer.id, other.id),
+    ]);
   }
 
   app.get('/me/swaps/:code', need('etudiant'), async (c) => {
@@ -229,29 +279,58 @@ export function registerPlanning(app, h) {
     return c.json(describe(planning, offer.day, offer.series));
   });
 
+  // Accepter une demande : possible si mon créneau est recherché, ou si j'ai le code d'une demande privée
   app.post('/me/swaps/accept', need('etudiant'), async (c) => {
     const { db, cand, planning } = await me(c);
     const offer = await findOffer(db, cand, (await c.req.json()).code);
-    if (!cand.seat || !offer.seat) throw httpError(400, 'Créneau manquant.');
-    if (cand.status === 'annule') throw httpError(400, 'Inscription annulée.');
-    if (offer.day === cand.day && offer.series === cand.series) throw httpError(400, 'Vous êtes déjà dans la même série.');
     const wanted = parse(offer.wanted, []);
-    if (wanted.length && !wanted.includes(placeKey(cand.day, cand.series))) throw httpError(400, 'Ton créneau ne fait pas partie de ceux recherchés.');
-    const win = swapWindow(planning, cand, offer);
+    if (wanted.length && !wanted.includes(placeKey(cand.day, cand.series))) {
+      throw httpError(400, 'Ton créneau ne fait pas partie de ceux recherchés : propose-le plutôt, l\'auteur de la demande décidera.');
+    }
+    const owner = await one(db, 'SELECT * FROM candidates WHERE id = ?', offer.candidate_id);
+    const now = describe(planning, owner.day, owner.series);
+    await doSwap(db, planning, offer, owner, cand);
+    return c.json({ ok: true, now });
+  });
+
+  // Proposer mon créneau à une demande qui ne le recherchait pas
+  app.post('/me/swaps/propose', need('etudiant'), async (c) => {
+    const { db, cand, planning } = await me(c);
+    const offer = await findOffer(db, cand, (await c.req.json()).code);
+    const win = isOpen(cand, planning);
     if (!win.ok) throw httpError(400, win.why);
-    const ev = await one(db, 'SELECT COUNT(*) AS n FROM evaluations WHERE candidate_id IN (?, ?)', cand.id, offer.candidate_id);
-    if (ev.n) throw httpError(400, 'L\'un de vous a déjà passé ses stations.');
-    const label = (x) => `${x.day}|${x.series}|${x.seat}`;
-    const set = (id, x) => db.prepare('UPDATE candidates SET day = ?, series = ?, seat = ?, number = ?, slot_label = ?, confirmed_at = NULL WHERE id = ?')
-      .bind(x.day, x.series, x.seat, candidateNumber(planning, x.day, x.series, x.seat), x.slot_label, id);
-    await db.batch([
-      set(cand.id, offer),
-      set(offer.candidate_id, cand),
-      db.prepare("UPDATE swaps SET status = 'done', partner_id = ?, from_place = ?, to_place = ?, done_at = datetime('now') WHERE id = ?")
-        .bind(cand.id, label(offer), label(cand), offer.id),
-      db.prepare("UPDATE swaps SET status = 'cancelled' WHERE status = 'open' AND candidate_id IN (?, ?)").bind(cand.id, offer.candidate_id),
-    ]);
-    return c.json({ ok: true, now: describe(planning, offer.day, offer.series) });
+    if (offer.day === cand.day && offer.series === cand.series) throw httpError(400, 'Vous êtes déjà dans la même série.');
+    await run(db, `INSERT INTO swap_responses (swap_id, candidate_id, kind) VALUES (?,?,'proposed')
+      ON CONFLICT(swap_id, candidate_id) DO UPDATE SET kind = 'proposed', status = 'pending', created_at = datetime('now'), answered_at = NULL`, offer.id, cand.id);
+    return c.json({ ok: true });
+  });
+
+  // Refuser une demande : elle disparaît de mon espace
+  app.post('/me/swaps/decline', need('etudiant'), async (c) => {
+    const { db, cand } = await me(c);
+    const offer = await findOffer(db, cand, (await c.req.json()).code);
+    await run(db, `INSERT INTO swap_responses (swap_id, candidate_id, kind, status) VALUES (?,?,'declined','done')
+      ON CONFLICT(swap_id, candidate_id) DO UPDATE SET kind = 'declined', status = 'done', answered_at = datetime('now')`, offer.id, cand.id);
+    return c.json({ ok: true });
+  });
+
+  // L'auteur de la demande accepte ou refuse une proposition reçue
+  app.post('/me/proposals/:id/:action', need('etudiant'), async (c) => {
+    const { db, cand, planning } = await me(c);
+    const p = await one(db, `SELECT r.*, s.candidate_id AS owner_id, s.status AS swap_status FROM swap_responses r JOIN swaps s ON s.id = r.swap_id
+      WHERE r.id = ? AND r.kind = 'proposed'`, c.req.param('id'));
+    if (!p || p.owner_id !== cand.id) throw httpError(404, 'Proposition introuvable.');
+    if (p.status !== 'pending' || p.swap_status !== 'open') throw httpError(400, 'Cette proposition n\'est plus valable.');
+    if (c.req.param('action') === 'refuse') {
+      await run(db, "UPDATE swap_responses SET status = 'refused', answered_at = datetime('now') WHERE id = ?", p.id);
+      return c.json({ ok: true });
+    }
+    if (c.req.param('action') !== 'accept') throw httpError(400, 'Action inconnue');
+    const other = await one(db, 'SELECT * FROM candidates WHERE id = ?', p.candidate_id);
+    const offer = await one(db, 'SELECT * FROM swaps WHERE id = ?', p.swap_id);
+    const before = describe(planning, other.day, other.series);
+    await doSwap(db, planning, offer, cand, other);
+    return c.json({ ok: true, now: before });
   });
 
   // ---------- évaluateur : ordre de passage dans la salle ----------
