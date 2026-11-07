@@ -1,4 +1,4 @@
-import { api, esc, toast, setTitle, plate } from './ui.js';
+import { api, esc, toast, setTitle } from './ui.js';
 
 const app = document.getElementById('app');
 // copie locale de l'application pour la saisie hors connexion
@@ -44,13 +44,13 @@ function loginView() {
   };
   const params = new URLSearchParams(location.hash.split('?')[1] || '');
   let role = params.get('role') || 'etudiant';
-  const circuit = (letter) => `<span class="lbl">Circuit ${letter}</span>${[1, 2, 3, 4, 5].map((n) => plate(letter + n, 'lg')).join('')}`;
   const draw = () => {
     app.innerHTML = `
       <div class="login">
         <div class="intro">
-          <div class="circuit" aria-hidden="true">${circuit('A')}${circuit('B')}</div>
-          <h1>ECOS blancs OMAS</h1>
+          <img class="login-logo" src="/img/ines-logo.svg" alt="INES" width="420" height="159">
+          <p class="by">Interface numérique d’ECOS et de simulation, par <b>OMAS <span>EXTERNAT</span></b></p>
+          <h1>Prépare tes ECOS comme le jour J.</h1>
           <p class="lede">Dix stations, deux circuits, huit minutes chacune. Ici, on rédige les stations et les ateliers, on saisit les grilles le jour J et on suit ses résultats en direct.</p>
         </div>
         <div class="door">

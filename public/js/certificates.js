@@ -13,7 +13,7 @@ export async function certificatesView(app, exam) {
       <div class="cert-pick">${list.map((e, i) => `<label class="check"><input type="checkbox" data-i="${i}" ${off.has(i) ? '' : 'checked'}><span>${esc(e.name)} <span class="small muted">(${e.n} grilles)</span></span></label>`).join('')}</div>
       <button class="primary" data-print style="margin-top:12px">Imprimer ${list.length - off.size} attestation${list.length - off.size > 1 ? 's' : ''}</button></div>
       ${list.map((e, i) => (off.has(i) ? '' : `<div class="sheet portrait cert">
-        <div class="cert-brand"><span class="brand-mark">OMAS</span> OMAS Externat</div>
+        <div class="cert-brand"><img src="/img/ines-logo.svg" alt="INES"> <span>par OMAS Externat</span></div>
         <h1>Attestation de participation</h1>
         <p class="cert-body">L'équipe d'OMAS Externat atteste que</p>
         <p class="cert-name">${esc(e.name)}</p>

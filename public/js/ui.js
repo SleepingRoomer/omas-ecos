@@ -52,7 +52,7 @@ export function longDate(iso) {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
-export function setTitle(t) { document.title = t ? `${t} · ECOS OMAS` : 'ECOS OMAS'; }
+export function setTitle(t) { document.title = t ? `${t} · INES` : 'INES · ECOS blancs OMAS Externat'; }
 
 // Une cellule qui commence par = + - @ serait exécutée comme formule par le tableur : on la neutralise
 export const csvCell = (v) => { let t = String(v ?? ''); if (/^[=+\-@\t\r]/.test(t) && !/^-?\d[\d,.]*$/.test(t)) t = `'${t}`; return `"${t.replace(/"/g, '""')}"`; };

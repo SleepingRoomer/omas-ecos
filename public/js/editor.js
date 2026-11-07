@@ -393,7 +393,7 @@ function vignetteHtml(st, c) {
 function paperGrid(st, c, header = true) {
   const apt = c.grille.apt.filter((i) => i.label?.trim());
   const com = c.grille.com.filter((i) => i.label?.trim());
-  return `${header ? `<div class="print-head"><span>ECOS blancs OMAS, ${esc(st.exam_name || '')}</span><span>Station ${esc(st.slot)}</span></div>
+  return `${header ? `<div class="print-head"><span>INES · ECOS blancs OMAS Externat, ${esc(st.exam_name || '')}</span><span>Station ${esc(st.slot)}</span></div>
     <h1 style="margin:0 0 6pt">Grille de secours, station ${esc(st.slot)}</h1>
     <p>Numéro du candidat : ______________ &nbsp;&nbsp; Évaluateur : ______________________ &nbsp;&nbsp; <span class="box"></span> Absent</p>` : ''}
     <table class="paper-grid" style="width:100%"><thead><tr><th></th><th>Aptitudes cliniques et techniques</th><th>Pts</th><th>Observé</th><th>Non observé</th></tr></thead><tbody>
@@ -438,7 +438,7 @@ export async function preview(app, id, kind) {
   const s = c.script;
   const li = (a) => a.filter((x) => x?.trim()).map((x) => `<li>${esc(x)}</li>`).join('');
   app.innerHTML = `${bar}<div class="sheet portrait">
-    <div class="print-head"><span>ECOS blancs OMAS, ${esc(st.exam_name)}</span><span>Station ${esc(st.slot)}, ${esc(STATUSES[st.status].toLowerCase())}</span></div>
+    <div class="print-head"><span>INES · ECOS blancs OMAS Externat, ${esc(st.exam_name)}</span><span>Station ${esc(st.slot)}, ${esc(STATUSES[st.status].toLowerCase())}</span></div>
     <h1>${esc(st.slot)}. ${esc(st.title || '')}</h1>
     <p>${esc(st.domain || '')}, ${esc(TYPES_SHORT[st.type] || '')}${st.discipline ? `, ${esc(st.discipline)}` : ''}.<br>
       Situation de départ : ${esc(c.identite.sdd)}. Item : ${esc(c.identite.item)}.<br>

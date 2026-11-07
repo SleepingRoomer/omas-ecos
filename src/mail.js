@@ -11,18 +11,18 @@ const parisDate = (d = new Date()) => d.toLocaleDateString('en-CA', { timeZone: 
 
 // Gabarit commun : sobre, lisible dans tous les clients mail, sans image distante
 export function layout({ title, intro = '', rows = [], button = null, after = '', foot = '' }) {
-  return `<!doctype html><html lang="fr"><body style="margin:0;background:#f6f4ef;font-family:Arial,Helvetica,sans-serif;color:#1f1c2e">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f6f4ef;padding:24px 0"><tr><td align="center">
-<table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background:#ffffff;border-radius:14px;border:1px solid #e9e5de">
-<tr><td style="padding:22px 28px 6px"><span style="display:inline-block;background:#2e2c80;color:#fff;font-weight:bold;font-size:12px;padding:6px 9px;border-radius:7px">OMAS</span>
-<span style="font-weight:bold;margin-left:6px">ECOS blancs</span></td></tr>
+  return `<!doctype html><html lang="fr"><body style="margin:0;background:#f5f6fa;font-family:Arial,Helvetica,sans-serif;color:#191a3f">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f5f6fa;padding:24px 0"><tr><td align="center">
+<table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background:#ffffff;border-radius:14px;border:1px solid #e3e5ee">
+<tr><td style="padding:22px 28px 6px"><span style="font-weight:900;font-size:24px;letter-spacing:-0.5px;color:#2d2f84">INE<span style="color:#00a09a">S</span></span>
+<span style="font-size:12px;color:#4a4c68;margin-left:8px">par <b style="color:#2d2f84">OMAS</b> <b style="color:#00807b">EXTERNAT</b></span></td></tr>
 <tr><td style="padding:10px 28px 0"><h1 style="font-size:21px;margin:8px 0 10px">${esc(title)}</h1>${intro ? `<p style="font-size:15px;line-height:1.55;margin:0 0 14px">${intro}</p>` : ''}</td></tr>
-${rows.length ? `<tr><td style="padding:0 28px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#fcfbf8;border:1px solid #e9e5de;border-radius:10px">
-${rows.map(([k, v]) => `<tr><td style="padding:9px 14px;font-size:13px;color:#6b6780;width:38%;vertical-align:top">${esc(k)}</td><td style="padding:9px 14px;font-size:15px;font-weight:bold">${v}</td></tr>`).join('')}
+${rows.length ? `<tr><td style="padding:0 28px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f5f6fa;border:1px solid #e3e5ee;border-radius:10px">
+${rows.map(([k, v]) => `<tr><td style="padding:9px 14px;font-size:13px;color:#4a4c68;width:38%;vertical-align:top">${esc(k)}</td><td style="padding:9px 14px;font-size:15px;font-weight:bold">${v}</td></tr>`).join('')}
 </table></td></tr>` : ''}
-${button ? `<tr><td style="padding:20px 28px 4px"><a href="${esc(button.url)}" style="display:inline-block;background:#2e2c80;color:#ffffff;text-decoration:none;font-weight:bold;padding:12px 20px;border-radius:9px">${esc(button.label)}</a></td></tr>` : ''}
+${button ? `<tr><td style="padding:20px 28px 4px"><a href="${esc(button.url)}" style="display:inline-block;background:#2d2f84;color:#ffffff;text-decoration:none;font-weight:bold;padding:12px 20px;border-radius:9px">${esc(button.label)}</a></td></tr>` : ''}
 ${after ? `<tr><td style="padding:14px 28px 0;font-size:14px;line-height:1.55">${after}</td></tr>` : ''}
-<tr><td style="padding:22px 28px 24px;font-size:12px;color:#8a8698;line-height:1.5">${foot || 'OMAS Externat, ECOS blancs accessibles à tous et sans but lucratif.'}<br>Message automatique : pour toute question, réponds à cet e-mail.</td></tr>
+<tr><td style="padding:22px 28px 24px;font-size:12px;color:#6e7090;line-height:1.5">${foot || 'INES, la plateforme des ECOS blancs d’OMAS Externat, accessibles à tous et sans but lucratif.'}<br>Message automatique : pour toute question, réponds à cet e-mail.</td></tr>
 </table></td></tr></table></body></html>`;
 }
 
@@ -50,7 +50,7 @@ export async function sendMails(env, db, msgs) {
     for (let i = 0; i < ok.length; i += 200) {
       const chunk = ok.slice(i, i + 200);
       const body = {
-        sender: { email: env.MAIL_FROM, name: env.MAIL_FROM_NAME || 'OMAS Externat' },
+        sender: { email: env.MAIL_FROM, name: env.MAIL_FROM_NAME || 'INES · OMAS Externat' },
         ...(S.reply_to ? { replyTo: { email: S.reply_to } } : {}),
         subject: chunk[0].subject, htmlContent: chunk[0].html, to: [{ email: chunk[0].to }],
         messageVersions: chunk.map((m) => ({ to: [{ email: m.to, ...(m.name ? { name: m.name } : {}) }], subject: m.subject, htmlContent: m.html })),

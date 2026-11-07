@@ -1,4 +1,14 @@
-# Plateforme ECOS blancs OMAS
+# INES par OMAS Externat
+
+**INES**, l'Interface numérique d'ECOS et de simulation : la plateforme des ECOS blancs d'OMAS Externat.
+
+## Identité
+
+- Couleurs d'OMAS Externat : bleu `#2D2F84`, turquoise `#00A09A` (en petit texte sur blanc : `#00807B`), ombre portée lavande (le bleu à 40 %, `#ABACCE`). Fond blanc.
+- Police : Rethink Sans, servie par le site (`public/fonts/`, licence OFL).
+- Logo : le S d'INES est fait de dix bandes, cinq bleues et cinq turquoise, comme les dix stations des deux circuits. Fichiers dans `public/img/` : `ines-logo.svg` (avec ombre), `ines-logo-flat.svg` (petites tailles), `ines-logo-blanc.svg` (fond sombre), `ines-icon.svg` et `ines-icon-180.png` (icône et favicon).
+
+## Ce que fait INES
 
 Une seule application pour les trois temps des ECOS blancs :
 

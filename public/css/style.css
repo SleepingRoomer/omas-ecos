@@ -1,42 +1,45 @@
-/* ECOS blancs OMAS
-   Identité : la signalétique d'un circuit d'ECOS. Chaque station a sa plaque de porte ;
-   la couleur dit le circuit (A indigo, B sarcelle, réserve ambre).
-   Police unique : Public Sans, dessinée pour les services publics, sobre et très lisible. */
+/* INES par OMAS Externat : Interface numérique d'ECOS et de simulation
+   Identité : les couleurs d'OMAS Externat, bleu et turquoise, et l'ombre portée lavande de son logo.
+   Le S du logo est fait de dix bandes, cinq bleues et cinq turquoise : les dix stations des deux circuits.
+   Police unique : Rethink Sans, nette et peu arrondie. Fond blanc. */
 
-@font-face { font-family: "Public Sans"; font-weight: 400; font-style: normal; font-display: swap; src: url(/fonts/public-sans-latin-400-normal.woff2) format("woff2"); }
-@font-face { font-family: "Public Sans"; font-weight: 500; font-style: normal; font-display: swap; src: url(/fonts/public-sans-latin-500-normal.woff2) format("woff2"); }
-@font-face { font-family: "Public Sans"; font-weight: 600; font-style: normal; font-display: swap; src: url(/fonts/public-sans-latin-600-normal.woff2) format("woff2"); }
-@font-face { font-family: "Public Sans"; font-weight: 700; font-style: normal; font-display: swap; src: url(/fonts/public-sans-latin-700-normal.woff2) format("woff2"); }
-@font-face { font-family: "Public Sans"; font-weight: 800; font-style: normal; font-display: swap; src: url(/fonts/public-sans-latin-800-normal.woff2) format("woff2"); }
-@font-face { font-family: "Public Sans"; font-weight: 400; font-style: italic; font-display: swap; src: url(/fonts/public-sans-latin-400-italic.woff2) format("woff2"); }
+@font-face { font-family: "Rethink Sans"; font-weight: 400; font-style: normal; font-display: swap; src: url(/fonts/rethink-sans-latin-400-normal.woff2) format("woff2"); }
+@font-face { font-family: "Rethink Sans"; font-weight: 500; font-style: normal; font-display: swap; src: url(/fonts/rethink-sans-latin-500-normal.woff2) format("woff2"); }
+@font-face { font-family: "Rethink Sans"; font-weight: 600; font-style: normal; font-display: swap; src: url(/fonts/rethink-sans-latin-600-normal.woff2) format("woff2"); }
+@font-face { font-family: "Rethink Sans"; font-weight: 700; font-style: normal; font-display: swap; src: url(/fonts/rethink-sans-latin-700-normal.woff2) format("woff2"); }
+@font-face { font-family: "Rethink Sans"; font-weight: 800; font-style: normal; font-display: swap; src: url(/fonts/rethink-sans-latin-800-normal.woff2) format("woff2"); }
+@font-face { font-family: "Rethink Sans"; font-weight: 400; font-style: italic; font-display: swap; src: url(/fonts/rethink-sans-latin-400-italic.woff2) format("woff2"); }
 
 :root {
-  /* fond blanc cassé chaleureux, encres profondes : lisible longtemps, sans dureté */
-  --ink: #1f1c2e;
-  --ink-2: #5a5566;
-  --ink-3: #958f9c;
-  --line: #e9e5de;
-  --line-2: #f3f0ea;
-  --paper: #fcfbf8;
-  --paper-2: #f6f4ef;
+  /* fond blanc, encres bleu nuit : la gamme d'OMAS Externat */
+  --ink: #191a3f;
+  --ink-2: #4a4c68;
+  --ink-3: #8c8ea6;
+  --line: #e3e5ee;
+  --line-2: #eef0f5;
+  --paper: #ffffff;
+  --paper-2: #f5f6fa;
   --surface: #ffffff;
-  --shadow: 0 1px 2px rgba(60, 45, 25, .04), 0 4px 14px rgba(60, 45, 25, .035);
-  --a: #2e2c80;         /* circuit A, couleur de l'association */
-  --a-soft: #eeedf7;
-  --b: #0c8577;         /* circuit B */
-  --b-soft: #dcf1ee;
-  --p: #8a3c86;         /* ateliers des journées procédure */
+  --shadow: 0 1px 2px rgba(45, 47, 132, .05), 0 4px 14px rgba(45, 47, 132, .05);
+  --a: #2d2f84;         /* bleu OMAS : circuit A, actions */
+  --a-soft: #ecedf7;
+  --b: #00a09a;         /* turquoise OMAS : circuit B, réussite (aplats) */
+  --b-ink: #00807b;     /* turquoise lisible en petit texte sur blanc */
+  --b-soft: #ddf3f1;
+  --lav: #abacce;       /* lavande : le bleu à 40 %, l'ombre portée du logo */
+  --p: #6b4f9e;         /* ateliers des journées procédure */
+  --p-soft: #efeaf6;
   --r: #c98410;         /* réserve, actions attendues */
   --r-soft: #fcf1dc;
   --ok: #13804f;
   --ok-soft: #e0f3e8;
   --ko: #c2313b;
   --ko-soft: #fbe7e8;
-  --text: "Public Sans", system-ui, sans-serif;
-  --display: "Public Sans", system-ui, sans-serif;
-  --r-sm: 7px;
-  --r-md: 10px;
-  --r-lg: 16px;
+  --text: "Rethink Sans", system-ui, sans-serif;
+  --display: "Rethink Sans", system-ui, sans-serif;
+  --r-sm: 6px;
+  --r-md: 9px;
+  --r-lg: 14px;
 }
 
 * { box-sizing: border-box; }
@@ -66,10 +69,10 @@ p { margin: .5rem 0; }
 .topbar { display: flex; align-items: center; gap: 20px; padding: 0 24px; height: 62px; background: rgba(255, 255, 255, .92);
   backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 20; }
 .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--ink); }
-.brand-mark { display: grid; place-items: center; min-width: 34px; padding: 0 7px; height: 34px; border-radius: var(--r-sm); background: var(--a); color: #fff;
-  font: 800 .68rem/1 var(--display); letter-spacing: .02em; }
-.brand-name { font: 800 1.1rem/1 var(--display); letter-spacing: -.01em; }
-.brand-name span { color: var(--b); font-weight: 600; }
+.brand img { display: block; height: 28px; width: auto; }
+.brand-by { font: 600 .78rem/1.15 var(--display); color: var(--ink-3); padding-left: 10px; border-left: 1px solid var(--line); }
+.brand-by b { display: block; font-weight: 800; color: var(--a); letter-spacing: .02em; }
+.brand-by b span { color: var(--b-ink); }
 #nav { margin-left: auto; display: flex; align-items: center; gap: 4px; height: 100%; }
 #nav a { height: 100%; display: flex; align-items: center; padding: 0 12px; color: var(--ink-2); text-decoration: none; border-bottom: 3px solid transparent; margin-bottom: -1px; }
 #nav a:hover { color: var(--ink); }
@@ -80,12 +83,12 @@ p { margin: .5rem 0; }
 /* ---------- plaques de station ---------- */
 .plate { display: inline-grid; place-items: center; flex: none; font-family: var(--display); font-weight: 700; color: #fff;
   background: var(--a); border-radius: var(--r-sm); width: 34px; height: 34px; font-size: 1rem; font-weight: 800; letter-spacing: -.03em; line-height: 1; }
-.plate.c-b { background: var(--b); }
+.plate.c-b { background: var(--b-ink); }
 .plate.c-r { background: var(--surface); color: var(--r); box-shadow: inset 0 0 0 2px var(--r); }
 .plate.c-p { background: var(--p); }
 .plate.c-x { background: var(--ink-3); }
 .aplate { position: relative; display: inline-grid; place-items: center; flex: none; width: 34px; height: 34px; border-radius: var(--r-sm);
-  background: #f3e8f2; box-shadow: inset 0 0 0 2px var(--p); }
+  background: var(--p-soft); box-shadow: inset 0 0 0 2px var(--p); }
 .aplate .emo { font-size: 1.15rem; line-height: 1; }
 .aplate .no { position: absolute; right: -6px; bottom: -6px; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 9px; background: var(--p); color: #fff;
   font: 800 .7rem/18px var(--display); text-align: center; box-shadow: 0 0 0 2px var(--surface); }
@@ -100,11 +103,11 @@ p { margin: .5rem 0; }
 .aplate.xl .no { min-width: 30px; height: 30px; line-height: 30px; font-size: 1.05rem; border-radius: 15px; right: -8px; bottom: -8px; }
 .emoji-pick { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
 .emoji-pick button { min-height: 38px; width: 42px; padding: 0; font-size: 1.25rem; font-weight: 400; }
-.emoji-pick button.on { box-shadow: inset 0 0 0 2px var(--p); background: #f3e8f2; }
+.emoji-pick button.on { box-shadow: inset 0 0 0 2px var(--p); background: var(--p-soft); }
 .poster { display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; gap: 6mm; }
 .poster .big-emo { font-size: 70mm; line-height: 1; }
 .poster .big-no { font: 800 26pt/1 var(--display); color: #fff; background: var(--p); padding: 3mm 9mm; border-radius: 30mm; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-.poster .big-title { font: 800 48pt/1.05 var(--display); letter-spacing: -.02em; color: #1f1c2e; max-width: 240mm; }
+.poster .big-title { font: 800 48pt/1.05 var(--display); letter-spacing: -.02em; color: #191a3f; max-width: 240mm; }
 .poster .big-sub { font-size: 18pt; color: #555; }
 .plate.sm { width: 28px; height: 28px; font-size: .8rem; border-radius: 5px; }
 .plate.lg { width: 56px; height: 56px; font-size: 1.5rem; border-radius: 9px; }
@@ -116,7 +119,7 @@ button, .btn { font: 700 .95rem/1.2 var(--text); border-radius: var(--r-md); bor
   padding: 10px 16px; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 42px; }
 button:hover, .btn:hover { border-color: var(--ink-3); }
 button.primary, .btn.primary { background: var(--a); border-color: var(--a); color: #fff; }
-button.primary:hover { background: #24226a; }
+button.primary:hover { background: #1f2163; }
 button.quiet, .btn.quiet { border-color: transparent; background: transparent; color: var(--a); padding-left: 8px; padding-right: 8px; }
 button.quiet:hover { background: var(--a-soft); }
 button.danger { color: var(--ko); }
@@ -165,7 +168,7 @@ th { font-size: .8rem; font-weight: 700; color: var(--ink-2); background: var(--
 td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 tr:last-child td { border-bottom: none; }
 tr.clickable { cursor: pointer; }
-tr.clickable:hover td { background: #faf8f4; }
+tr.clickable:hover td { background: #f7f8fb; }
 .table-wrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); box-shadow: var(--shadow); }
 td select { min-width: 112px; padding: 7px 8px; font-size: .9rem; }
 
@@ -216,9 +219,11 @@ td select { min-width: 112px; padding: 7px 8px; font-size: .9rem; }
 .login { display: grid; grid-template-columns: 1.1fr 1fr; gap: 56px; align-items: center; min-height: calc(100vh - 200px); }
 .login .intro h1 { font-size: 3.1rem; line-height: 1.02; max-width: 11ch; letter-spacing: -.03em; }
 .login .intro .lede { margin-top: 16px; }
-.circuit { display: grid; grid-template-columns: max-content repeat(5, 56px); justify-content: start; gap: 10px; align-items: center; margin: 0 0 34px; }
-.circuit .lbl { font: 600 .9rem/1 var(--display); color: var(--ink-2); padding-right: 8px; }
-.door { background: var(--surface); border: 1px solid var(--line); border-radius: 20px; padding: 30px; box-shadow: 0 2px 4px rgba(80,55,20,.05), 0 18px 40px rgba(80,55,20,.08); }
+.login-logo { display: block; width: min(420px, 100%); height: auto; margin: 0 0 18px; }
+.login .intro .by { font: 600 1.05rem/1.3 var(--display); color: var(--ink-2); margin: 0 0 26px; }
+.login .intro .by b { color: var(--a); font-weight: 800; letter-spacing: .02em; }
+.login .intro .by b span { color: var(--b-ink); }
+.door { background: var(--surface); border: 1px solid var(--line); border-radius: 20px; padding: 30px; box-shadow: 0 2px 4px rgba(45,47,132,.05), 0 18px 40px rgba(45,47,132,.08); }
 .door h2 { margin: 0 0 4px; font-size: 1.4rem; }
 .seg { display: grid; grid-template-columns: repeat(4, 1fr); background: var(--paper-2); padding: 4px; border-radius: 12px; gap: 4px; margin: 18px 0 6px; }
 .seg button { border: none; background: transparent; min-height: 38px; padding: 6px 4px; font-weight: 400; color: var(--ink-2); }
@@ -267,7 +272,7 @@ td select { min-width: 112px; padding: 7px 8px; font-size: .9rem; }
 .cand .who { font-size: .9rem; color: var(--ink-2); }
 .cand .st { font-size: .82rem; color: var(--ink-3); margin-top: 4px; }
 .cand.done { background: var(--b-soft); border-color: transparent; }
-.cand.done .st { color: var(--b); font-weight: 700; }
+.cand.done .st { color: var(--b-ink); font-weight: 700; }
 .cand:hover { border-color: var(--a); }
 .cand-head { display: flex; gap: 14px; align-items: center; }
 .cand-head .cand-no { font-size: 2rem; line-height: 1; }
@@ -294,10 +299,10 @@ td select { min-width: 112px; padding: 7px 8px; font-size: .9rem; }
 .rank-hero { display: grid; grid-template-columns: auto 1fr; gap: 26px; align-items: end; background: var(--a); color: #fff; border-radius: var(--r-lg); padding: 26px 28px; margin: 18px 0 10px; }
 .rank-hero .rank { font: 800 5rem/.9 var(--display); letter-spacing: -.04em; font-variant-numeric: tabular-nums; }
 .rank-hero .rank sup { font-size: .42em; vertical-align: top; position: relative; top: .25em; margin-left: 2px; }
-.rank-hero .of { color: #c9c8f0; margin-top: 8px; }
+.rank-hero .of { color: #c9cae6; margin-top: 8px; }
 .rank-hero .side { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 16px; }
 .rank-hero .side .v { font: 800 1.9rem/1 var(--display); letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
-.rank-hero .side .l { color: #c9c8f0; font-size: .85rem; margin-top: 4px; }
+.rank-hero .side .l { color: #c9cae6; font-size: .85rem; margin-top: 4px; }
 .rank-hero.pending .rank { font-size: 2.8rem; line-height: 1; }
 .live { display: inline-flex; align-items: center; gap: 8px; color: var(--ink-2); font-size: .88rem; }
 .live::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 3px var(--ok-soft); }
@@ -363,8 +368,7 @@ td select { min-width: 112px; padding: 7px 8px; font-size: .9rem; }
 @media (max-width: 860px) {
   .login { grid-template-columns: 1fr; gap: 28px; min-height: 0; }
   .login .intro h1 { font-size: 2.3rem; max-width: none; }
-  .circuit { grid-template-columns: auto repeat(5, 1fr); }
-  .circuit .plate { width: 100%; }
+  .login-logo { width: min(300px, 80%); margin-bottom: 22px; }
   .editor-layout { grid-template-columns: 1fr; }
   .editor-nav { position: static; flex-direction: row; flex-wrap: wrap; }
   .rank-hero { grid-template-columns: 1fr; gap: 18px; padding: 22px; }
@@ -375,7 +379,7 @@ td select { min-width: 112px; padding: 7px 8px; font-size: .9rem; }
 @media (max-width: 560px) {
   .container { padding: 18px 14px 80px; }
   .topbar { padding: 0 12px; gap: 10px; }
-  .brand-name { display: none; }
+  .brand-by { display: none; }
   #nav .who { display: none; }
   #nav a { padding: 0 8px; }
   h1 { font-size: 1.7rem; }
@@ -398,7 +402,7 @@ td select { min-width: 112px; padding: 7px 8px; font-size: .9rem; }
 }
 
 /* ---------- analyse ---------- */
-:root { --viz-a: #4a47c4; --viz-b: #11998a; --viz-n: #958f9c; --viz-warn: #c98410; }
+:root { --viz-a: #4b4db0; --viz-b: #00a09a; --viz-n: #958f9c; --viz-warn: #c98410; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .viz-filters { margin: 4px 0 8px; gap: 14px; }
 .viz-filter { display: inline-flex; align-items: center; gap: 8px; margin: 0; font-weight: 600; font-size: .9rem; }
@@ -466,7 +470,7 @@ td select { min-width: 112px; padding: 7px 8px; font-size: .9rem; }
 .g-table thead th { white-space: nowrap; }
 .g-table thead th { text-align: center; background: var(--paper); }
 .g-time { font-variant-numeric: tabular-nums; width: 62px; color: var(--ink-2); background: var(--paper); text-align: left !important; }
-.g-cell.ga { background: #f4f3fb; } .g-cell.gb { background: #eef7f3; }
+.g-cell.ga { background: #f3f4fa; } .g-cell.gb { background: #edf8f7; }
 .g-break td { background: var(--surface); color: var(--ink-2); font-style: italic; font-size: .82rem; }
 .g-no { display: inline-block; min-width: 1.6em; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--ink-2); }
 .seats { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 6px; }
@@ -629,7 +633,7 @@ button.link { background: none; border: none; padding: 0 0 0 6px; min-height: 0;
 .cert-pick { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 4px 16px; }
 .cert { display: flex; flex-direction: column; justify-content: center; min-height: 297mm; padding: 28mm 24mm !important; text-align: center; }
 .cert-brand { display: flex; align-items: center; justify-content: center; gap: 10px; font: 800 14pt/1 var(--display); margin-bottom: 18mm; }
-.cert-brand .brand-mark { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.cert-brand img { height: 16mm; width: auto; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 .cert h1 { font-size: 26pt !important; margin-bottom: 14mm; }
 .cert-body { font-size: 13pt; line-height: 1.6; margin: 3mm 0; }
 .cert-name { font: 800 24pt/1.2 var(--display); margin: 6mm 0; color: #2e2c80; }
