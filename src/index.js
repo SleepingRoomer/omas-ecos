@@ -11,7 +11,9 @@ import { registerAccueil } from './accueil.js';
 import { registerBenevoles } from './benevoles.js';
 import { registerBanque } from './banque.js';
 import { registerProgression } from './progression.js';
-import { registerMail, notifier, dailyReminders } from './mail.js';
+import { registerMail, notifier } from './mail.js';
+import { examState, loadExamState, closedMessage } from './state.js';
+import { registerSystem, nightly } from './system.js';
 
 const app = new Hono().basePath('/api');
 const COOKIE = 'omas_s';
@@ -185,9 +187,10 @@ app.post('/login', async (c) => {
       await createSession(c, 'benevole', vol.id, `${vol.first_name} ${vol.last_name}`, 24 * 30);
       return c.json({ kind: 'benevole' });
     }
-    const st = await one(db, 'SELECT s.*, e.eval_open FROM stations s JOIN exams e ON e.id = s.exam_id WHERE s.eval_code = ?', upper);
+    const st = await one(db, 'SELECT * FROM stations WHERE eval_code = ?', upper);
     if (!st) throw await failed(c, role, 'Code de salle inconnu');
-    if (!st.eval_open) throw httpError(403, 'La salle n\'est pas encore ouverte : l\'équipe ouvre la saisie le matin du passage.');
+    const E = await loadExamState(db, st.exam_id);
+    if (!E.eval.open) throw httpError(403, closedMessage(E.eval));
     const n = String(name || '').trim();
     if (n.length < 2) throw httpError(400, 'Indiquez votre nom');
     await createSession(c, 'evaluateur', st.id, n, 14);
@@ -215,10 +218,17 @@ app.get('/exams', need('admin'), async (c) => {
   const rows = await all(c.env.DB, `SELECT e.*,
     (SELECT COUNT(*) FROM candidates WHERE exam_id = e.id AND status != 'annule') AS n_candidates,
     (SELECT COUNT(*) FROM stations WHERE exam_id = e.id) AS n_stations,
-    (SELECT COUNT(*) FROM evaluations WHERE exam_id = e.id) AS n_evaluations
+    (SELECT COUNT(*) FROM evaluations WHERE exam_id = e.id) AS n_evaluations,
+    (SELECT COUNT(*) FROM stations WHERE exam_id = e.id AND played = 1) AS n_played
     FROM exams e ORDER BY e.id DESC`);
-  return c.json(rows);
+  return c.json(rows.map(withState));
 });
+
+// Dans ce que voit l'équipe, eval_open vaut « ouverte en ce moment » et le détail du calcul est joint
+function withState(e) {
+  const S = examState(e, e.n_played);
+  return { ...e, eval_open: S.eval.open ? 1 : 0, eval_state: S.eval, details_state: S.details, planning: e.planning };
+}
 
 app.post('/exams', need('admin'), async (c) => {
   const b = await c.req.json();
@@ -239,17 +249,27 @@ app.post('/exams', need('admin'), async (c) => {
 });
 
 app.get('/exams/:id', need('admin'), async (c) => {
-  const e = await one(c.env.DB, 'SELECT * FROM exams WHERE id = ?', c.req.param('id'));
-  if (!e) throw httpError(404, 'Session introuvable');
-  return c.json(e);
+  const E = await loadExamState(c.env.DB, c.req.param('id'));
+  if (!E) throw httpError(404, 'Session introuvable');
+  return c.json(withState(E.exam));
 });
 
 app.patch('/exams/:id', need('admin'), async (c) => {
   const b = await c.req.json();
   const fields = ['name', 'starts_on', 'ends_on', 'eval_open', 'show_results', 'show_details', 'corrections_published'];
   const sets = []; const vals = [];
+  // l'ancienne case « saisie ouverte » vaut désormais une ouverture ou une fermeture forcée
+  if ('eval_open' in b && !('eval_mode' in b)) b.eval_mode = b.eval_open ? 'open' : 'closed';
   for (const f of fields) if (f in b) { sets.push(`${f} = ?`); vals.push(typeof b[f] === 'boolean' ? (b[f] ? 1 : 0) : b[f]); }
   if (sets.length) await run(c.env.DB, `UPDATE exams SET ${sets.join(', ')} WHERE id = ?`, ...vals, c.req.param('id'));
+  if ('eval_mode' in b || 'details_embargo' in b) {
+    const E = await loadExamState(c.env.DB, c.req.param('id'));
+    if (!E) throw httpError(404, 'Session introuvable');
+    const P = { ...E.planning };
+    if ('eval_mode' in b) P.eval_mode = ['auto', 'open', 'closed'].includes(b.eval_mode) ? b.eval_mode : 'auto';
+    if ('details_embargo' in b) P.details_embargo = !!b.details_embargo;
+    await run(c.env.DB, 'UPDATE exams SET planning = ? WHERE id = ?', JSON.stringify(P), E.exam.id);
+  }
   return c.json({ ok: true });
 });
 
@@ -637,8 +657,9 @@ async function candidateReport(db, candidateId, asAdmin) {
   const R = await examResults(db, cand.exam_id);
   const ex = R.exam;
   const me = R.perCandidate.find((p) => p.cand.id === cand.id);
+  const D = examState(ex, R.played.length).details;
   const showResults = asAdmin || ex.show_results;
-  const showDetails = asAdmin || ex.show_details;
+  const showDetails = asAdmin || D.visible;
   const showCorr = asAdmin || ex.corrections_published;
   // le détail des grilles n'est lu que pour ce candidat
   // le contenu sert aussi au plan de révision (item et situation de départ de chaque station)
@@ -681,7 +702,8 @@ async function candidateReport(db, candidateId, asAdmin) {
   });
   return {
     candidate: { number: asAdmin || parse(ex.planning, {})?.publish !== false ? cand.number : null, first_name: cand.first_name, last_name: cand.last_name, day: cand.day, series: cand.series },
-    exam: { name: ex.name, show_results: !!showResults, show_details: !!showDetails, corrections_published: !!showCorr },
+    exam: { name: ex.name, show_results: !!showResults, show_details: !!showDetails, corrections_published: !!showCorr,
+      details_from: !asAdmin && D.held ? D.from : null },
     summary: showResults ? {
       avg: me?.avg ?? null, done: !!me?.done, evaluated: me?.n ?? 0, total_stations: R.played.length,
       rank: R.ranks.get(cand.id) ?? null, ranked: R.completed.length, registered: R.candidates.length,
@@ -856,9 +878,11 @@ const evalName = (s) => String(s.name || '').trim().replace(/\s+/g, ' ');
 
 // Hors des heures de saisie, un code de salle (même photographié) ne donne plus accès à rien
 async function openRoom(c) {
-  const st = await one(c.env.DB, 'SELECT s.*, e.eval_open FROM stations s JOIN exams e ON e.id = s.exam_id WHERE s.id = ?', c.get('session').subject_id);
+  const st = await one(c.env.DB, 'SELECT * FROM stations WHERE id = ?', c.get('session').subject_id);
   if (!st) throw httpError(404, 'Station introuvable');
-  if (!st.eval_open) throw httpError(403, 'La saisie est fermée : la salle rouvrira au prochain passage.');
+  const E = await loadExamState(c.env.DB, st.exam_id);
+  if (!E.eval.open) throw httpError(403, closedMessage(E.eval));
+  st.exam_state = E;
   return st;
 }
 
@@ -866,7 +890,8 @@ app.get('/eval/context', need('evaluateur'), async (c) => {
   const db = c.env.DB;
   const s = c.get('session');
   const st = await openRoom(c);
-  const exam = await one(db, 'SELECT id, name, eval_open FROM exams WHERE id = ?', st.exam_id);
+  const E = st.exam_state;
+  const exam = { id: E.exam.id, name: E.exam.name, eval_open: E.eval.open, closes_at: E.eval.closes_at };
   const content = normalizeContent(parse(st.content, {}));
   const candidates = await all(db, `SELECT c.id, c.number, c.first_name, substr(c.last_name, 1, 1) || '.' AS last_name, c.day, c.series, c.seat,
     v.id AS eval_id, v.absent, v.score, v.evaluator_name,
@@ -895,9 +920,7 @@ app.get('/eval/evaluations/:candidateId', need('evaluateur'), async (c) => {
 app.put('/eval/evaluations', need('evaluateur'), async (c) => {
   const db = c.env.DB;
   const s = c.get('session');
-  const st = await one(db, 'SELECT * FROM stations WHERE id = ?', s.subject_id);
-  const exam = await one(db, 'SELECT * FROM exams WHERE id = ?', st.exam_id);
-  if (!exam.eval_open) throw httpError(403, 'La saisie est fermée pour cette session.');
+  const st = await openRoom(c);
   const b = await c.req.json();
   const cand = await one(db, 'SELECT * FROM candidates WHERE id = ? AND exam_id = ?', b.candidate_id, st.exam_id);
   if (!cand) throw httpError(404, 'Candidat introuvable');
@@ -931,11 +954,12 @@ registerBenevoles(app, { need, httpError, all, one, run, parse, freshCodes, batc
 registerBanque(app, { need, httpError, all, one, run, parse, stationRights, STATION_LIST_SQL });
 registerProgression(app, { need, httpError, all, one });
 registerMail(app, { need, httpError, all, one, run, parse, batch });
+registerSystem(app, { need, all, one });
 
 app.all('*', () => { throw httpError(404, 'Route inconnue'); });
 
-// la tâche planifiée (tous les jours en fin d'après-midi) envoie les rappels de la veille
+// la tâche planifiée (tous les jours en fin d'après-midi) : rappels de la veille, purge des connexions expirées
 export default {
   fetch: app.fetch,
-  scheduled: (event, env, ctx) => ctx.waitUntil(dailyReminders(env)),
+  scheduled: (event, env, ctx) => ctx.waitUntil(nightly(env)),
 };

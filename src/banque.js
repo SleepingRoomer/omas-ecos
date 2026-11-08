@@ -1,4 +1,5 @@
 // Banque de stations (reprendre une station déjà écrite) et fichiers attachés aux stations (images, PDF)
+import { loadExamState } from './state.js';
 const MIMES = { 'image/jpeg': [0xff, 0xd8, 0xff], 'image/png': [0x89, 0x50, 0x4e, 0x47], 'image/webp': [0x52, 0x49, 0x46, 0x46], 'application/pdf': [0x25, 0x50, 0x44, 0x46] };
 const MAX = 1900000; // une ligne D1 ne dépasse pas 2 Mo
 
@@ -118,8 +119,8 @@ export function registerBanque(app, h) {
       const { st, rights } = await stationFor(c, f.station_id);
       if (!rights.read) throw httpError(403, 'Accès refusé');
       if (rights.isEval && !rights.involved) {
-        const e = await one(db, 'SELECT eval_open FROM exams WHERE id = ?', st.exam_id);
-        if (!e?.eval_open) throw httpError(403, 'La saisie est fermée.');
+        const E = await loadExamState(db, st.exam_id);
+        if (!E?.eval.open) throw httpError(403, 'La saisie est fermée.');
       }
     }
     const bytes = f.data instanceof ArrayBuffer ? f.data : new Uint8Array(f.data);

@@ -1,6 +1,7 @@
 // E-mails automatiques (Brevo) et anonymisation des sessions terminées.
 // Sans clé Brevo, rien ne part : chaque message est noté « non envoyé » dans le journal, et le site marche comme avant.
 import { normalizePlanning } from '../public/js/planning-shared.js';
+import { examState } from './state.js';
 
 const FAKE = /@(exemple|example)\.(org|com|fr)$/i;
 const DEFAULTS = { auto_swap: true, auto_waitlist: true, auto_volunteer: true, auto_reminder: true, reply_to: '' };
@@ -181,7 +182,7 @@ export function registerMail(app, h) {
     if (!exam) throw httpError(404, 'Session introuvable');
     const { confirm } = await c.req.json();
     if (String(confirm || '').trim() !== exam.name.trim()) throw httpError(400, 'Recopie exactement le nom de la session pour confirmer.');
-    if (exam.eval_open) throw httpError(400, 'Ferme d\'abord la saisie des grilles.');
+    if (examState(exam).eval.open) throw httpError(400, 'Ferme d\'abord la saisie des grilles (onglet Réglages, saisie forcée fermée).');
     if (exam.anonymized_at) throw httpError(400, 'Session déjà anonymisée.');
     // évaluateurs : un pseudonyme stable par personne, pour garder les statistiques de binômes
     const names = (await all(db, 'SELECT DISTINCT evaluator_name AS n FROM evaluations WHERE exam_id = ? ORDER BY lower(evaluator_name)', exam.id)).map((r) => r.n);

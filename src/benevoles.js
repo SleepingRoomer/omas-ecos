@@ -1,7 +1,8 @@
 // Bénévoles : inscription par session, disponibilités par demi-journée, affectation aux salles,
 // connexion par code personnel, calibration avant la session, suivi d'une session à l'autre.
-import { normalizePlanning, toMin } from '../public/js/planning-shared.js';
+import { toMin } from '../public/js/planning-shared.js';
 import { normalizeContent, computeScore } from '../public/js/shared.js';
+import { examState, closedMessage } from './state.js';
 
 export const ROLES = { evaluateur: 'Évaluateur', ps: 'Patient standardisé', pss: 'Professionnel de santé standardisé', logistique: 'Accueil et logistique' };
 const HALVES = { am: 'matin', pm: 'après-midi' };
@@ -13,9 +14,10 @@ export function registerBenevoles(app, h) {
   const nowMin = () => { const [hh, mm] = new Date().toLocaleTimeString('en-GB', { timeZone: 'Europe/Paris', hour: '2-digit', minute: '2-digit' }).split(':').map(Number); return hh * 60 + mm; };
 
   async function planningOf(db, examId) {
-    const exam = await one(db, 'SELECT * FROM exams WHERE id = ?', examId);
+    const exam = await one(db, 'SELECT e.*, (SELECT COUNT(*) FROM stations s WHERE s.exam_id = e.id AND s.played = 1) AS n_played FROM exams e WHERE e.id = ?', examId);
     if (!exam) throw httpError(404, 'Session introuvable');
-    return { exam, planning: normalizePlanning(parse(exam.planning, null), exam) };
+    const S = examState(exam, exam.n_played);
+    return { exam, planning: S.planning, state: S };
   }
   // Les demi-journées d'une session : un jour, matin ou après-midi, selon l'heure de début des séries
   const halfdaysOf = (P) => P.days.flatMap((d) => {
@@ -143,7 +145,7 @@ export function registerBenevoles(app, h) {
   }
 
   app.get('/benevole/me', need('benevole'), async (c) => {
-    const { db, s, exam, planning } = await meSignup(c);
+    const { db, s, exam, planning, state } = await meSignup(c);
     const [assigns, calibs, history] = await Promise.all([
       all(db, `SELECT a.day, a.half, a.role, a.station_id, st.slot, st.title FROM assignments a LEFT JOIN stations st ON st.id = a.station_id
         WHERE a.signup_id = ? ORDER BY a.day, a.half`, s.id),
@@ -164,7 +166,7 @@ export function registerBenevoles(app, h) {
     const myStations = new Set(assigns.filter((a) => a.role === 'evaluateur' && a.station_id).map((a) => a.station_id));
     return c.json({
       me: { first_name: s.first_name, last_name: s.last_name, roles: parse(s.roles, []), halfdays: parse(s.halfdays, []), code: s.code },
-      exam: { id: exam.id, name: exam.name, eval_open: !!exam.eval_open, place: planning.place },
+      exam: { id: exam.id, name: exam.name, eval_open: state.eval.open, opens_at: state.eval.opens_at, place: planning.place },
       roles: ROLES, assignments: mine,
       calibrations: calibs.filter((k) => !myStations.size || myStations.has(k.station_id)),
       history,
@@ -173,8 +175,8 @@ export function registerBenevoles(app, h) {
 
   // Entrer dans sa salle : si une affectation d'évaluateur tombe maintenant, on ouvre la salle sous son nom
   app.post('/benevole/enter', need('benevole'), async (c) => {
-    const { db, s, exam } = await meSignup(c);
-    if (!exam.eval_open) throw httpError(403, 'La saisie n\'est pas encore ouverte : l\'équipe l\'ouvre le matin du passage.');
+    const { db, s, state } = await meSignup(c);
+    if (!state.eval.open) throw httpError(403, closedMessage(state.eval));
     const t = today(); const half = nowMin() < 12 * 60 + 15 ? 'am' : 'pm';
     const a = await one(db, "SELECT * FROM assignments WHERE signup_id = ? AND day = ? AND role = 'evaluateur' AND station_id IS NOT NULL ORDER BY half = ? DESC LIMIT 1", s.id, t, half);
     if (!a) throw httpError(400, 'Aucune salle ne t\'est attribuée aujourd\'hui. Demande ton code de salle à l\'accueil.');
