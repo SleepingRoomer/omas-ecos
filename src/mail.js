@@ -244,14 +244,21 @@ export function notifier(c) {
     })),
     // inscription d'un bénévole
     volunteer: (signupId) => later(c, go('auto_volunteer', async (url) => {
-      const x = await db.prepare('SELECT s.code, s.exam_id, v.email, v.first_name, v.last_name, e.name AS exam_name FROM volunteer_signups s JOIN volunteers v ON v.id = s.volunteer_id JOIN exams e ON e.id = s.exam_id WHERE s.id = ?').bind(signupId).first();
+      const x = await db.prepare('SELECT s.code, s.exam_id, s.prefs, v.email, v.first_name, v.last_name, e.name AS exam_name FROM volunteer_signups s JOIN volunteers v ON v.id = s.volunteer_id JOIN exams e ON e.id = s.exam_id WHERE s.id = ?').bind(signupId).first()
+        .catch(() => db.prepare('SELECT s.code, s.exam_id, NULL AS prefs, v.email, v.first_name, v.last_name, e.name AS exam_name FROM volunteer_signups s JOIN volunteers v ON v.id = s.volunteer_id JOIN exams e ON e.id = s.exam_id WHERE s.id = ?').bind(signupId).first());
       if (!x) return [];
-      return [{ kind: 'benevole', exam_id: x.exam_id, ref: String(signupId), to: x.email, name: `${x.first_name} ${x.last_name}`,
-        subject: `Merci ${x.first_name} : ton inscription de bénévole aux ${x.exam_name}`,
-        html: layout({ title: `Merci, ${x.first_name} !`, intro: 'On a bien noté tes disponibilités. L\'équipe prépare le planning des salles : tu le retrouveras dans ton espace bénévole, avec la calibration de ta station.',
-          rows: [['Ton code personnel', `<span style="letter-spacing:2px">${esc(x.code)}</span>`]],
-          button: { url: `${url}/#/?role=evaluateur&code=${encodeURIComponent(x.code)}`, label: 'Ouvrir mon espace bénévole' },
-          after: 'Le jour J, ce même code ouvre directement ta salle : pas besoin du code affiché sur la porte.' }) }];
+      let prefs = null; try { prefs = JSON.parse(x.prefs || 'null'); } catch { /* ancienne inscription */ }
+      const isEval = prefs?.track === 'evaluateur';
+      const vous = isEval; // les évaluateurs sont des médecins et des internes : on les vouvoie
+      return [{ kind: isEval ? 'evaluateur' : 'benevole', exam_id: x.exam_id, ref: String(signupId), to: x.email, name: `${x.first_name} ${x.last_name}`,
+        subject: isEval ? `Merci : votre inscription comme évaluateur aux ${x.exam_name}` : `Merci ${x.first_name} : ton inscription de bénévole aux ${x.exam_name}`,
+        html: layout({ title: `Merci, ${x.first_name} !`,
+          intro: vous ? 'Vos disponibilités sont bien notées. L\'équipe prépare le planning des salles : vous le retrouverez dans votre espace, avec la station qui vous est confiée et sa calibration (dix minutes en ligne, pour que les notes soient comparables d\'une salle à l\'autre).'
+            : 'On a bien noté tes disponibilités. L\'équipe prépare le planning des salles : tu le retrouveras dans ton espace bénévole, avec la calibration de ta station.',
+          rows: [[vous ? 'Votre code personnel' : 'Ton code personnel', `<span style="letter-spacing:2px">${esc(x.code)}</span>`]],
+          button: { url: `${url}/#/?role=evaluateur&code=${encodeURIComponent(x.code)}`, label: vous ? 'Ouvrir mon espace évaluateur' : 'Ouvrir mon espace bénévole' },
+          after: vous ? 'Le jour J, ce même code ouvre directement votre salle sur votre téléphone : la grille se remplit en deux minutes par candidat, même sans réseau.'
+            : 'Le jour J, ce même code ouvre directement ta salle : pas besoin du code affiché sur la porte.' }) }];
     })),
   };
 }

@@ -26,15 +26,26 @@ export function registerBenevoles(app, h) {
   });
 
   // ---------- inscription publique ----------
+  // Deux portes d'entrée pour une même table : les bénévoles (externes, PS, PSS, logistique) et les évaluateurs
+  // (médecins, internes), qui ont leur propre lien, leur propre formulaire et peuvent venir la journée entière.
+  const EVAL_STATUS = ['Médecin', 'Interne', 'Docteur junior', 'Chef de clinique', 'Autre soignant'];
+  const disciplinesOf = async (db, examId) => (await all(db, "SELECT DISTINCT COALESCE(NULLIF(discipline, ''), domain) AS d FROM stations WHERE exam_id = ? AND played = 1 AND COALESCE(NULLIF(discipline, ''), domain) IS NOT NULL ORDER BY d", examId)).map((r) => r.d);
+
   app.get('/public/exams/:id/benevoles', async (c) => {
     const { exam, planning } = await planningOf(c.env.DB, c.req.param('id'));
     return c.json({ id: exam.id, name: exam.name, open: !!planning.volunteers_open, halfdays: halfdaysOf(planning), roles: ROLES });
   });
+  app.get('/public/exams/:id/evaluateurs', async (c) => {
+    const { exam, planning } = await planningOf(c.env.DB, c.req.param('id'));
+    return c.json({ id: exam.id, name: exam.name, open: !!planning.evaluators_open, halfdays: halfdaysOf(planning), place: planning.place,
+      per_room: planning.evaluators_per_room || 2, disciplines: await disciplinesOf(c.env.DB, exam.id), statuses: EVAL_STATUS });
+  });
 
-  app.post('/public/exams/:id/benevoles', async (c) => {
+  async function signup(c, track) {
     const db = c.env.DB;
     const { exam, planning } = await planningOf(db, c.req.param('id'));
-    if (!planning.volunteers_open) throw httpError(400, 'Les inscriptions des bénévoles ne sont pas ouvertes.');
+    const isEval = track === 'evaluateur';
+    if (!(isEval ? planning.evaluators_open : planning.volunteers_open)) throw httpError(400, isEval ? 'Les inscriptions des évaluateurs ne sont pas ouvertes.' : 'Les inscriptions des bénévoles ne sont pas ouvertes.');
     const recent = await one(db, "SELECT COUNT(*) AS n FROM login_failures WHERE ip = ? AND role = 'benevole' AND at > datetime('now', '-1 hour')", ip(c));
     if (recent.n >= 8) throw httpError(429, 'Trop d\'inscriptions depuis cette connexion : réessaie dans une heure.');
     const b = await c.req.json();
@@ -42,13 +53,21 @@ export function registerBenevoles(app, h) {
     const email = t(b.email, 160).toLowerCase();
     if (!t(b.first_name) || !t(b.last_name)) throw httpError(400, 'Indique ton nom et ton prénom.');
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw httpError(400, 'Adresse e-mail invalide.');
-    const roles = (b.roles || []).filter((r) => ROLES[r]);
+    const roles = isEval ? ['evaluateur'] : (b.roles || []).filter((r) => ROLES[r]);
     if (!roles.length) throw httpError(400, 'Choisis au moins un rôle.');
     const valid = new Set(halfdaysOf(planning).map((x) => x.key));
-    const halfdays = [...new Set((b.halfdays || []).filter((k) => valid.has(k)))];
-    // une demi-journée par jour au plus : on ne garde que la première cochée pour chaque jour
-    const perDay = new Map(); for (const k of halfdays) if (!perDay.has(k.split('|')[0])) perDay.set(k.split('|')[0], k);
-    if (!perDay.size) throw httpError(400, 'Coche au moins une demi-journée.');
+    let halfdays = [...new Set((b.halfdays || []).filter((k) => valid.has(k)))];
+    if (!isEval) {
+      // bénévoles : une demi-journée par jour au plus, on ne garde que la première cochée pour chaque jour
+      const perDay = new Map(); for (const k of halfdays) if (!perDay.has(k.split('|')[0])) perDay.set(k.split('|')[0], k);
+      halfdays = [...perDay.values()];
+    }
+    if (!halfdays.length) throw httpError(400, 'Coche au moins une demi-journée.');
+    const prefs = isEval ? {
+      track: 'evaluateur',
+      disciplines: (Array.isArray(b.disciplines) ? b.disciplines : []).map((x) => t(x, 60)).filter(Boolean).slice(0, 12),
+      attestation: !!b.attestation, first_time: !!b.first_time,
+    } : { track: 'benevole' };
     await run(db, `INSERT INTO volunteers (email, first_name, last_name, phone, status, specialty) VALUES (?,?,?,?,?,?)
       ON CONFLICT(email) DO UPDATE SET first_name = excluded.first_name, last_name = excluded.last_name, phone = COALESCE(excluded.phone, phone),
       status = excluded.status, specialty = excluded.specialty, updated_at = datetime('now')`,
@@ -56,37 +75,42 @@ export function registerBenevoles(app, h) {
     const v = await one(db, 'SELECT id FROM volunteers WHERE email = ?', email);
     const prev = await one(db, 'SELECT code FROM volunteer_signups WHERE exam_id = ? AND volunteer_id = ?', exam.id, v.id);
     const code = prev?.code || (await freshCodes(db, 1))[0];
-    await db.batch([
-      db.prepare(`INSERT INTO volunteer_signups (exam_id, volunteer_id, roles, halfdays, note, code) VALUES (?,?,?,?,?,?)
-        ON CONFLICT(exam_id, volunteer_id) DO UPDATE SET roles = excluded.roles, halfdays = excluded.halfdays, note = excluded.note`)
-        .bind(exam.id, v.id, JSON.stringify(roles), JSON.stringify([...perDay.values()]), t(b.note, 300) || null, code),
-      db.prepare("INSERT INTO login_failures (ip, role) VALUES (?, 'benevole')").bind(ip(c)),
-    ]);
+    const vals = [exam.id, v.id, JSON.stringify(roles), JSON.stringify(halfdays), t(b.note, 300) || null, code];
+    const ins = (withPrefs) => db.prepare(`INSERT INTO volunteer_signups (exam_id, volunteer_id, roles, halfdays, note, code${withPrefs ? ', prefs' : ''}) VALUES (?,?,?,?,?,?${withPrefs ? ',?' : ''})
+        ON CONFLICT(exam_id, volunteer_id) DO UPDATE SET roles = excluded.roles, halfdays = excluded.halfdays, note = excluded.note${withPrefs ? ', prefs = excluded.prefs' : ''}`)
+      .bind(...vals, ...(withPrefs ? [JSON.stringify(prefs)] : []));
+    const hit = db.prepare("INSERT INTO login_failures (ip, role) VALUES (?, 'benevole')").bind(ip(c));
+    // sans la migration 0013 (colonne prefs), l'inscription passe quand même, sans les préférences
+    await db.batch([ins(true), hit]).catch(() => db.batch([ins(false), hit]));
     if (!prev) {
       const sg = await one(db, 'SELECT id FROM volunteer_signups WHERE exam_id = ? AND volunteer_id = ?', exam.id, v.id);
       h.notifier?.(c).volunteer(sg.id);
     }
     return c.json({ ok: true, code, updated: !!prev });
-  });
+  }
+  app.post('/public/exams/:id/benevoles', (c) => signup(c, 'benevole'));
+  app.post('/public/exams/:id/evaluateurs', (c) => signup(c, 'evaluateur'));
 
   // ---------- équipe ----------
   app.get('/exams/:id/benevoles', need('admin'), async (c) => {
     const db = c.env.DB;
     const { exam, planning } = await planningOf(db, c.req.param('id'));
     const [signups, assigns, stations, calib, grids] = await Promise.all([
-      all(db, `SELECT s.id, s.roles, s.halfdays, s.note, s.code, s.created_at, v.id AS volunteer_id, v.first_name, v.last_name, v.email, v.phone, v.status, v.specialty
-        FROM volunteer_signups s JOIN volunteers v ON v.id = s.volunteer_id WHERE s.exam_id = ? ORDER BY v.last_name, v.first_name`, exam.id),
+      all(db, `SELECT s.id, s.roles, s.halfdays, s.note, s.code, s.created_at, s.prefs, v.id AS volunteer_id, v.first_name, v.last_name, v.email, v.phone, v.status, v.specialty
+        FROM volunteer_signups s JOIN volunteers v ON v.id = s.volunteer_id WHERE s.exam_id = ? ORDER BY v.last_name, v.first_name`, exam.id)
+        .catch(() => all(db, `SELECT s.id, s.roles, s.halfdays, s.note, s.code, s.created_at, NULL AS prefs, v.id AS volunteer_id, v.first_name, v.last_name, v.email, v.phone, v.status, v.specialty
+        FROM volunteer_signups s JOIN volunteers v ON v.id = s.volunteer_id WHERE s.exam_id = ? ORDER BY v.last_name, v.first_name`, exam.id)),
       all(db, 'SELECT id, signup_id, day, half, role, station_id FROM assignments WHERE exam_id = ?', exam.id),
-      all(db, 'SELECT id, slot, title, type FROM stations WHERE exam_id = ? AND played = 1 ORDER BY slot', exam.id),
+      all(db, 'SELECT id, slot, title, type, domain, discipline FROM stations WHERE exam_id = ? AND played = 1 ORDER BY slot', exam.id),
       all(db, `SELECT k.id, k.station_id, a.signup_id, a.agreement, a.score, a.ref_score FROM calibrations k LEFT JOIN calibration_answers a ON a.calibration_id = k.id WHERE k.exam_id = ?`, exam.id),
       all(db, 'SELECT lower(evaluator_name) AS n, COUNT(*) AS k FROM evaluations WHERE exam_id = ? GROUP BY lower(evaluator_name)', exam.id),
     ]);
     const gridsBy = Object.fromEntries(grids.map((g) => [g.n, g.k]));
     return c.json({
-      exam: { id: exam.id, name: exam.name }, open: !!planning.volunteers_open, per_room: planning.evaluators_per_room || 2,
+      exam: { id: exam.id, name: exam.name }, open: !!planning.volunteers_open, evaluators_open: !!planning.evaluators_open, per_room: planning.evaluators_per_room || 2,
       halfdays: halfdaysOf(planning), roles: ROLES, stations, assignments: assigns,
       calibrations: [...new Map(calib.map((k) => [k.id, { id: k.id, station_id: k.station_id }])).values()],
-      signups: signups.map((s) => ({ ...s, roles: parse(s.roles, []), halfdays: parse(s.halfdays, []),
+      signups: signups.map((s) => ({ ...s, roles: parse(s.roles, []), halfdays: parse(s.halfdays, []), prefs: parse(s.prefs, null) || { track: 'benevole' },
         grids: gridsBy[`${s.first_name} ${s.last_name}`.toLowerCase()] || 0,
         calibration: calib.filter((k) => k.signup_id === s.id).map((k) => ({ station_id: k.station_id, agreement: k.agreement, score: k.score, ref_score: k.ref_score })) })),
     });
@@ -98,6 +122,7 @@ export function registerBenevoles(app, h) {
     const b = await c.req.json();
     const next = { ...planning };
     if ('open' in b) next.volunteers_open = !!b.open;
+    if ('evaluators_open' in b) next.evaluators_open = !!b.evaluators_open;
     if ('per_room' in b) next.evaluators_per_room = Math.min(3, Math.max(1, Number(b.per_room) || 2));
     await run(db, 'UPDATE exams SET planning = ? WHERE id = ?', JSON.stringify(next), exam.id);
     return c.json({ ok: true });
@@ -165,7 +190,7 @@ export function registerBenevoles(app, h) {
     // ses stations à calibrer : celles où il évalue, sinon toutes celles qui ont un cas
     const myStations = new Set(assigns.filter((a) => a.role === 'evaluateur' && a.station_id).map((a) => a.station_id));
     return c.json({
-      me: { first_name: s.first_name, last_name: s.last_name, roles: parse(s.roles, []), halfdays: parse(s.halfdays, []), code: s.code },
+      me: { first_name: s.first_name, last_name: s.last_name, roles: parse(s.roles, []), halfdays: parse(s.halfdays, []), code: s.code, prefs: parse(s.prefs, null) || { track: 'benevole' } },
       exam: { id: exam.id, name: exam.name, eval_open: state.eval.open, opens_at: state.eval.opens_at, place: planning.place },
       roles: ROLES, assignments: mine,
       calibrations: calibs.filter((k) => !myStations.size || myStations.has(k.station_id)),

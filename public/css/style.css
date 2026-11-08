@@ -794,3 +794,14 @@ fieldset legend { font-weight: 700; padding: 0 6px; }
 .sys-grid .panel { margin: 0; }
 .sys-table td { padding: 6px 4px; border-bottom: 1px solid var(--line); font-size: .9rem; }
 .sys-table td:last-child { text-align: right; }
+
+/* inscription des évaluateurs */
+.ev-why p { margin-top: 0; }
+.ev-steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-top: 12px; }
+.ev-steps > div { background: var(--paper-2); border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 4px; }
+.ev-steps b { color: var(--a); text-transform: uppercase; font-size: .75rem; letter-spacing: .06em; }
+.ev-steps span { font-size: .9rem; line-height: 1.45; }
+.ev-disc { display: flex; flex-wrap: wrap; gap: 8px; }
+.ev-disc .pick { border: 1px solid var(--line); border-radius: 999px; padding: 4px 12px; cursor: pointer; }
+.ev-disc .pick input { margin-right: 6px; }
+.ev-disc .pick:has(input:checked) { background: var(--a); color: #fff; border-color: var(--a); }

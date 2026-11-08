@@ -52,15 +52,69 @@ export async function publicSignup(app, examId) {
   });
 }
 
+// ---------- inscription publique des évaluateurs ----------
+export async function publicEvaluatorSignup(app, examId) {
+  let E;
+  try { E = await api(`/public/exams/${examId}/evaluateurs`); } catch { app.innerHTML = '<p class="alert error">Session introuvable.</p>'; return; }
+  setTitle(`Évaluateurs, ${E.name}`);
+  if (!E.open) { app.innerHTML = `<div class="narrow"><h1>${esc(E.name)}</h1><p class="panel">Les inscriptions des évaluateurs ne sont pas ouvertes pour cette session.</p></div>`; return; }
+  const byDay = {}; for (const h of E.halfdays) (byDay[h.day] ||= []).push(h);
+  const days = Object.keys(byDay);
+  app.innerHTML = `<div class="narrow" style="max-width:680px">
+    <h1>Devenir évaluateur</h1>
+    <p class="lede">${esc(E.name)}${E.place ? `, ${esc(E.place)}` : ''}</p>
+    <div class="panel ev-why">
+      <p>Les ECOS blancs d'OMAS Externat reproduisent l'examen national : dix stations de huit minutes, deux circuits, des patients standardisés. Ce qui en fait un vrai entraînement, c'est le regard d'un soignant dans chaque salle.</p>
+      <div class="ev-steps">
+        <div><b>Avant</b><span>Dix minutes en ligne : la vignette de votre station et une calibration sur un passage de référence, pour que les notes soient comparables d'une salle à l'autre.</span></div>
+        <div><b>Le jour J</b><span>Briefing une heure avant la première série, puis vous notez chaque candidat sur votre téléphone : grille d'items, communication, un mot de retour. ${E.per_room > 1 ? `Vous êtes ${E.per_room} par salle.` : ''}</span></div>
+        <div><b>Après</b><span>Un débrief de trente minutes avec les candidats de la série, et une attestation de participation si vous la souhaitez.</span></div>
+      </div>
+    </div>
+    <form id="ef" class="panel">
+      <div class="grid cols-2" style="gap:10px"><div><label for="e-ln" style="margin-top:0">Nom</label><input id="e-ln" name="last_name" required autocomplete="family-name"></div>
+        <div><label for="e-fn" style="margin-top:0">Prénom</label><input id="e-fn" name="first_name" required autocomplete="given-name"></div></div>
+      <div class="grid cols-2" style="gap:10px"><div><label for="e-em">E-mail</label><input id="e-em" name="email" type="email" required autocomplete="email"></div>
+        <div><label for="e-ph">Téléphone <span class="hint">(pour le jour J)</span></label><input id="e-ph" name="phone" autocomplete="tel"></div></div>
+      <div class="grid cols-2" style="gap:10px"><div><label for="e-st">Vous êtes</label><select id="e-st" name="status">${E.statuses.map((x) => `<option>${esc(x)}</option>`).join('')}</select></div>
+        <div><label for="e-sp">Spécialité</label><input id="e-sp" name="specialty" placeholder="Médecine générale, cardiologie…"></div></div>
+      ${E.disciplines.length ? `<fieldset class="vol-roles"><legend>Les disciplines où vous êtes à l'aise <span class="hint">(facultatif, pour vous placer au mieux)</span></legend>
+        <div class="ev-disc">${E.disciplines.map((d) => `<label class="pick"><input type="checkbox" name="disciplines" value="${esc(d)}"><span>${esc(d)}</span></label>`).join('')}</div>
+        <p class="small muted" style="margin:6px 0 0">Les grilles sont écrites pour être remplies par tout soignant : ce n'est qu'une préférence.</p></fieldset>` : ''}
+      <fieldset><legend>Vos disponibilités <span class="hint">(une demi-journée ou la journée)</span></legend>
+        <div class="vol-days">${days.map((d) => `<div class="vol-day"><strong>${esc(longDate(d))}</strong>
+          <div class="seg small">${byDay[d].map((h) => `<label class="pick"><input type="checkbox" name="halfdays" value="${h.key}"><span>${HALF[h.half]}</span></label>`).join('')}</div></div>`).join('')}</div></fieldset>
+      <label class="check" style="margin-top:12px"><input type="checkbox" name="first_time"><span>C'est ma première fois comme évaluateur aux ECOS blancs</span></label>
+      <label class="check"><input type="checkbox" name="attestation" checked><span>Je souhaite une attestation de participation</span></label>
+      <label for="e-no">Un mot pour l'équipe <span class="hint">(facultatif)</span></label><input id="e-no" name="note" placeholder="Je viens avec un collègue, je dois partir à 17 h…">
+      <p class="small muted">Vos coordonnées servent uniquement à organiser les ECOS blancs d'OMAS Externat et à vous recontacter pour les prochaines sessions.</p>
+      <button class="primary" style="margin-top:6px">Je m'inscris comme évaluateur</button>
+    </form><div id="ef-out"></div></div>`;
+  app.querySelector('#ef').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const body = Object.fromEntries(fd); body.halfdays = fd.getAll('halfdays'); body.disciplines = fd.getAll('disciplines');
+    body.first_time = fd.has('first_time'); body.attestation = fd.has('attestation');
+    try {
+      const r = await api(`/public/exams/${examId}/evaluateurs`, { method: 'POST', body });
+      app.querySelector('#ef').remove();
+      app.querySelector('#ef-out').innerHTML = `<div class="alert ok"><strong>Merci, c'est noté${r.updated ? ' (votre inscription est mise à jour)' : ''} !</strong>
+        <p>Votre code personnel : <span class="code" style="font-size:1.3em">${esc(r.code)}</span>. Gardez-le : il ouvre votre espace évaluateur, avec votre planning, la calibration de votre station et, le jour J, l'accès direct à votre salle.</p>
+        <a class="button primary" href="#/?role=evaluateur&code=${esc(r.code)}">Ouvrir mon espace</a></div>`;
+    } catch (err) { toast(err.message, 'error'); }
+  });
+}
+
 // ---------- espace du bénévole ----------
 export async function volunteerSpace(app) {
   const M = await api('/benevole/me');
-  setTitle('Mon espace bénévole');
+  const isEval = M.me.prefs?.track === 'evaluateur';
+  setTitle(isEval ? 'Mon espace évaluateur' : 'Mon espace bénévole');
   const now = M.assignments.find((a) => a.now && a.role === 'evaluateur' && a.station_id);
   const todo = M.calibrations.filter((k) => k.agreement === null || k.agreement === undefined);
   app.innerHTML = `
     <h1>Bonjour ${esc(M.me.first_name)}</h1>
-    <p class="lede">${esc(M.exam.name)}${M.exam.place ? `, ${esc(M.exam.place)}` : ''}. Merci d'être là.</p>
+    <p class="lede">${esc(M.exam.name)}${M.exam.place ? `, ${esc(M.exam.place)}` : ''}. ${isEval ? 'Merci de donner de votre temps aux candidats.' : 'Merci d\'être là.'}</p>
     ${now ? `<div class="panel vol-now"><div class="row between"><div>${plate(now.slot, 'lg')} <strong>C'est maintenant : salle ${esc(now.slot)}</strong>
         <div class="small muted">${esc(now.title || '')}</div></div>
       <button class="primary" id="enter" ${M.exam.eval_open ? '' : 'disabled'}>Ouvrir ma salle</button></div>
@@ -157,6 +211,9 @@ const needs = (st, perRoom) => [...Array.from({ length: perRoom }, (_, i) => ({ 
 export async function benevolesTab(box, exam) {
   const D = await api(`/exams/${exam.id}/benevoles`);
   const link = `${location.origin}/#/benevole/${exam.id}`;
+  const linkEval = `${location.origin}/#/evaluateur/${exam.id}`;
+  const discOf = (st) => (st.discipline || st.domain || '').toLowerCase();
+  const likes = (s, st) => (s.prefs?.disciplines || []).some((d) => d.toLowerCase() === discOf(st));
   let hd = D.halfdays[0]?.key || null;
   // affectations en cours d'édition, par demi-journée
   const plan = {};
@@ -189,7 +246,8 @@ export async function benevolesTab(box, exam) {
   const auto = (k) => {
     const p = plan[k];
     const pool = avail(k).filter((s) => !used(k).has(s.id));
-    const prefer = (s, stId) => D.assignments.some((a) => a.signup_id === s.id && a.station_id === stId) ? 0 : 1;
+    // on remet quelqu'un dans la salle qu'il a déjà faite, sinon dans une discipline qu'il a cochée
+    const prefer = (s, stId) => (D.assignments.some((a) => a.signup_id === s.id && a.station_id === stId) ? 0 : likes(s, D.stations.find((x) => x.id === stId) || {}) ? 1 : 2);
     for (const role of ['ps', 'pss', 'evaluateur']) {
       for (const st of D.stations) {
         needs(st, D.per_room).forEach((n, i) => {
@@ -217,20 +275,25 @@ export async function benevolesTab(box, exam) {
     const A = hd ? avail(hd) : [];
     const U = hd ? used(hd) : new Set();
     const cov = hd ? coverage(hd) : { need: 0, got: 0 };
-    const opt = (role, cur) => `<option value="">–</option>${A.filter((s) => s.roles.includes(role) && (!U.has(s.id) || s.id === cur))
-      .map((s) => `<option value="${s.id}" ${s.id === cur ? 'selected' : ''}>${esc(s.first_name)} ${esc(s.last_name)}</option>`).join('')}`;
+    const opt = (role, cur, st) => `<option value="">–</option>${A.filter((s) => s.roles.includes(role) && (!U.has(s.id) || s.id === cur))
+      .sort((a, b) => (st && likes(b, st)) - (st && likes(a, st)) || a.last_name.localeCompare(b.last_name))
+      .map((s) => `<option value="${s.id}" ${s.id === cur ? 'selected' : ''}>${st && likes(s, st) ? '★ ' : ''}${esc(s.first_name)} ${esc(s.last_name)}${s.prefs?.track === 'evaluateur' && s.status ? ` (${esc(s.status)})` : ''}</option>`).join('')}`;
     box.innerHTML = `
-      <div class="panel"><div class="row between">
-        <div class="row"><label class="check" style="margin:0"><input type="checkbox" id="b-open" ${D.open ? 'checked' : ''}><span>Inscriptions des bénévoles ouvertes</span></label>
-          <button class="small" id="b-copy">Copier le lien d'inscription</button></div>
+      <div class="panel"><div class="row between" style="align-items:flex-start;gap:18px">
+        <div>
+          <div class="row"><label class="check" style="margin:0"><input type="checkbox" id="b-open" ${D.open ? 'checked' : ''}><span>Inscriptions des <strong>bénévoles</strong> ouvertes</span></label>
+            <button class="small" id="b-copy">Copier le lien bénévoles</button></div>
+          <div class="row" style="margin-top:8px"><label class="check" style="margin:0"><input type="checkbox" id="e-open" ${D.evaluators_open ? 'checked' : ''}><span>Inscriptions des <strong>évaluateurs</strong> ouvertes</span></label>
+            <button class="small" id="e-copy">Copier le lien évaluateurs</button></div>
+        </div>
         <div class="row"><label for="b-per" class="small" style="margin:0">Évaluateurs par salle</label>
           <select id="b-per" style="width:auto">${[1, 2, 3].map((n) => `<option ${n === D.per_room ? 'selected' : ''}>${n}</option>`).join('')}</select></div></div>
-        <p class="small muted" style="margin:8px 0 0">Chaque bénévole reçoit un code personnel. Il ouvre son espace avec ce code (onglet Évaluateur de la page de connexion) : planning, calibration de sa station, et le jour J un bouton qui ouvre directement sa salle, sans code de porte.</p></div>
+        <p class="small muted" style="margin:10px 0 0">Deux liens, un même espace : les bénévoles (externes, PS, PSS, logistique) et les évaluateurs (médecins, internes, avec leurs disciplines préférées et la journée entière possible). Chacun reçoit un code personnel qui ouvre son espace (onglet Évaluateur de la page de connexion) : planning, calibration de sa station, et le jour J un bouton qui ouvre directement sa salle, sans code de porte. Dans les listes ci-dessous, ★ signale une discipline cochée par la personne.</p></div>
 
-      <h2>Inscrits <span class="muted">(${D.signups.length})</span></h2>
-      ${D.signups.length ? `<div class="table-wrap"><table><thead><tr><th>Bénévole</th><th>Rôles</th>${D.halfdays.map((h) => `<th class="num small">${esc(frDate(h.day))}<br>${HALF[h.half]}</th>`).join('')}<th>Calibration</th><th></th></tr></thead><tbody>
-        ${D.signups.map((s) => `<tr data-s="${s.id}"><td><strong>${esc(s.last_name)}</strong> ${esc(s.first_name)}
-            <div class="small muted">${esc(s.status || '')}${s.specialty ? `, ${esc(s.specialty)}` : ''}</div>
+      <h2>Inscrits <span class="muted">(${D.signups.length}, dont ${D.signups.filter((s) => s.prefs?.track === 'evaluateur').length} par le lien évaluateurs)</span></h2>
+      ${D.signups.length ? `<div class="table-wrap"><table><thead><tr><th>Personne</th><th>Rôles</th>${D.halfdays.map((h) => `<th class="num small">${esc(frDate(h.day))}<br>${HALF[h.half]}</th>`).join('')}<th>Calibration</th><th></th></tr></thead><tbody>
+        ${D.signups.map((s) => `<tr data-s="${s.id}"><td><strong>${esc(s.last_name)}</strong> ${esc(s.first_name)}${s.prefs?.track === 'evaluateur' ? ' <span class="pill ink" style="font-size:.7rem">Évaluateur</span>' : ''}${s.prefs?.first_time ? ' <span class="pill" style="font-size:.7rem">1re fois</span>' : ''}
+            <div class="small muted">${esc(s.status || '')}${s.specialty ? `, ${esc(s.specialty)}` : ''}${s.prefs?.disciplines?.length ? `<br>★ ${s.prefs.disciplines.map(esc).join(', ')}` : ''}${s.prefs?.track === 'evaluateur' && !s.prefs.attestation ? '<br>Sans attestation' : ''}</div>
             <div class="small muted">${esc(s.email)}${s.phone ? `, ${esc(s.phone)}` : ''}</div>${s.note ? `<div class="small">${esc(s.note)}</div>` : ''}</td>
           <td class="small">${s.roles.map((r) => esc(D.roles[r])).join('<br>')}</td>
           ${D.halfdays.map((h) => { const a = D.assignments.find((x) => x.signup_id === s.id && `${x.day}|${x.half}` === h.key);
@@ -248,7 +311,7 @@ export async function benevolesTab(box, exam) {
       <div class="table-wrap"><table class="vol-matrix"><thead><tr><th>Salle</th><th>Évaluateurs</th><th>PS / PSS</th><th>Calibration</th></tr></thead><tbody>
         ${D.stations.map((st) => { const N = needs(st, D.per_room); const k = D.calibrations.find((x) => x.station_id === st.id);
           return `<tr><td><div class="row">${plate(st.slot)}<span class="small">${esc(st.title || '')}</span></div></td>
-          <td>${N.filter((n) => n.role === 'evaluateur').map((n, i) => `<select data-slot="${st.id}|evaluateur|${i}" aria-label="${esc(st.slot)} ${n.label}">${opt('evaluateur', slotOf(hd, st.id, 'evaluateur', i))}</select>`).join('')}</td>
+          <td>${N.filter((n) => n.role === 'evaluateur').map((n, i) => `<select data-slot="${st.id}|evaluateur|${i}" aria-label="${esc(st.slot)} ${n.label}">${opt('evaluateur', slotOf(hd, st.id, 'evaluateur', i), st)}</select>`).join('')}</td>
           <td>${N.filter((n) => n.role !== 'evaluateur').map((n) => `<select data-slot="${st.id}|${n.role}|0" aria-label="${esc(st.slot)} ${n.label}">${opt(n.role, slotOf(hd, st.id, n.role, 0))}</select>`).join('') || '<span class="small muted">Pas besoin</span>'}</td>
           <td><a class="small" href="#/calibration/${st.id}">${k ? 'Modifier' : 'Préparer'}</a></td></tr>`; }).join('')}
         <tr><td><strong>Accueil et logistique</strong></td><td colspan="3">${A.filter((s) => s.roles.includes('logistique') && (!U.has(s.id) || plan[hd].logistique.includes(s.id)))
@@ -262,6 +325,8 @@ export async function benevolesTab(box, exam) {
     box.querySelector('#b-open').addEventListener('change', async (e) => { await api(`/exams/${exam.id}/benevoles/settings`, { method: 'PUT', body: { open: e.target.checked } }); D.open = e.target.checked; toast(D.open ? 'Inscriptions ouvertes' : 'Inscriptions fermées'); });
     box.querySelector('#b-per').addEventListener('change', async (e) => { await api(`/exams/${exam.id}/benevoles/settings`, { method: 'PUT', body: { per_room: Number(e.target.value) } }); D.per_room = Number(e.target.value); draw(); });
     box.querySelector('#b-copy').addEventListener('click', async () => { await navigator.clipboard?.writeText(link).catch(() => {}); toast(D.open ? 'Lien copié' : 'Lien copié. Pense à ouvrir les inscriptions.'); });
+    box.querySelector('#e-open').addEventListener('change', async (e) => { await api(`/exams/${exam.id}/benevoles/settings`, { method: 'PUT', body: { evaluators_open: e.target.checked } }); D.evaluators_open = e.target.checked; toast(D.evaluators_open ? 'Inscriptions des évaluateurs ouvertes' : 'Inscriptions des évaluateurs fermées'); });
+    box.querySelector('#e-copy').addEventListener('click', async () => { await navigator.clipboard?.writeText(linkEval).catch(() => {}); toast(D.evaluators_open ? 'Lien évaluateurs copié' : 'Lien copié. Pense à ouvrir les inscriptions des évaluateurs.'); });
     box.querySelectorAll('[data-copy]').forEach((b) => b.addEventListener('click', async () => { await navigator.clipboard?.writeText(`${location.origin}/#/?role=evaluateur&code=${b.dataset.copy}`).catch(() => {}); toast('Lien personnel copié'); }));
     box.querySelectorAll('[data-del]').forEach((b) => b.addEventListener('click', async () => {
       const s = sById[b.closest('tr').dataset.s];
@@ -269,8 +334,8 @@ export async function benevolesTab(box, exam) {
       await api(`/signups/${s.id}`, { method: 'DELETE' }); benevolesTab(box, exam);
     }));
     box.querySelector('#b-csv')?.addEventListener('click', () => {
-      const rows = [['Nom', 'Prénom', 'E-mail', 'Téléphone', 'Statut', 'Spécialité', 'Rôles', 'Disponibilités', 'Affectations', 'Code']];
-      for (const s of D.signups) rows.push([s.last_name, s.first_name, s.email, s.phone, s.status, s.specialty, s.roles.map((r) => D.roles[r]).join(', '), s.halfdays.map(hdLabel).join(', '),
+      const rows = [['Nom', 'Prénom', 'E-mail', 'Téléphone', 'Statut', 'Spécialité', 'Inscrit par', 'Disciplines préférées', 'Attestation', 'Rôles', 'Disponibilités', 'Affectations', 'Code']];
+      for (const s of D.signups) rows.push([s.last_name, s.first_name, s.email, s.phone, s.status, s.specialty, s.prefs?.track === 'evaluateur' ? 'lien évaluateurs' : 'lien bénévoles', (s.prefs?.disciplines || []).join(', '), s.prefs?.track === 'evaluateur' ? (s.prefs.attestation ? 'oui' : 'non') : '', s.roles.map((r) => D.roles[r]).join(', '), s.halfdays.map(hdLabel).join(', '),
         D.assignments.filter((a) => a.signup_id === s.id).map((a) => `${hdLabel(`${a.day}|${a.half}`)} ${D.stations.find((x) => x.id === a.station_id)?.slot || 'logistique'}`).join(', '), s.code]);
       const blob = new Blob([`﻿${rows.map((r) => r.map(csvCell).join(';')).join('\n')}`], { type: 'text/csv' });
       const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `benevoles-${exam.id}.csv`; a.click();

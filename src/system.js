@@ -16,6 +16,7 @@ export const MIGRATIONS = [
   ['0010_benevoles', ['volunteers', 'volunteer_signups', 'assignments', 'calibrations', 'calibration_answers']],
   ['0011_banque', ['station_files', 'stations.origin_id']],
   ['0012_mails_rgpd', ['mail_log', 'exams.anonymized_at']],
+  ['0013_evaluateurs', ['volunteer_signups.prefs']],
 ];
 
 // SQLite garde le texte du CREATE TABLE à jour après un ALTER TABLE ADD COLUMN : une seule requête suffit
