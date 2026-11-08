@@ -14,7 +14,8 @@ INES (Interface numérique d'ECOS et de simulation) est la plateforme des ECOS b
 - Formule gratuite : 50 requêtes D1 et 50 appels sortants par exécution, 100 paramètres par requête (utiliser `multiInsert` et `batch` de `src/index.js`). Les calculs lourds (onglet Analyse) se font dans le navigateur.
 - Migrations : `migrations/00xx_*.sql`. En production, elles sont collées à la main dans la console D1 (une instruction par ligne, sans commentaires), donc la table `d1_migrations` de production est vide. Dernière migration : 0013. Le code tolère l'absence des tables récentes (`.catch`).
 - Secrets du Worker : `ADMIN_PASSWORD`, `BREVO_API_KEY`, `MAIL_FROM`, `MAIL_FROM_NAME` (facultatif, par défaut « INES · OMAS Externat »). `keep_vars` est activé dans `wrangler.jsonc`.
-- Tâche planifiée `0 16 * * *` (UTC), soit 17 h l'hiver et 18 h l'été à Paris : rappels de la veille, puis purge des connexions expirées (`src/system.js`, `nightly`). Son compte rendu est dans `settings` (clé `cron_last`) et sur la page « État du système » de l'admin, qui vérifie aussi les migrations et Brevo.
+- Tâches planifiées : `0 16 * * *` (UTC), soit 17 h l'hiver et 18 h l'été à Paris : rappels de la veille, liste d'attente, puis purge des connexions expirées (`src/system.js`, `nightly`) ; `30 * * * *` : offres de la liste d'attente arrivées à échéance (`hourly`). En local : `npx wrangler dev --test-scheduled`, puis POST sur `/cdn-cgi/local/explorer/api/local/scheduled?worker=omas-ecos` avec `{"cron": "30 * * * *"}`.
+- Liste d'attente automatique (`src/waitlist.js`) : une place libérée part au premier de la liste avec un délai (24 h, coupé à 3 h avant la convocation, rien en dessous de 2 h de délai). Le délai est dans `candidates.extra.offer_expires_at`. Son compte rendu est dans `settings` (clé `cron_last`) et sur la page « État du système » de l'admin, qui vérifie aussi les migrations et Brevo.
 - Saisie des grilles : ouverte d'après le planning (une heure avant la première convocation du jour, trois quarts d'heure après le dernier tour), ou forcée par `planning.eval_mode` ('auto', 'open', 'closed'). Détail des grilles retenu jusqu'à la fin de la dernière série (`planning.details_embargo`). Tout passe par `src/state.js` (`examState`, `loadExamState`) : ne plus lire `exams.eval_open` directement.
 - E-mails : Brevo, un appel pour 200 destinataires, journal dans `mail_log`. Sans clé, rien ne part et le site fonctionne quand même.
 - Hors connexion : `public/sw.js`. Changer le nom du cache (`ines-v8` aujourd'hui) quand les fichiers du front changent beaucoup.
@@ -25,6 +26,11 @@ INES (Interface numérique d'ECOS et de simulation) est la plateforme des ECOS b
 - Police Rethink Sans, servie par le site (`public/fonts/`, licence OFL).
 - Logo : « INES » avec le S en dix bandes (cinq bleues, cinq turquoise). Fichiers dans `public/img/`, régénérables avec `scripts/brand/logo.py`.
 - Les plaques A1 à B5 restent dans l'application comme signalétique des salles, mais ne sont plus le logo.
+
+## Tests
+- `npm test` (node:test, sans dépendance) : notes, rangs, rotation, horaires, heure de Paris et heure d'été, vœux et attribution, fenêtres de saisie, embargo, liste d'attente, et lecture de chaque fichier. Lancés par GitHub (`.github/workflows/tests.yml`) à chaque push et pull request.
+- Pour bloquer un déploiement raté : dans Cloudflare, Workers & Pages, omas-ecos, Settings, Build, mettre `npm test` en Build command.
+- Toute nouvelle règle qui dépend de l'heure va dans `planning-shared.js`, avec son test.
 
 ## Travailler en local
 ```bash
