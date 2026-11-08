@@ -45,3 +45,13 @@ test('rangs à égalité : 1, 2, 2, 4', () => {
   const r = rankMap([{ id: 'a', value: 15 }, { id: 'b', value: 12 }, { id: 'c', value: 12 }, { id: 'd', value: 9 }]);
   assert.deepEqual([...['a', 'b', 'c', 'd']].map((k) => r.get(k)), [1, 2, 2, 4]);
 });
+
+import { sameName } from '../public/js/shared.js';
+test('nom d\'évaluateur : « Dr Martin », « martin » et « Martin Dupont » désignent la même personne', () => {
+  assert.ok(sameName('Martin Dupont', 'Dr Martin'));
+  assert.ok(sameName('Martin Dupont', '  martin   DUPONT '));
+  assert.ok(sameName('Inès Chabane', 'ines chabane'));
+  assert.ok(sameName('Martin Dupont', 'Dupont Martin'));
+  assert.ok(!sameName('Martin Dupont', 'Léa Martin'));
+  assert.ok(!sameName('Martin Dupont', 'Ma'));
+});

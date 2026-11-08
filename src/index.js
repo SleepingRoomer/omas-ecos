@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
 import {
-  DEFAULT_SLOTS, STATUSES, normalizeContent, qualityChecks, computeScore, missingAnswers, rankMap,
+  DEFAULT_SLOTS, STATUSES, normalizeContent, qualityChecks, computeScore, missingAnswers, rankMap, sameName,
 } from '../public/js/shared.js';
 import { registerJp } from './jp.js';
 import { normalizePlanning } from '../public/js/planning-shared.js';
@@ -192,12 +192,38 @@ app.post('/login', async (c) => {
     if (!st) throw await failed(c, role, 'Code de salle inconnu');
     const E = await loadExamState(db, st.exam_id);
     if (!E.eval.open) throw httpError(403, closedMessage(E.eval));
-    const n = String(name || '').trim();
+    let n = String(name || '').trim().replace(/\s+/g, ' ');
     if (n.length < 2) throw httpError(400, 'Indiquez votre nom');
+    // un nom tapé qui correspond à une personne affectée à la salle prend son orthographe exacte :
+    // « dr martin » et « Martin Dupont » ne font plus deux évaluateurs dans les résultats
+    const known = (await roomNames(db, st)).filter((x) => sameName(x, n));
+    if (known.length === 1) n = known[0];
     await createSession(c, 'evaluateur', st.id, n, 14);
     return c.json({ kind: 'evaluateur' });
   }
   throw httpError(400, 'Rôle inconnu');
+});
+
+// Personnes affectées à une salle aujourd'hui (évaluateurs), pour choisir son nom au lieu de le taper
+async function roomNames(db, st) {
+  const rows = await all(db, `SELECT DISTINCT v.first_name || ' ' || v.last_name AS n, a.half FROM assignments a
+    JOIN volunteer_signups s ON s.id = a.signup_id JOIN volunteers v ON v.id = s.volunteer_id
+    WHERE a.station_id = ? AND a.day = ? AND a.role = 'evaluateur' ORDER BY v.last_name`, st.id, parisToday()).catch(() => []);
+  const half = Number(new Date().toLocaleTimeString('en-GB', { timeZone: 'Europe/Paris', hour: '2-digit' })) < 12 ? 'am' : 'pm';
+  return [...new Set([...rows.filter((r) => r.half === half), ...rows].map((r) => r.n))];
+}
+
+app.post('/room-names', async (c) => {
+  const db = c.env.DB;
+  const code = String((await c.req.json()).code || '').toUpperCase().replace(/\s+/g, '');
+  if (code.length < 6) return c.json({ names: [] });
+  await checkAttempts(c, 'evaluateur');
+  const st = await one(db, 'SELECT * FROM stations WHERE eval_code = ?', code);
+  // code personnel de bénévole, ou code inconnu : rien à proposer (le formulaire de connexion dira la suite)
+  if (!st) return c.json({ names: [] });
+  const E = await loadExamState(db, st.exam_id);
+  if (!E.eval.open) return c.json({ names: [], closed: closedMessage(E.eval) });
+  return c.json({ slot: st.slot, names: await roomNames(db, st) });
 });
 
 app.post('/logout', async (c) => {

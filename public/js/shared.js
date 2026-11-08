@@ -249,3 +249,14 @@ export function rankMap(entries) {
   });
   return ranks;
 }
+
+// Deux façons d'écrire le nom d'une même personne : « Dr Martin », « martin », « Martin Dupont »
+const foldName = (t) => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+  .replace(/\b(dr|docteur|pr)\b\.?\s*/g, '').replace(/[^a-z ]/g, ' ').replace(/\s+/g, ' ').trim();
+export function sameName(full, typed) {
+  const A = foldName(full); const B = foldName(typed);
+  if (!A || !B) return false;
+  if (A === B) return true;
+  const wa = A.split(' '); const wb = B.split(' ');
+  return wb.every((w) => wa.includes(w)) && wb.join('').length >= 4;
+}
