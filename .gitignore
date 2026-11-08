@@ -3,3 +3,4 @@ node_modules
 .dev.vars
 scripts/demo/seed.json
 scripts/demo/shots/
+__pycache__/
