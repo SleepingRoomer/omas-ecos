@@ -17,6 +17,9 @@ import { registerSystem, nightly, hourly } from './system.js';
 import { offerLater } from './waitlist.js';
 import { withDeadlines, notifyStepLater } from './writing.js';
 import { examDataset as datasetOf } from './dataset.js';
+import { registerRgpd } from './rgpd.js';
+import { registerTeam, teamLogin, auditMiddleware, audit } from './team.js';
+import { registerClaims, windowOf, CLAIM_STATUS } from './claims.js';
 
 const app = new Hono().basePath('/api');
 const COOKIE = 'omas_s';
@@ -36,12 +39,6 @@ function genToken() {
   const bytes = new Uint8Array(32);
   crypto.getRandomValues(bytes);
   return [...bytes].map((b) => b.toString(16).padStart(2, '0')).join('');
-}
-function safeEqual(a, b) {
-  a = String(a ?? ''); b = String(b ?? '');
-  let diff = a.length ^ b.length;
-  for (let i = 0; i < Math.max(a.length, b.length); i++) diff |= (a.charCodeAt(i) || 0) ^ (b.charCodeAt(i) || 0);
-  return diff === 0;
 }
 const parse = (s, d) => { try { return JSON.parse(s); } catch { return d; } };
 const httpError = (status, message) => Object.assign(new Error(message), { status });
@@ -127,6 +124,9 @@ app.use('*', async (c, next) => {
   await next();
 });
 
+// journal des actions sensibles de l'équipe (src/team.js)
+app.use('*', auditMiddleware);
+
 const need = (...kinds) => async (c, next) => {
   const s = c.get('session');
   if (!s) throw httpError(401, 'Connexion requise');
@@ -159,8 +159,12 @@ app.post('/login', async (c) => {
   if (!clean) throw httpError(400, 'Code requis');
   await checkAttempts(c, role);
   if (role === 'admin') {
-    if (!c.env.ADMIN_PASSWORD || !safeEqual(clean, c.env.ADMIN_PASSWORD)) throw await failed(c, 'admin', 'Mot de passe incorrect');
-    await createSession(c, 'admin', null, 'Administrateur', 12);
+    // code personnel d'un membre de l'équipe, ou mot de passe commun (accès de secours)
+    const who = await teamLogin(c.env, db, clean);
+    if (who?.refused) throw httpError(403, 'Le mot de passe commun n\'est plus accepté : connecte-toi avec ton code personnel.');
+    if (!who) throw await failed(c, 'admin', 'Mot de passe incorrect');
+    await createSession(c, 'admin', who.member_id, who.name, 12);
+    await audit(c, { kind: 'admin', name: who.name, subject_id: who.member_id }, 'POST', '/login', who.member_id ? 'Connexion de l\'équipe' : 'Connexion avec le mot de passe commun');
     // adresse du site, pour les liens des e-mails envoyés par la tâche planifiée
     await run(db, "INSERT INTO settings (key, value) VALUES ('site_url', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", new URL(c.req.url).origin).catch(() => {});
     return c.json({ kind: 'admin' });
@@ -291,12 +295,13 @@ app.patch('/exams/:id', need('admin'), async (c) => {
   if ('eval_open' in b && !('eval_mode' in b)) b.eval_mode = b.eval_open ? 'open' : 'closed';
   for (const f of fields) if (f in b) { sets.push(`${f} = ?`); vals.push(typeof b[f] === 'boolean' ? (b[f] ? 1 : 0) : b[f]); }
   if (sets.length) await run(c.env.DB, `UPDATE exams SET ${sets.join(', ')} WHERE id = ?`, ...vals, c.req.param('id'));
-  if ('eval_mode' in b || 'details_embargo' in b) {
+  if ('eval_mode' in b || 'details_embargo' in b || 'claims_days' in b) {
     const E = await loadExamState(c.env.DB, c.req.param('id'));
     if (!E) throw httpError(404, 'Session introuvable');
     const P = { ...E.planning };
     if ('eval_mode' in b) P.eval_mode = ['auto', 'open', 'closed'].includes(b.eval_mode) ? b.eval_mode : 'auto';
     if ('details_embargo' in b) P.details_embargo = !!b.details_embargo;
+    if ('claims_days' in b) P.claims_days = Math.min(30, Math.max(0, Number(b.claims_days) || 0));
     await run(c.env.DB, 'UPDATE exams SET planning = ? WHERE id = ?', JSON.stringify(P), E.exam.id);
   }
   return c.json({ ok: true });
@@ -546,22 +551,41 @@ app.get('/exams/:id/candidates', need('admin'), async (c) => {
 
 app.post('/exams/:id/candidates', need('admin'), async (c) => {
   const examId = c.req.param('id');
+  const db = c.env.DB;
   const b = await c.req.json();
   const list = (Array.isArray(b.rows) ? b.rows : [b])
     .filter((r) => String(r.last_name || '').trim() || String(r.first_name || '').trim());
-  const codes = await freshCodes(c.env.DB, list.length);
-  await batch(c.env.DB, multiInsert(c.env.DB, 'candidates', [...CAND_COLS, 'extra'], list.map((r, i) => ({
+  // réimport du même export : les personnes déjà là ne sont pas recréées ; un billet remboursé annule le candidat
+  const low = (v) => String(v || '').trim().toLowerCase();
+  const keyOf = (r) => (low(r.email) ? `${low(r.email)}|${low(r.last_name)}` : `|${low(r.last_name)}|${low(r.first_name)}`);
+  const existing = new Map((await all(db, `SELECT c.id, c.email, c.last_name, c.first_name, c.status, c.day,
+    (SELECT COUNT(*) FROM evaluations v WHERE v.candidate_id = c.id) AS n_ev FROM candidates c WHERE c.exam_id = ?`, examId)).map((x) => [keyOf(x), x]));
+  const seen = new Set(); const fresh = []; const cancel = []; let skipped = 0;
+  for (const r of list) {
+    const k = keyOf(r);
+    const ex = existing.get(k);
+    if (ex) {
+      if (r.status === 'annule' && ex.status !== 'annule' && !ex.n_ev) cancel.push(ex); else skipped++;
+      continue;
+    }
+    if (seen.has(k)) { skipped++; continue; }
+    seen.add(k); fresh.push(r);
+  }
+  const codes = await freshCodes(db, fresh.length);
+  await batch(db, [...multiInsert(db, 'candidates', [...CAND_COLS, 'extra'], fresh.map((r, i) => ({
     exam_id: Number(examId), last_name: String(r.last_name || '').trim(), first_name: String(r.first_name || '').trim(),
     email: r.email || null, phone: r.phone || null, faculty: r.faculty || null, year: r.year || null, slot_label: r.slot_label || null,
     day: r.day || null, series: r.series ? Number(r.series) : null, status: r.status === 'annule' ? 'annule' : 'inscrit', code: codes[i],
     extra: (() => {
       const x = {};
       if (String(r.prepa || '').trim()) x.prepa = String(r.prepa).trim();
+      if (String(r.amenagement || '').trim() && !/^(non|aucun|rien|-|\/)$/i.test(String(r.amenagement).trim())) x.amenagement = String(r.amenagement).trim().slice(0, 200);
       if (String(r.tarif || '').trim()) { x.tarif = String(r.tarif).trim(); x.adherent = /adh[ée]rent/i.test(x.tarif) && !/non[\s-]*adh/i.test(x.tarif); }
       return Object.keys(x).length ? JSON.stringify(x) : null;
     })(),
-  }))));
-  return c.json({ imported: list.length });
+  }))), ...cancel.map((x) => db.prepare("UPDATE candidates SET status = 'annule', seat = NULL, number = NULL WHERE id = ?").bind(x.id))]);
+  if (cancel.some((x) => x.day)) offerLater(c, Number(examId));
+  return c.json({ imported: fresh.length, skipped, cancelled: cancel.length });
 });
 
 app.patch('/candidates/:id', need('admin'), async (c) => {
@@ -718,7 +742,7 @@ async function candidateReport(db, candidateId, asAdmin) {
   const stations = R.played.map((s) => {
     const e = me?.ev.find((x) => x.station_id === s.id);
     const st = R.stationStats[s.id];
-    const out = { slot: s.slot, title: s.title, domain: s.domain, discipline: s.discipline, evaluated: !!e, absent: !!e?.absent };
+    const out = { station_id: s.id, slot: s.slot, title: s.title, domain: s.domain, discipline: s.discipline, evaluated: !!e, absent: !!e?.absent };
     const content = contentOf.get(s.id);
     if (content && showResults) { out.item = content.identite.item || ''; out.sdd = content.identite.sdd || ''; }
     if (e && !e.absent && showResults) {
@@ -746,7 +770,11 @@ async function candidateReport(db, candidateId, asAdmin) {
       images: (content.documents || []).filter((d) => d.file_id && /^image\//.test(d.file_mime || '')).map((d) => ({ id: d.file_id, nom: d.nom })) };
     return out;
   });
+  // réclamations de ce candidat, et si la fenêtre est ouverte
+  const claims = await all(db, 'SELECT id, station_id, message, status, answer, created_at, answered_at FROM claims WHERE candidate_id = ?', cand.id).catch(() => []);
+  const claimsWin = windowOf({ ...ex, n_played: R.played.length });
   return {
+    claims: claims.map((k) => ({ ...k, status_label: CLAIM_STATUS[k.status] })), claims_window: claimsWin,
     candidate: { number: asAdmin || parse(ex.planning, {})?.publish !== false ? cand.number : null, first_name: cand.first_name, last_name: cand.last_name, day: cand.day, series: cand.series },
     exam: { name: ex.name, show_results: !!showResults, show_details: !!showDetails, corrections_published: !!showCorr,
       details_from: !asAdmin && D.held ? D.from : null },
@@ -979,6 +1007,9 @@ registerBanque(app, { need, httpError, all, one, run, parse, stationRights, STAT
 registerProgression(app, { need, httpError, all, one });
 registerMail(app, { need, httpError, all, one, run, parse, batch });
 registerSystem(app, { need, all, one });
+registerRgpd(app, { need, httpError, all, one, run });
+registerTeam(app, { need, httpError, all, one, run });
+registerClaims(app, { need, httpError, all, one, run });
 
 app.all('*', () => { throw httpError(404, 'Route inconnue'); });
 

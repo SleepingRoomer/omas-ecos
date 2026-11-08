@@ -274,3 +274,37 @@ export function stepDeadline(st, deadlines, now = Date.now()) {
   const days = Math.round((Date.parse(`${today}T12:00:00Z`) - Date.parse(`${d}T12:00:00Z`)) / 864e5);
   return { date: d, late: days > 0 ? days : 0, left: days <= 0 ? -days : 0 };
 }
+
+// ---------- import des inscrits (export de billetterie, HelloAsso compris) ----------
+// Reconnaissance des colonnes, par ordre de préférence. Les exports HelloAsso ont à la fois le participant et le payeur :
+// on prend le participant, et le payeur seulement s'il n'y a rien d'autre.
+const GUESS = {
+  last_name: [/^nom$/i, /^nom (du |de l.)?participant/i, /nom participant/i, /last ?name/i, /^nom\b/i],
+  first_name: [/^pr[ée]nom$/i, /^pr[ée]nom (du |de l.)?participant/i, /first ?name/i, /pr[ée]nom/i],
+  email: [/^e-?mail$/i, /e-?mail (du |de l.)?participant/i, /^champ.*e-?mail/i, /e-?mail|courriel/i],
+  phone: [/t[ée]l[ée]phone|portable|mobile|phone/i],
+  faculty: [/facult|^fac\b|universit/i],
+  year: [/ann[ée]e d.?[ée]tudes?/i, /ann[ée]e|niveau|promo/i],
+  slot_label: [/cr[ée]neau|s[ée]ance/i, /^formule/i],
+  tarif: [/^tarif$/i, /^(nom du )?tarif/i, /tarif|adh[ée]rent/i, /^billet$/i],
+  prepa: [/pr[ée]pa|tutorat|pr[ée]paration/i],
+  amenagement: [/am[ée]nagement|tiers.?temps|handicap|accessibilit/i],
+  status: [/^statut/i, /status/i],
+};
+const SKIP = { tarif: /montant|prix|€|code promo/i, status: /paiement|commande pay/i };
+export function guessColumns(head) {
+  const used = new Set();
+  const out = {};
+  for (const f of Object.keys(GUESS)) {
+    const ok = (h, i, payer) => !used.has(i) && !(SKIP[f] && SKIP[f].test(h)) && (payer || !/payeur|acheteur|payer/i.test(h));
+    let idx = -1;
+    for (const payer of [false, true]) {
+      for (const re of GUESS[f]) { idx = head.findIndex((h, i) => re.test(h.trim()) && ok(h, i, payer)); if (idx >= 0) break; }
+      if (idx >= 0 || !['last_name', 'first_name', 'email'].includes(f)) break;
+    }
+    out[f] = idx;
+    if (idx >= 0) used.add(idx);
+  }
+  return out;
+}
+export const isCancelled = (v) => /rembours|annul|refund|cancel/i.test(String(v || ''));

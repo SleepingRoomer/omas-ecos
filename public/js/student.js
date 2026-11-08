@@ -1,4 +1,4 @@
-import { api, esc, nl, fmt, setTitle, plate, dom, disc } from './ui.js';
+import { api, esc, nl, fmt, setTitle, plate, dom, disc, toast } from './ui.js';
 import { COM_LEVELS } from './shared.js';
 import { convocationPanel } from './convocation.js';
 import { aboutSection } from './about.js';
@@ -7,6 +7,25 @@ import { feedbackPanel } from './feedback.js';
 let timer = null;
 const ord = (n) => (n === 1 ? 'er' : 'e');
 const time = (iso) => new Date(iso).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Paris' });
+
+const longWhen = (iso) => new Date(iso).toLocaleString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Paris' });
+
+// Réclamation sur la grille d'une station : ce qui a été demandé et répondu, ou le formulaire si le délai court encore
+function claimBlock(R, s, opts) {
+  if (!s.apt) return '';
+  const k = (R.claims || []).find((x) => x.station_id === s.station_id);
+  if (k) {
+    return `<div class="claim ${k.status}"><b>${opts.back ? 'Réclamation de l\'étudiant' : 'Ta réclamation'}</b> <span class="pill ${k.status === 'accepted' ? 'ok' : k.status === 'rejected' ? '' : 'warn'}">${esc(k.status_label)}</span>
+      <p class="small" style="white-space:pre-wrap;margin:6px 0 0">${esc(k.message)}</p>
+      ${k.answer ? `<p class="small" style="margin:8px 0 0"><b>Réponse de l'équipe :</b> ${esc(k.answer)}</p>` : ''}</div>`;
+  }
+  const W = R.claims_window;
+  if (opts.back || !W?.open) return '';
+  return `<details class="claim-ask"><summary class="small">Une erreur dans cette grille ? Demander une révision${W.until ? ` (jusqu'au ${esc(longWhen(W.until))})` : ''}</summary>
+    <p class="small muted">Dis précisément quel item te semble mal coché et pourquoi. L'équipe relit la grille avec l'évaluateur et te répond par e-mail. Une seule demande par station.</p>
+    <textarea data-claim="${s.station_id}" rows="4" maxlength="1500" placeholder="Item 4 « Recherche les signes de gravité » : j'ai demandé la tension et la fréquence respiratoire dès le début…"></textarea>
+    <button class="small primary" data-claim-send="${s.station_id}">Envoyer ma demande</button></details>`;
+}
 
 function render(R, opts = {}) {
   const c = R.candidate;
@@ -66,6 +85,7 @@ function render(R, opts = {}) {
             ${s.com.map((i) => `<div class="it ${i.value >= 0.5 ? 'ok' : 'ko'}"><span class="mark">${i.value >= 0.5 ? '✓' : '·'}</span><span class="txt">${esc(i.label)}</span><span class="pts">${esc(levelName(i.value))}, ${fmt(i.value)}</span></div>`).join('')}
             ${(s.comments || (s.comment ? [s.comment] : [])).map((t) => `<div class="evcomment"><b>${s.comments?.length > 1 ? 'Le mot d\'un évaluateur' : 'Le mot de l\'évaluateur'}</b>${nl(t)}</div>`).join('')}
             ${s.by_rater?.length > 1 ? `<p class="small muted">Par évaluateur : ${s.by_rater.map((r) => `${esc(r.name)} ${fmt(r.score, 1)}`).join(', ')}.</p>` : ''}` : ''}
+          ${claimBlock(R, s, opts)}
           ${s.correction ? `<h3>Correction</h3><div>${nl(s.correction.text) || '<span class="muted">Pas encore rédigée.</span>'}</div>
             ${(s.correction.images || []).length ? `<div class="corr-imgs">${s.correction.images.map((im) => `<figure><a href="/api/files/${im.id}" target="_blank" rel="noopener"><img src="/api/files/${im.id}" alt="${esc(im.nom || '')}" loading="lazy"></a><figcaption class="small muted">${esc(im.nom || '')}</figcaption></figure>`).join('')}</div>` : ''}
             ${s.correction.references ? `<p class="small muted">Références : ${nl(s.correction.references)}</p>` : ''}`
@@ -89,10 +109,22 @@ export async function studentView(app) {
   const resBox = app.querySelector('#res');
   const convBox = app.querySelector('#conv');
   const drawRes = (R) => {
+    // une demande de révision en cours d'écriture : on ne redessine pas sous les doigts de l'étudiant
+    if ([...resBox.querySelectorAll('textarea[data-claim]')].some((t) => t.value.trim())) return;
     const open = [...resBox.querySelectorAll('details.st-res')].map((d) => d.open);
     resBox.innerHTML = render(R, { noHead: true, compact: !passed });
     resBox.querySelectorAll('details.st-res').forEach((d, i) => { if (open[i]) d.open = true; });
     app.querySelector('#upd').textContent = `Mis à jour à ${time(R.updated_at)}`;
+    resBox.querySelectorAll('[data-claim-send]').forEach((b) => b.addEventListener('click', async () => {
+      const id = Number(b.dataset.claimSend);
+      const message = resBox.querySelector(`textarea[data-claim="${id}"]`).value;
+      try {
+        await api('/me/claims', { method: 'POST', body: { station_id: id, message } });
+        toast('Demande envoyée : l\'équipe te répond par e-mail.');
+        resBox.querySelector(`textarea[data-claim="${id}"]`).value = '';
+        drawRes(await api('/me/results'));
+      } catch (err) { toast(err.message, 'error'); }
+    }));
   };
   drawRes(R0);
   const loadConv = () => convocationPanel(convBox, loadConv).then((C) => {

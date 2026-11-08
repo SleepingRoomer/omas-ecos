@@ -4,6 +4,7 @@ import { dailyReminders, mailReady } from './mail.js';
 import { expireOffers } from './waitlist.js';
 import { weeklyRecap } from './writing.js';
 import { weeklyBackup, lastBackup } from './backup.js';
+import { rgpdPurge } from './rgpd.js';
 
 // Ce que chaque migration doit avoir créé : table, ou table.colonne
 export const MIGRATIONS = [
@@ -20,6 +21,7 @@ export const MIGRATIONS = [
   ['0011_banque', ['station_files', 'stations.origin_id']],
   ['0012_mails_rgpd', ['mail_log', 'exams.anonymized_at']],
   ['0013_evaluateurs', ['volunteer_signups.prefs']],
+  ['0014_equipe_reclamations', ['team_members', 'audit_log', 'claims']],
 ];
 
 // SQLite garde le texte du CREATE TABLE à jour après un ALTER TABLE ADD COLUMN : une seule requête suffit
@@ -70,6 +72,7 @@ export async function nightly(env) {
   try { out.waitlist = await expireOffers(env); } catch (e) { out.error = `${out.error ? `${out.error} ; ` : ''}liste d'attente : ${String(e.message || e).slice(0, 200)}`; }
   try { out.writing = await weeklyRecap(env); } catch (e) { out.error = `${out.error ? `${out.error} ; ` : ''}relances : ${String(e.message || e).slice(0, 200)}`; }
   try { out.backup = await weeklyBackup(env); } catch (e) { out.error = `${out.error ? `${out.error} ; ` : ''}sauvegarde : ${String(e.message || e).slice(0, 200)}`; }
+  try { out.rgpd = await rgpdPurge(env); } catch (e) { out.error = `${out.error ? `${out.error} ; ` : ''}données personnelles : ${String(e.message || e).slice(0, 200)}`; }
   try { out.purge = await purge(db); } catch (e) { out.error = `${out.error ? `${out.error} ; ` : ''}purge : ${String(e.message || e).slice(0, 200)}`; }
   out.ms = Date.now() - new Date(started).getTime();
   await saveSetting(db, 'cron_last', out);

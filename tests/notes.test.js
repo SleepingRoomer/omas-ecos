@@ -68,3 +68,21 @@ test('circuit de rédaction : échéance de l\'étape en cours et retard, à l\'
   assert.equal(stepDeadline({ ...st, status: 'validee' }, { validee: '2026-11-01' }), null);
   assert.equal(stepDeadline({ ...st, status: 'redaction' }, D), null);
 });
+
+import { guessColumns, isCancelled } from '../public/js/shared.js';
+test('import HelloAsso : colonnes du participant plutôt que du payeur, tarif plutôt que montant', () => {
+  const head = ['Référence commande', 'Date de la commande', 'Statut de la commande', 'Nom payeur', 'Prénom payeur', 'Email payeur', 'Tarif', 'Montant tarif',
+    'Nom', 'Prénom', 'Email', 'Téléphone', 'Faculté', 'Année d\'études', 'Préparation', 'Aménagement'];
+  const g = guessColumns(head);
+  assert.equal(head[g.last_name], 'Nom');
+  assert.equal(head[g.first_name], 'Prénom');
+  assert.equal(head[g.email], 'Email');
+  assert.equal(head[g.tarif], 'Tarif');
+  assert.equal(head[g.year], 'Année d\'études');
+  assert.equal(head[g.amenagement], 'Aménagement');
+  assert.equal(head[g.status], 'Statut de la commande');
+  // sans colonne participant, on se rabat sur le payeur
+  const g2 = guessColumns(['Nom payeur', 'Prénom payeur', 'Email payeur', 'Formule']);
+  assert.deepEqual([g2.last_name, g2.first_name, g2.email, g2.slot_label], [0, 1, 2, 3]);
+  assert.ok(isCancelled('Remboursé') && isCancelled('Annulée') && !isCancelled('Validé'));
+});

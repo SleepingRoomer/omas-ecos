@@ -22,6 +22,8 @@ export function normalizePlanning(p, exam = {}) {
     welcome_morning: 'Petit déjeuner à l\'accueil', welcome_afternoon: '',
     // saisie des grilles d'après les horaires ('auto'), ou forcée ('open', 'closed') ; détail des grilles retenu jusqu'à la dernière série
     eval_mode: 'auto', details_embargo: true,
+    // réclamations sur une grille : ouvertes tant de jours après l'ouverture du détail (0 = pas de réclamation)
+    claims_days: 7,
     ...(p || {}),
   };
   if (!['auto', 'open', 'closed'].includes(out.eval_mode)) out.eval_mode = 'auto';
@@ -42,7 +44,7 @@ export function normalizePlanning(p, exam = {}) {
       start: s.start || '08:30', convocation: s.convocation || shift(s.start || '08:30', -15), closed: !!s.closed, nopause: !!s.nopause,
     })),
   })).sort((a, b) => a.date.localeCompare(b.date));
-  for (const k of ['rotation_minutes', 'pause_after', 'pause_minutes', 'debrief_minutes', 'swaps_close_hours', 'wishes_min', 'wishes_max_ideal']) out[k] = Number(out[k]) || 0;
+  for (const k of ['rotation_minutes', 'pause_after', 'pause_minutes', 'debrief_minutes', 'swaps_close_hours', 'wishes_min', 'wishes_max_ideal', 'claims_days']) out[k] = Number(out[k]) || 0;
   out.publish = out.publish !== false;
   out.wishes_open = !!out.wishes_open;
   if (!out.rooms || typeof out.rooms !== 'object') out.rooms = {};
@@ -174,6 +176,20 @@ export function detailsState(planning, showDetails, nRounds = 10, now = Date.now
   const end = embargo ? lastRoundEnd(planning, nRounds) : null;
   const held = !!(showDetails && end && now < end.getTime());
   return { visible: !!showDetails && !held, held, embargo, from: end ? end.toISOString() : null };
+}
+
+// ---------- réclamations ----------
+// Un étudiant peut demander la révision d'une grille une fois le détail visible, pendant planning.claims_days jours.
+// Point de départ : la fin de la dernière série (embargo), sinon la fin du dernier jour de la session.
+export function claimsWindow(planning, showDetails, nRounds = 10, now = Date.now()) {
+  const days = planning.claims_days;
+  if (!days) return { open: false, enabled: false };
+  const D = detailsState(planning, showDetails, nRounds, now);
+  if (!D.visible) return { open: false, enabled: true, waiting: true };
+  const end = lastRoundEnd(planning, nRounds);
+  if (!end) return { open: true, enabled: true, until: null };
+  const until = end.getTime() + days * 864e5;
+  return { open: now < until, enabled: true, until: new Date(until).toISOString() };
 }
 
 // ---------- liste d'attente automatique ----------

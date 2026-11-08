@@ -31,7 +31,7 @@ export async function publicSignup(app, examId) {
         <div class="vol-days">${Object.entries(byDay).map(([d, hs]) => `<div class="vol-day"><strong>${esc(longDate(d))}</strong>
           <div class="seg small">${hs.map((h) => `<label class="pick"><input type="checkbox" name="halfdays" value="${h.key}" data-day="${d}"><span>${HALF[h.half]}</span></label>`).join('')}</div></div>`).join('')}</div></fieldset>
       <label for="v-no">Un mot pour l'équipe <span class="hint">(facultatif)</span></label><input id="v-no" name="note" placeholder="Je viens avec une amie, je préfère la cardio…">
-      <p class="small muted">Tes coordonnées servent uniquement à organiser les ECOS blancs de l'OMAS et à te recontacter pour les prochaines sessions.</p>
+      <p class="small muted">Tes coordonnées servent uniquement à organiser les ECOS blancs de l'OMAS et à te recontacter pour les prochaines sessions. <a href="#/confidentialite" target="_blank">En savoir plus</a>.</p>
       <button class="primary" style="margin-top:6px">Je m'inscris</button>
     </form><div id="vf-out"></div></div>`;
   // une seule demi-journée par jour : cocher le matin décoche l'après-midi
@@ -87,7 +87,7 @@ export async function publicEvaluatorSignup(app, examId) {
       <label class="check" style="margin-top:12px"><input type="checkbox" name="first_time"><span>C'est ma première fois comme évaluateur aux ECOS blancs</span></label>
       <label class="check"><input type="checkbox" name="attestation" checked><span>Je souhaite une attestation de participation</span></label>
       <label for="e-no">Un mot pour l'équipe <span class="hint">(facultatif)</span></label><input id="e-no" name="note" placeholder="Je viens avec un collègue, je dois partir à 17 h…">
-      <p class="small muted">Vos coordonnées servent uniquement à organiser les ECOS blancs d'OMAS Externat et à vous recontacter pour les prochaines sessions.</p>
+      <p class="small muted">Vos coordonnées servent uniquement à organiser les ECOS blancs d'OMAS Externat et à vous recontacter pour les prochaines sessions. <a href="#/confidentialite" target="_blank">En savoir plus</a>.</p>
       <button class="primary" style="margin-top:6px">Je m'inscris comme évaluateur</button>
     </form><div id="ef-out"></div></div>`;
   app.querySelector('#ef').addEventListener('submit', async (e) => {
@@ -372,15 +372,22 @@ export async function engagementView(app) {
     const fidele = V.filter((v) => v.sessions.length >= 2).length;
     app.innerHTML = `<a class="back" href="#/admin">Sessions</a><h1>Bénévoles</h1>
       <p class="lede">${V.length} personne${V.length > 1 ? 's' : ''} inscrite${V.length > 1 ? 's' : ''} au moins une fois, dont ${fidele} revenue${fidele > 1 ? 's' : ''} sur plusieurs sessions.</p>
+      <p class="small muted">Les fiches sans participation depuis la durée fixée dans État du système (trois ans par défaut) sont effacées automatiquement.</p>
       <input id="q" type="search" placeholder="Chercher un nom, une spécialité…" value="${esc(q)}" style="max-width:360px">
-      <div class="table-wrap" style="margin-top:12px"><table><thead><tr><th>Bénévole</th><th>Sessions</th><th class="num">Demi-journées</th><th class="num">Évaluateur</th><th class="num">PS</th><th class="num">PSS</th><th class="num">Logistique</th><th class="num">Grilles</th><th class="num">Calibrations</th></tr></thead><tbody>
+      <div class="table-wrap" style="margin-top:12px"><table><thead><tr><th>Bénévole</th><th>Sessions</th><th class="num">Demi-journées</th><th class="num">Évaluateur</th><th class="num">PS</th><th class="num">PSS</th><th class="num">Logistique</th><th class="num">Grilles</th><th class="num">Calibrations</th><th></th></tr></thead><tbody>
       ${list.sort((a, b) => b.halfdays - a.halfdays || a.name.localeCompare(b.name)).map((v) => `<tr><td><strong>${esc(v.name)}</strong>${v.sessions.length >= 3 ? ' <span class="pill ok">Pilier</span>' : ''}
           <div class="small muted">${esc(v.status || '')}${v.specialty ? `, ${esc(v.specialty)}` : ''}, ${esc(v.email)}</div></td>
         <td class="small">${v.sessions.map((s) => esc(s.name)).join('<br>')}</td>
         <td class="num"><strong>${v.halfdays}</strong></td>${['evaluateur', 'ps', 'pss', 'logistique'].map((r) => `<td class="num">${v.by_role[r] || ''}</td>`).join('')}
-        <td class="num">${v.grids || ''}</td><td class="num">${v.calibrations || ''}</td></tr>`).join('')}
+        <td class="num">${v.grids || ''}</td><td class="num">${v.calibrations || ''}</td>
+        <td>${/^efface-/.test(v.email) ? '<span class="small muted">effacé</span>' : `<button class="small quiet" data-erase="${v.id}" title="Droit à l'effacement">Effacer</button>`}</td></tr>`).join('')}
       </tbody></table></div>`;
     app.querySelector('#q').addEventListener('input', (e) => { q = e.target.value.toLowerCase(); const p = e.target.selectionStart; draw(); const i = app.querySelector('#q'); i.focus(); i.setSelectionRange(p, p); });
+    app.querySelectorAll('[data-erase]').forEach((b) => b.addEventListener('click', async () => {
+      const v = V.find((x) => String(x.id) === b.dataset.erase);
+      if (!window.confirm(`Effacer ${v.name} ? Son nom, son e-mail et son téléphone disparaissent définitivement ; ses demi-journées restent dans les statistiques. À faire quand la personne le demande.`)) return;
+      try { await api(`/volunteers/${v.id}/erase`, { method: 'POST' }); toast('Effacé'); engagementView(app); } catch (err) { toast(err.message, 'error'); }
+    }));
   };
   draw();
 }
