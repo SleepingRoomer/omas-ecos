@@ -40,7 +40,7 @@ for (const st of stations) {
   k++;
 }
 await admin.req('POST', `/exams/${examId}/test-candidates`, { count: 80 });
-await admin.req('PATCH', `/exams/${examId}`, { eval_open: true, show_results: true, show_details: true });
+await admin.req('PATCH', `/exams/${examId}`, { eval_mode: 'open', show_results: true, show_details: true, details_embargo: false });
 
 // grilles : série 1 du jour entière, série 2 jusqu'au tour en cours
 const played = stations.filter((s) => s.played).map((s) => s.slot);

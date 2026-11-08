@@ -20,8 +20,12 @@ export function normalizePlanning(p, exam = {}) {
     wishes_open: false, wishes_until: '', wishes_min: 6, wishes_max_ideal: 3, publish: true,
     // ce qui attend les étudiants à l'accueil, selon que la série est le matin ou l'après-midi
     welcome_morning: 'Petit déjeuner à l\'accueil', welcome_afternoon: '',
+    // saisie des grilles d'après les horaires ('auto'), ou forcée ('open', 'closed') ; détail des grilles retenu jusqu'à la dernière série
+    eval_mode: 'auto', details_embargo: true,
     ...(p || {}),
   };
+  if (!['auto', 'open', 'closed'].includes(out.eval_mode)) out.eval_mode = 'auto';
+  out.details_embargo = out.details_embargo !== false;
   if (!Array.isArray(out.days) || !out.days.length) {
     // par défaut : un jour par date de la session, quatre séries par jour
     const days = [];
@@ -116,6 +120,60 @@ export function seriesStartsAt(day, hhmm) {
     off = Number(tz.replace('GMT', '')) || 0;
   } catch { /* fuseau inconnu : heure d'hiver */ }
   return new Date(guess.getTime() - off * 3600e3);
+}
+
+// ---------- ouverture de la saisie et embargo du détail des grilles ----------
+// La saisie des grilles suit le planning : chaque jour de passage, elle ouvre avant la première convocation
+// (briefing des évaluateurs) et ferme un peu après la fin du dernier tour. L'équipe peut forcer dans un sens
+// ou dans l'autre (planning.eval_mode : 'auto', 'open', 'closed').
+export const EVAL_OPENS_BEFORE = 60; // minutes avant la première convocation du jour
+export const EVAL_CLOSES_AFTER = 45; // minutes après la fin du dernier tour du jour
+
+const dayBounds = (planning, d, nRounds) => {
+  const open = d.series.filter((s) => !s.closed);
+  if (!open.length) return null;
+  const T = open.map((s) => seriesTimes(planning, s, nRounds));
+  const from = Math.min(...open.map((s) => toMin(s.convocation || s.start))) - EVAL_OPENS_BEFORE;
+  const to = Math.max(...T.map((t) => toMin(t.end))) + EVAL_CLOSES_AFTER;
+  return { from: seriesStartsAt(d.date, toHHMM(Math.max(0, from))), to: seriesStartsAt(d.date, toHHMM(Math.min(23 * 60 + 59, to))) };
+};
+
+// Fenêtres d'ouverture automatique, une par jour de passage
+export const evalWindows = (planning, nRounds = 10) => planning.days.map((d) => ({ date: d.date, ...dayBounds(planning, d, nRounds) })).filter((w) => w.from);
+
+// État de la saisie à un instant donné : ouverte ou non, pourquoi, et la prochaine ouverture ou fermeture
+export function evalState(planning, nRounds = 10, now = Date.now()) {
+  const mode = ['open', 'closed'].includes(planning.eval_mode) ? planning.eval_mode : 'auto';
+  const windows = evalWindows(planning, nRounds);
+  const current = windows.find((w) => now >= w.from.getTime() && now < w.to.getTime()) || null;
+  const next = windows.find((w) => w.from.getTime() > now) || null;
+  if (mode === 'open') return { open: true, mode, auto: !!current, closes_at: null, opens_at: null };
+  if (mode === 'closed') return { open: false, mode, auto: !!current, closes_at: null, opens_at: null };
+  return {
+    open: !!current, mode, auto: !!current,
+    closes_at: current ? current.to.toISOString() : null,
+    opens_at: !current && next ? next.from.toISOString() : null,
+    no_planning: !windows.length,
+  };
+}
+
+// Fin du dernier tour de la dernière série : à partir de là, les items des grilles ne peuvent plus être transmis
+export function lastRoundEnd(planning, nRounds = 10) {
+  let last = null;
+  for (const d of planning.days) for (const s of d.series) {
+    if (s.closed) continue;
+    const t = seriesStartsAt(d.date, seriesTimes(planning, s, nRounds).end);
+    if (!last || t > last) last = t;
+  }
+  return last;
+}
+
+// Détail des grilles : le réglage de l'équipe, retenu jusqu'à la fin de la dernière série si l'embargo est actif
+export function detailsState(planning, showDetails, nRounds = 10, now = Date.now()) {
+  const embargo = planning.details_embargo !== false;
+  const end = embargo ? lastRoundEnd(planning, nRounds) : null;
+  const held = !!(showDetails && end && now < end.getTime());
+  return { visible: !!showDetails && !held, held, embargo, from: end ? end.toISOString() : null };
 }
 
 // Vœux : 2 = idéal, 1 = possible, 0 = impossible. Sans vœux enregistrés, tout est possible.

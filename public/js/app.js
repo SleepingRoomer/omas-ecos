@@ -13,7 +13,7 @@ const HOME = { admin: '#/admin', auteur: '#/redaction', evaluateur: '#/eval', et
 function renderNav() {
   const k = state.me?.kind;
   const links = {
-    admin: [['#/admin', 'Sessions'], ['#/admin/personnes', 'Rédacteurs et relecteurs'], ['#/admin/communication', 'Communication'], ['#/admin/benevoles', 'Bénévoles']],
+    admin: [['#/admin', 'Sessions'], ['#/admin/personnes', 'Rédacteurs et relecteurs'], ['#/admin/communication', 'Communication'], ['#/admin/benevoles', 'Bénévoles'], ['#/admin/systeme', 'État du système']],
     auteur: [['#/redaction', 'Mes stations et ateliers']],
     evaluateur: [['#/eval', 'Ma salle']],
     etudiant: [['#/resultats', 'Mon espace'], ['#/fiches', 'Fiches procédures']],
@@ -92,6 +92,7 @@ const routes = [
   [/^#\/admin\/banque(?:\/(\d+))?$/, 'admin', async (m) => (await import('./bank.js')).bankView(app, m[1])],
   [/^#\/admin\/benevoles$/, 'admin', async () => (await import('./benevoles.js')).engagementView(app)],
   [/^#\/admin\/communication$/, 'admin', async () => (await import('./comms.js')).commsView(app)],
+  [/^#\/admin\/systeme$/, 'admin', async () => (await import('./systeme.js')).systemView(app)],
   [/^#\/admin\/session\/(\d+)\/candidat\/(\d+)$/, 'admin', async (m) => (await import('./student.js')).adminReport(app, m[2], m[1])],
   [/^#\/admin\/session\/(\d+)(?:\/([\w-]+))?$/, 'admin', async (m) => (await import('./admin.js')).examView(app, m[1], m[2] || 'stations')],
   [/^#\/admin\/jp\/(\d+)(?:\/(\w+))?$/, 'admin', async (m) => (await import('./jp.js')).jpView(app, m[1], m[2] || 'ateliers')],

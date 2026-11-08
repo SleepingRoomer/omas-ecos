@@ -64,7 +64,7 @@ export async function volunteerSpace(app) {
     ${now ? `<div class="panel vol-now"><div class="row between"><div>${plate(now.slot, 'lg')} <strong>C'est maintenant : salle ${esc(now.slot)}</strong>
         <div class="small muted">${esc(now.title || '')}</div></div>
       <button class="primary" id="enter" ${M.exam.eval_open ? '' : 'disabled'}>Ouvrir ma salle</button></div>
-      ${M.exam.eval_open ? '' : '<p class="small muted" style="margin:8px 0 0">La saisie ouvre le matin du passage : réessaie dans quelques minutes.</p>'}</div>` : ''}
+      ${M.exam.eval_open ? '' : `<p class="small muted" style="margin:8px 0 0">La saisie ouvre d'elle-même une heure avant la première convocation${M.exam.opens_at ? `, le ${esc(new Date(M.exam.opens_at).toLocaleString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Paris' }))}` : ''}.</p>`}</div>` : ''}
     <h2>Mon planning</h2>
     ${M.assignments.length ? `<div class="vol-plan">${M.assignments.map((a) => `<div class="vol-slot ${a.now ? 'now' : ''}">
         <div class="small muted">${esc(longDate(a.day))}</div><strong>${HALF[a.half]}${a.times ? `, convocation ${esc(a.times.from)}` : ''}</strong>

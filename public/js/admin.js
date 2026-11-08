@@ -451,12 +451,23 @@ async function settingsTab(box, exam) {
   const flag = (k, title, desc, warn = '') => `<label class="panel check" style="margin:10px 0">
     <input type="checkbox" data-k="${k}" ${exam[k] ? 'checked' : ''} style="margin-top:3px">
     <span><strong>${title}</strong><br><span class="small muted">${desc}</span>${warn ? `<br><span class="small" style="color:#8a5a00">${warn}</span>` : ''}</span></label>`;
+  const ES = exam.eval_state || {}; const DS = exam.details_state || {};
+  const when = (iso) => (iso ? new Date(iso).toLocaleString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Paris' }) : '');
+  const evalNow = ES.open ? `<span class="pill live ok">Ouverte en ce moment</span>` : '<span class="pill">Fermée en ce moment</span>';
+  const evalNext = ES.mode !== 'auto' ? '' : ES.closes_at ? `Elle ferme d'elle-même le ${when(ES.closes_at)}.` : ES.opens_at ? `Prochaine ouverture : le ${when(ES.opens_at)}.`
+    : ES.no_planning ? 'Aucun jour de passage dans le planning : la saisie restera fermée tant que tu ne l\'as pas réglé ou forcée.' : 'Tous les jours de passage sont terminés.';
   box.innerHTML = `
     <h2 style="margin-top:0">Pendant la session</h2>
-    ${flag('eval_open', 'Saisie des grilles ouverte', 'À cocher le matin du premier jour, à décocher après la dernière série. Fermée, aucun évaluateur ne peut enregistrer.')}
+    <div class="panel" style="margin:10px 0"><div class="row between"><div><strong>Saisie des grilles</strong> ${evalNow}
+        <div class="small muted" style="margin-top:4px">D'après le planning, la saisie ouvre une heure avant la première convocation de chaque jour et ferme trois quarts d'heure après le dernier tour. Un code de salle ne sert à rien en dehors. ${esc(evalNext)}</div></div>
+      <select id="eval-mode" style="width:auto" aria-label="Mode de la saisie">
+        <option value="auto" ${ES.mode === 'auto' ? 'selected' : ''}>Automatique, d'après le planning</option>
+        <option value="open" ${ES.mode === 'open' ? 'selected' : ''}>Forcer l'ouverture</option>
+        <option value="closed" ${ES.mode === 'closed' ? 'selected' : ''}>Forcer la fermeture</option></select></div></div>
     ${flag('show_results', 'Les étudiants voient leurs notes et leur rang', 'Notes par station et rang provisoire, mis à jour à chaque grille saisie.')}
-    ${flag('show_details', 'Les étudiants voient le détail des grilles', 'Items réussis et manqués, niveaux de communication, commentaires des évaluateurs.',
-      'Visible dès le premier week-end : les candidats du deuxième peuvent en avoir écho.')}
+    ${flag('show_details', 'Les étudiants voient le détail des grilles', 'Items réussis et manqués, niveaux de communication, commentaires des évaluateurs.')}
+    <label class="panel check" style="margin:10px 0 10px 28px"><input type="checkbox" id="embargo" ${DS.embargo ? 'checked' : ''} style="margin-top:3px">
+      <span><strong>Retenir le détail jusqu'à la fin de la dernière série</strong><br><span class="small muted">Tant qu'une série reste à passer, les candidats déjà passés voient leur note mais pas les items attendus : rien à transmettre au week-end suivant.${DS.from ? ` Le détail s'ouvrira le ${esc(when(DS.from))}.` : ' Sans planning, le détail suit simplement la case du dessus.'}</span></span></label>
     <div class="panel"><h2>Message aux étudiants</h2>
       <p class="small muted">Affiché en haut de l'espace de chaque inscrit de la session : résultats en ligne, changement de salle, rappel… Laisse vide pour le retirer.</p>
       <textarea id="ann" rows="3" placeholder="Les résultats sont en ligne ! Les corrections arrivent dimanche soir."></textarea>
@@ -502,6 +513,16 @@ async function settingsTab(box, exam) {
       }
       toast('Informations enregistrées');
     } catch (err) { toast(err.message, 'error'); }
+  });
+  box.querySelector('#eval-mode').addEventListener('change', async (e) => {
+    await api(`/exams/${exam.id}`, { method: 'PATCH', body: { eval_mode: e.target.value } });
+    toast({ auto: 'La saisie suit le planning', open: 'Saisie forcée ouverte', closed: 'Saisie forcée fermée' }[e.target.value]);
+    settingsTab(box, await api(`/exams/${exam.id}`));
+  });
+  box.querySelector('#embargo').addEventListener('change', async (e) => {
+    await api(`/exams/${exam.id}`, { method: 'PATCH', body: { details_embargo: e.target.checked } });
+    toast(e.target.checked ? 'Détail retenu jusqu\'à la dernière série' : 'Détail visible dès la saisie');
+    settingsTab(box, await api(`/exams/${exam.id}`));
   });
   box.querySelectorAll('[data-k]').forEach((cb) => cb.addEventListener('change', async () => {
     await api(`/exams/${exam.id}`, { method: 'PATCH', body: { [cb.dataset.k]: cb.checked ? 1 : 0 } });

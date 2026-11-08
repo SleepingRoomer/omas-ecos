@@ -788,3 +788,9 @@ fieldset legend { font-weight: 700; padding: 0 6px; }
 .fiche-body .box { display: block; width: auto; height: auto; vertical-align: baseline; }
 .fiche-body .two > *, .fiche-body .two-6040 > * { min-width: 0; }
 .danger-zone { border-color: color-mix(in srgb, var(--ko) 35%, var(--line)); }
+
+/* page État du système */
+.sys-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 18px; align-items: start; }
+.sys-grid .panel { margin: 0; }
+.sys-table td { padding: 6px 4px; border-bottom: 1px solid var(--line); font-size: .9rem; }
+.sys-table td:last-child { text-align: right; }

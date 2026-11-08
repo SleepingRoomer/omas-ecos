@@ -6,7 +6,7 @@ import { feedbackPanel } from './feedback.js';
 
 let timer = null;
 const ord = (n) => (n === 1 ? 'er' : 'e');
-const time = (iso) => new Date(iso).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+const time = (iso) => new Date(iso).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Paris' });
 
 function render(R, opts = {}) {
   const c = R.candidate;
@@ -44,6 +44,7 @@ function render(R, opts = {}) {
       <div><h3>À travailler en priorité</h3><ul>${gaps.slice(-2).reverse().map((s) => `<li><span>${s.domain ? dom(s.domain) : esc(s.title)}</span><b>${fmt(s.gap, 1)}</b></li>`).join('')}</ul>
         <p class="small faint" style="margin:6px 0 0">Écart avec la moyenne de la station</p></div></div>` : ''}
     <h2>Station par station</h2>
+    ${R.exam.details_from && scored.length ? `<p class="alert info">Le détail de tes grilles (items réussis et manqués, commentaires) s'affichera ici à partir du ${esc(new Date(R.exam.details_from).toLocaleString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Paris' }))}, une fois la dernière série passée. D'ici là, tu as déjà ta note et ton rang par station.</p>` : ''}
     ${R.stations.map((s) => {
       const has = s.score !== undefined && s.score !== null;
       return `<details class="st-res" ${opts.open ? 'open' : ''}>
