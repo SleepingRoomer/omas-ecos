@@ -27,7 +27,7 @@ export function registerPlanning(app, h) {
       // l'accueil voit les horaires et la liste des candidats, sans adresse, téléphone ni vœux
       const candidates = await all(db, `SELECT id, number, last_name, first_name, day, series, seat, status, confirmed_at, checked_in_at
         FROM candidates WHERE exam_id = ? ORDER BY last_name, first_name`, exam.id);
-      const { accueil_code, materiel_check, materiel_common, writing_deadlines, ...pub } = planning;
+      const { accueil_code, materiel_check, materiel_common, writing_deadlines, broadcasts, ...pub } = planning;
       return c.json({ exam: { id: exam.id, name: exam.name, starts_on: exam.starts_on, ends_on: exam.ends_on }, planning: pub, slots, stations: [], candidates, swaps: [] });
     }
     const [candidates, swaps, titles] = await Promise.all([
@@ -50,7 +50,7 @@ export function registerPlanning(app, h) {
     // réglages gérés par d'autres onglets : jamais écrasés par une copie ancienne du planning
     const current = await one(db, 'SELECT planning FROM exams WHERE id = ?', exam.id);
     const prev = JSON.parse(current?.planning || '{}') || {};
-    for (const k of ['accueil_code', 'materiel_check', 'materiel_common']) { if (k in prev) planning[k] = prev[k]; else delete planning[k]; }
+    for (const k of ['accueil_code', 'materiel_check', 'materiel_common', 'broadcasts']) { if (k in prev) planning[k] = prev[k]; else delete planning[k]; }
     const ds = planning.days.map((d) => d.date);
     await run(db, 'UPDATE exams SET planning = ?, starts_on = ?, ends_on = ? WHERE id = ?', JSON.stringify(planning),
       ds[0] || exam.starts_on, ds[ds.length - 1] || exam.ends_on, exam.id);

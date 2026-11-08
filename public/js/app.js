@@ -148,6 +148,7 @@ export async function route() {
   }
   const hash = (location.hash || '#/').split('?')[0];
   renderNav();
+  pollBroadcast();
   window.scrollTo(0, 0);
   for (const [re, kinds, fn] of routes) {
     const m = hash.match(re);
@@ -165,6 +166,37 @@ export async function route() {
   if (state.me.kind && !location.hash.includes('code=')) { location.hash = HOME[state.me.kind]; return; }
   loginView();
 }
+
+// Messages de l'équipe aux salles : bandeau en haut de l'écran, relu toutes les 30 secondes
+// (évaluateurs, accueil, bénévoles, et l'écran de projection de l'équipe)
+const bcBox = document.getElementById('broadcast');
+const bcSeen = () => { try { return JSON.parse(sessionStorage.getItem('bc_seen') || '[]'); } catch { return []; } };
+let bcShown = new Set();
+async function pollBroadcast() {
+  if (!bcBox) return;
+  const k = state.me?.kind;
+  const proj = location.hash.match(/^#\/admin\/session\/(\d+)\/projection$/);
+  if (!(['evaluateur', 'accueil', 'benevole'].includes(k) || (k === 'admin' && proj))) { bcBox.innerHTML = ''; return; }
+  if (document.visibilityState !== 'visible') return;
+  try {
+    const r = await api(`/broadcast${k === 'admin' ? `?exam=${proj[1]}` : ''}`);
+    const seen = bcSeen();
+    const list = r.messages.filter((m) => !seen.includes(m.id));
+    if (list.some((m) => !bcShown.has(m.id))) navigator.vibrate?.(250);
+    bcShown = new Set(list.map((m) => m.id));
+    bcBox.innerHTML = list.map((m) => `<div class="bc"><span class="bc-ico" aria-hidden="true">📣</span><span class="bc-t">${esc(m.text)}
+      <span class="bc-m">Message de l'équipe${m.slot ? `, pour la salle ${esc(m.slot)}` : ''}, à ${new Date(m.at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Paris' })}</span></span>
+      <button type="button" data-bc-ok="${m.id}">Vu</button></div>`).join('');
+  } catch { /* hors connexion : on réessaiera */ }
+}
+bcBox?.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-bc-ok]'); if (!b) return;
+  const s = bcSeen(); s.push(Number(b.dataset.bcOk));
+  try { sessionStorage.setItem('bc_seen', JSON.stringify(s.slice(-50))); } catch { /* stockage indisponible */ }
+  b.closest('.bc').remove();
+});
+setInterval(pollBroadcast, 30000);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') pollBroadcast(); });
 
 window.addEventListener('hashchange', route);
 route();
