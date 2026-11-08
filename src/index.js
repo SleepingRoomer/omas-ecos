@@ -13,7 +13,8 @@ import { registerBanque } from './banque.js';
 import { registerProgression } from './progression.js';
 import { registerMail, notifier } from './mail.js';
 import { examState, loadExamState, closedMessage } from './state.js';
-import { registerSystem, nightly } from './system.js';
+import { registerSystem, nightly, hourly } from './system.js';
+import { offerLater } from './waitlist.js';
 
 const app = new Hono().basePath('/api');
 const COOKIE = 'omas_s';
@@ -535,7 +536,10 @@ app.patch('/candidates/:id', need('admin'), async (c) => {
   }
   if (('day' in b || 'series' in b) && !('seat' in b)) sets.push('seat = NULL', 'number = NULL');
   if (b.status === 'annule') sets.push('seat = NULL', 'number = NULL');
+  const before = b.status === 'annule' ? await one(c.env.DB, 'SELECT exam_id, status, day FROM candidates WHERE id = ?', c.req.param('id')) : null;
   if (sets.length) await run(c.env.DB, `UPDATE candidates SET ${sets.join(', ')} WHERE id = ?`, ...vals, c.req.param('id'));
+  // une place annulée par l'équipe repart aussi à la liste d'attente
+  if (before && before.status !== 'annule' && before.day) offerLater(c, before.exam_id);
   return c.json({ ok: true });
 });
 
@@ -961,5 +965,6 @@ app.all('*', () => { throw httpError(404, 'Route inconnue'); });
 // la tâche planifiée (tous les jours en fin d'après-midi) : rappels de la veille, purge des connexions expirées
 export default {
   fetch: app.fetch,
-  scheduled: (event, env, ctx) => ctx.waitUntil(nightly(env)),
+  // deux déclencheurs : 16 h UTC pour la tâche du soir, toutes les heures pour la liste d'attente
+  scheduled: (event, env, ctx) => ctx.waitUntil(event.cron === '0 16 * * *' ? nightly(env) : hourly(env)),
 };

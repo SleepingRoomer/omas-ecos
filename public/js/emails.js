@@ -17,7 +17,8 @@ export async function emailsPanel(box) {
       <li>Dans Cloudflare : le Worker omas-ecos, Paramètres, Variables et secrets. Ajoute <code>BREVO_API_KEY</code> (secret) et <code>MAIL_FROM</code> (l'adresse validée), et si tu veux <code>MAIL_FROM_NAME</code>.</li></ol></div>`}
     ${tog('auto_reminder', 'Rappel la veille', 'Chaque jour vers 17 h, les candidats et les bénévoles du lendemain reçoivent un rappel avec l\'heure et le lien vers leur espace.')}
     ${tog('auto_swap', 'Échanges de créneaux', 'Les deux étudiants reçoivent leur nouvel horaire dès que l\'échange est fait.')}
-    ${tog('auto_waitlist', 'Liste d\'attente', 'Quand tu proposes une place, la personne reçoit son code et le lien pour confirmer.')}
+    ${tog('auto_waitlist', 'Liste d\'attente', 'Quand une place est proposée (à la main ou automatiquement), la personne reçoit son code, le lien et le délai pour confirmer ; si le délai passe, elle est prévenue.')}
+    ${tog('auto_writing', 'Circuit de rédaction', 'Un rédacteur ou relecteur est prévenu quand une station arrive chez lui, et reçoit le lundi le récapitulatif de ce qui l\'attend.')}
     ${tog('auto_volunteer', 'Bénévoles', 'Chaque bénévole reçoit son code personnel juste après son inscription.')}
     <div class="grid cols-2" style="gap:10px;margin-top:8px"><div><label for="rt">Adresse de réponse <span class="hint">(facultatif)</span></label><input id="rt" type="email" value="${esc(S.reply_to)}" placeholder="omas.externat@…"></div>
       <div><label for="tt">Envoyer un e-mail de test à</label><div class="row" style="flex-wrap:nowrap"><input id="tt" type="email" placeholder="toi@…"><button class="small" id="test">Tester</button></div></div></div>

@@ -284,6 +284,7 @@ export function registerPlanning(app, h) {
         options: planning.days.flatMap((d) => d.series.map((_, i) => describe(planning, d.date, i + 1))),
       },
       confirmed_at: cand.confirmed_at,
+      offer_expires_at: !cand.confirmed_at ? parse(cand.extra, {})?.offer_expires_at || null : null,
       swaps: {
         enabled: !!planning.swaps_open, open: win.ok, why: win.ok ? null : win.why, until: win.until || null,
         close_hours: planning.swaps_close_hours,
