@@ -15,6 +15,7 @@ import { registerMail, notifier } from './mail.js';
 import { examState, loadExamState, closedMessage } from './state.js';
 import { registerSystem, nightly, hourly } from './system.js';
 import { offerLater } from './waitlist.js';
+import { withDeadlines, notifyStepLater } from './writing.js';
 
 const app = new Hono().basePath('/api');
 const COOKIE = 'omas_s';
@@ -357,7 +358,7 @@ app.delete('/people/:id', need('admin'), async (c) => {
 
 const STATION_LIST_SQL = `SELECT s.id, s.exam_id, s.slot, s.played, s.domain, s.type, s.discipline, s.title, s.status,
   s.author_id, s.peer_id, s.expert_id, s.eval_code, s.updated_at,
-  a.name AS author_name, p.name AS peer_name, x.name AS expert_name, e.name AS exam_name,
+  a.name AS author_name, p.name AS peer_name, x.name AS expert_name, e.name AS exam_name, e.planning AS exam_planning,
   (SELECT COUNT(*) FROM evaluations v WHERE v.station_id = s.id) AS n_evaluations,
   (SELECT COUNT(*) FROM reviews r WHERE r.station_id = s.id AND r.action = 'comment') AS n_comments
   FROM stations s
@@ -368,7 +369,7 @@ const STATION_LIST_SQL = `SELECT s.id, s.exam_id, s.slot, s.played, s.domain, s.
 
 app.get('/exams/:id/stations', need('admin'), async (c) => {
   const rows = await all(c.env.DB, `${STATION_LIST_SQL} WHERE s.exam_id = ? ORDER BY s.played DESC, s.slot`, c.req.param('id'));
-  return c.json(rows);
+  return c.json(withDeadlines(rows));
 });
 
 app.post('/exams/:id/stations', need('admin'), async (c) => {
@@ -401,7 +402,19 @@ app.patch('/stations/:id', need('admin'), async (c) => {
     await run(db, 'INSERT INTO reviews (station_id, author_name, stage, action, comment) VALUES (?,?,?,?,?)',
       st.id, 'Administrateur', st.status, 'status', `Statut changé : ${STATUSES[st.status]} → ${STATUSES[b.status]}`);
   }
+  // la station arrive chez quelqu'un (nouvelle étape ou nouvelle personne sur l'étape en cours) : on le prévient
+  if ((b.status && b.status !== st.status) || ['author_id', 'peer_id', 'expert_id'].some((f) => f in b && b[f] && b[f] !== st[f])) notifyStepLater(c, st.id);
   return c.json({ ok: true });
+});
+
+// Échéances du circuit de rédaction, une date par étape (dans le planning de la session)
+app.put('/exams/:id/writing', need('admin'), async (c) => {
+  const E = await loadExamState(c.env.DB, c.req.param('id'));
+  if (!E) throw httpError(404, 'Session introuvable');
+  const b = (await c.req.json()).deadlines || {};
+  const deadlines = Object.fromEntries(Object.entries(b).filter(([k, v]) => STATUSES[k] && /^\d{4}-\d{2}-\d{2}$/.test(v)));
+  await run(c.env.DB, 'UPDATE exams SET planning = ? WHERE id = ?', JSON.stringify({ ...E.planning, writing_deadlines: deadlines }), E.exam.id);
+  return c.json({ ok: true, deadlines });
 });
 
 // Nouveaux codes pour toutes les salles d'une session (entre deux week-ends, par exemple) :
@@ -440,13 +453,14 @@ app.get('/redaction/stations', need('auteur'), async (c) => {
   const id = c.get('session').subject_id;
   const rows = await all(c.env.DB, `${STATION_LIST_SQL} WHERE s.author_id = ? OR s.peer_id = ? OR s.expert_id = ?
     ORDER BY e.id DESC, s.slot`, id, id, id);
-  return c.json(rows);
+  return c.json(withDeadlines(rows));
 });
 
 app.get('/stations/:id', need('admin', 'auteur', 'evaluateur'), async (c) => {
   const db = c.env.DB;
-  const st = await one(db, `${STATION_LIST_SQL} WHERE s.id = ?`, c.req.param('id'));
-  if (!st) throw httpError(404, 'Station introuvable');
+  const row = await one(db, `${STATION_LIST_SQL} WHERE s.id = ?`, c.req.param('id'));
+  if (!row) throw httpError(404, 'Station introuvable');
+  const [st] = withDeadlines([row]);
   const rights = stationRights(c.get('session'), st);
   if (!rights.read) throw httpError(403, 'Accès refusé');
   if (rights.isEval && !rights.involved) await openRoom(c);
@@ -512,6 +526,7 @@ app.post('/stations/:id/review', need('admin', 'auteur'), async (c) => {
       if (errors.length) throw httpError(400, `Validation impossible : ${errors.length} point(s) bloquant(s) dans la check-list.`);
     }
     await run(db, "UPDATE stations SET status = ?, updated_at = datetime('now') WHERE id = ?", step.to, st.id);
+    notifyStepLater(c, st.id);
   }
   await run(db, 'INSERT INTO reviews (station_id, author_name, stage, action, comment) VALUES (?,?,?,?,?)',
     st.id, s.name || 'Administrateur', st.status, action, text || null);

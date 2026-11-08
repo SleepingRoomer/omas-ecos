@@ -1,5 +1,5 @@
 import { api, esc, toast, fmt, pct, frDate, setTitle, downloadCsv, parseTable, confirmBox, plate, rail, disc, daysLabel, daysPicker } from './ui.js';
-import { DOMAINS, TYPES, STATUSES, domainIcon } from './shared.js';
+import { DOMAINS, TYPES, STATUSES, domainIcon, DEADLINE_STEPS } from './shared.js';
 
 const link = (role, code) => `${location.origin}/#/?role=${role}&code=${code}`;
 // Jours d'une session : ceux du planning s'il existe, sinon l'intervalle d'origine
@@ -148,12 +148,22 @@ async function stationsTab(box, exam) {
   const played = stations.filter((s) => s.played);
   const ready = played.filter((s) => s.status === 'validee').length;
   const late = stations.filter((s) => s.status === 'a_attribuer').length;
+  const overdue = stations.filter((s) => s.deadline?.late > 0).length;
+  let DL = {}; try { DL = JSON.parse(exam.planning || 'null')?.writing_deadlines || {}; } catch { /* pas de planning */ }
+  const dlTag = (s) => (!s.deadline ? '' : s.deadline.late ? `<span class="pill ko" style="font-size:.72rem">${s.deadline.late} j de retard</span>`
+    : `<span class="small muted">avant le ${esc(frDate(s.deadline.date))}</span>`);
   box.innerHTML = `
     <div class="facts">
       <div><div class="v">${ready}<span class="faint"> / ${played.length}</span></div><div class="l">stations jouées validées</div></div>
       <div><div class="v">${stations.filter((s) => ['relecture_pair', 'relecture_expert', 'test', 'validation'].includes(s.status)).length}</div><div class="l">en relecture ou en test</div></div>
       <div><div class="v">${late}</div><div class="l">sans rédacteur</div></div>
+      <div><div class="v" style="${overdue ? 'color:var(--ko)' : ''}">${overdue}</div><div class="l">en retard sur l'échéance</div></div>
     </div>
+    <details class="panel" ${Object.keys(DL).length ? '' : 'open'}><summary style="cursor:pointer"><strong>Échéances du circuit de rédaction</strong>
+      <span class="small muted">${Object.keys(DL).length ? `${Object.keys(DL).length} étape(s) datée(s)` : 'aucune date pour l\'instant'}</span></summary>
+      <p class="small muted">Une date limite par étape, pour toutes les stations de la session. La personne qui reçoit une station est prévenue par e-mail avec la date ; chaque lundi, chacun reçoit la liste de ce qui l'attend (en retard ou à rendre dans la semaine), et l'équipe le tableau des retards à l'adresse de réponse des e-mails.</p>
+      <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px">${DEADLINE_STEPS.map((k) => `<div><label for="dl-${k}" style="margin-top:0">${esc(STATUSES[k])}</label><input type="date" id="dl-${k}" data-dl="${k}" value="${esc(DL[k] || '')}"></div>`).join('')}</div>
+      <div class="row" style="margin-top:12px"><button class="small primary" id="dl-save">Enregistrer les échéances</button><button class="small quiet" id="dl-recap">Envoyer le récapitulatif maintenant</button></div></details>
     ${active.length ? '' : '<p class="alert warn">Ajoute d\'abord des rédacteurs et des relecteurs dans <a href="#/admin/personnes">Rédacteurs et relecteurs</a> pour attribuer les stations.</p>'}
     <div class="row" style="margin:6px 0 12px"><span class="spacer"></span>
       <a class="btn small" href="#/admin/banque">Banque de stations</a>
@@ -171,6 +181,7 @@ async function stationsTab(box, exam) {
         <td>${sel('author_id', s.author_id, 'Rédacteur')}</td><td>${sel('peer_id', s.peer_id, 'Relecteur pair')}</td><td>${sel('expert_id', s.expert_id, 'Relecteur expert')}</td>
         <td style="min-width:150px"><select data-f="status" aria-label="Étape">${Object.entries(STATUSES).map(([k, l]) => `<option value="${k}" ${k === s.status ? 'selected' : ''}>${l}</option>`).join('')}</select>
           ${rail(s.status, true)}
+          <div>${dlTag(s)}</div>
           <div class="small faint">${s.n_evaluations ? `${s.n_evaluations} grille(s) saisie(s)` : s.n_comments ? `${s.n_comments} commentaire(s)` : ''}</div></td>
         <td><div class="row" style="flex-wrap:nowrap;gap:4px"><a class="btn small" href="#/station/${s.id}">Ouvrir</a>
           ${s.n_evaluations ? '' : `<a class="btn small quiet" href="#/admin/banque/${s.id}" title="Reprendre une station déjà écrite">Banque</a>`}</div></td></tr>`).join('')}</tbody>
@@ -187,6 +198,14 @@ async function stationsTab(box, exam) {
       if (f === 'author_id' || f === 'status' || f === 'played') stationsTab(box, exam);
     } catch (err) { toast(err.message, 'error'); }
   }));
+  box.querySelector('#dl-save').addEventListener('click', async () => {
+    const deadlines = Object.fromEntries([...box.querySelectorAll('[data-dl]')].filter((i) => i.value).map((i) => [i.dataset.dl, i.value]));
+    try { await api(`/exams/${exam.id}/writing`, { method: 'PUT', body: { deadlines } }); toast('Échéances enregistrées'); stationsTab(box, await api(`/exams/${exam.id}`)); } catch (err) { toast(err.message, 'error'); }
+  });
+  box.querySelector('#dl-recap').addEventListener('click', async () => {
+    if (!window.confirm('Envoyer dès maintenant à chaque rédacteur et relecteur la liste de ce qui l\'attend ? (Il part sinon tout seul le lundi.)')) return;
+    try { const r = await api('/system/writing-recap', { method: 'POST' }); toast(r.ready === false ? 'Les e-mails ne sont pas configurés (voir État du système)' : `${r.sent || 0} récapitulatif(s) envoyé(s)`, r.ready === false ? 'error' : 'ok'); } catch (err) { toast(err.message, 'error'); }
+  });
   box.querySelector('#add').addEventListener('click', async () => {
     const slot = prompt('Nom de la nouvelle station (par exemple R3) :');
     if (!slot) return;

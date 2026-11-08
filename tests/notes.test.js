@@ -55,3 +55,16 @@ test('nom d\'évaluateur : « Dr Martin », « martin » et « Martin Dupont » 
   assert.ok(!sameName('Martin Dupont', 'Léa Martin'));
   assert.ok(!sameName('Martin Dupont', 'Ma'));
 });
+
+import { stepDeadline, ownerId } from '../public/js/shared.js';
+test('circuit de rédaction : échéance de l\'étape en cours et retard, à l\'heure de Paris', () => {
+  const D = { relecture_pair: '2026-11-10' };
+  const st = { status: 'relecture_pair', author_id: 1, peer_id: 2, expert_id: 3 };
+  assert.equal(ownerId(st), 2);
+  assert.deepEqual(stepDeadline(st, D, Date.parse('2026-11-08T10:00:00Z')), { date: '2026-11-10', late: 0, left: 2 });
+  assert.deepEqual(stepDeadline(st, D, Date.parse('2026-11-13T10:00:00Z')), { date: '2026-11-10', late: 3, left: 0 });
+  // 23 h 30 UTC le 10 = déjà le 11 à Paris
+  assert.equal(stepDeadline(st, D, Date.parse('2026-11-10T23:30:00Z')).late, 1);
+  assert.equal(stepDeadline({ ...st, status: 'validee' }, { validee: '2026-11-01' }), null);
+  assert.equal(stepDeadline({ ...st, status: 'redaction' }, D), null);
+});

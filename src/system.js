@@ -2,6 +2,7 @@
 // Les migrations sont collées à la main dans la console D1 : on vérifie ici que les tables et colonnes attendues existent.
 import { dailyReminders, mailReady } from './mail.js';
 import { expireOffers } from './waitlist.js';
+import { weeklyRecap } from './writing.js';
 
 // Ce que chaque migration doit avoir créé : table, ou table.colonne
 export const MIGRATIONS = [
@@ -66,6 +67,7 @@ export async function nightly(env) {
   const out = { at: started, reminders: null, purge: null, error: null };
   try { out.reminders = await dailyReminders(env); } catch (e) { out.error = `rappels : ${String(e.message || e).slice(0, 200)}`; }
   try { out.waitlist = await expireOffers(env); } catch (e) { out.error = `${out.error ? `${out.error} ; ` : ''}liste d'attente : ${String(e.message || e).slice(0, 200)}`; }
+  try { out.writing = await weeklyRecap(env); } catch (e) { out.error = `${out.error ? `${out.error} ; ` : ''}relances : ${String(e.message || e).slice(0, 200)}`; }
   try { out.purge = await purge(db); } catch (e) { out.error = `${out.error ? `${out.error} ; ` : ''}purge : ${String(e.message || e).slice(0, 200)}`; }
   out.ms = Date.now() - new Date(started).getTime();
   await saveSetting(db, 'cron_last', out);
@@ -128,4 +130,7 @@ export function registerSystem(app, h) {
 
   // Lancer la tâche de la nuit à la main (les rappels ne partent qu'une fois : le journal des e-mails fait foi)
   app.post('/system/run-nightly', need('admin'), async (c) => c.json(await nightly(c.env)));
+
+  // Envoyer tout de suite le récapitulatif des relances (sinon il part le lundi soir)
+  app.post('/system/writing-recap', need('admin'), async (c) => c.json(await weeklyRecap(c.env, { force: true })));
 }

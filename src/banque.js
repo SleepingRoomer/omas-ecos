@@ -67,6 +67,7 @@ export function registerBanque(app, h) {
   // ---------- fichiers des stations ----------
   async function stationFor(c, id) {
     const st = await one(c.env.DB, `${STATION_LIST_SQL} WHERE s.id = ?`, id);
+    if (st) delete st.exam_planning;
     if (!st) throw httpError(404, 'Station introuvable');
     return { st, rights: stationRights(c.get('session'), st) };
   }

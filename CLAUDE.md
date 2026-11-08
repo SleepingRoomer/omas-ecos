@@ -15,7 +15,9 @@ INES (Interface numérique d'ECOS et de simulation) est la plateforme des ECOS b
 - Migrations : `migrations/00xx_*.sql`. En production, elles sont collées à la main dans la console D1 (une instruction par ligne, sans commentaires), donc la table `d1_migrations` de production est vide. Dernière migration : 0013. Le code tolère l'absence des tables récentes (`.catch`).
 - Secrets du Worker : `ADMIN_PASSWORD`, `BREVO_API_KEY`, `MAIL_FROM`, `MAIL_FROM_NAME` (facultatif, par défaut « INES · OMAS Externat »). `keep_vars` est activé dans `wrangler.jsonc`.
 - Tâches planifiées : `0 16 * * *` (UTC), soit 17 h l'hiver et 18 h l'été à Paris : rappels de la veille, liste d'attente, puis purge des connexions expirées (`src/system.js`, `nightly`) ; `30 * * * *` : offres de la liste d'attente arrivées à échéance (`hourly`). En local : `npx wrangler dev --test-scheduled`, puis POST sur `/cdn-cgi/local/explorer/api/local/scheduled?worker=omas-ecos` avec `{"cron": "30 * * * *"}`.
-- Liste d'attente automatique (`src/waitlist.js`) : une place libérée part au premier de la liste avec un délai (24 h, coupé à 3 h avant la convocation, rien en dessous de 2 h de délai). Le délai est dans `candidates.extra.offer_expires_at`. Son compte rendu est dans `settings` (clé `cron_last`) et sur la page « État du système » de l'admin, qui vérifie aussi les migrations et Brevo.
+- Liste d'attente automatique (`src/waitlist.js`) : une place libérée part au premier de la liste avec un délai (24 h, coupé à 3 h avant la convocation, rien en dessous de 2 h de délai). Le délai est dans `candidates.extra.offer_expires_at`.
+- Compte rendu des tâches planifiées dans `settings` (clés `cron_last`, `cron_hourly_last`) et sur la page « État du système » de l'admin, qui vérifie aussi les migrations et Brevo.
+- Relances de rédaction (`src/writing.js`) : échéance par étape dans `planning.writing_deadlines`, e-mail à la personne qui reçoit une station, récapitulatif le lundi (tâche du soir) aux rédacteurs et relecteurs, et à l'adresse de réponse des e-mails pour l'équipe.
 - Saisie des grilles : ouverte d'après le planning (une heure avant la première convocation du jour, trois quarts d'heure après le dernier tour), ou forcée par `planning.eval_mode` ('auto', 'open', 'closed'). Détail des grilles retenu jusqu'à la fin de la dernière série (`planning.details_embargo`). Tout passe par `src/state.js` (`examState`, `loadExamState`) : ne plus lire `exams.eval_open` directement.
 - E-mails : Brevo, un appel pour 200 destinataires, journal dans `mail_log`. Sans clé, rien ne part et le site fonctionne quand même.
 - Hors connexion : `public/sw.js`. Changer le nom du cache (`ines-v8` aujourd'hui) quand les fichiers du front changent beaucoup.
@@ -54,5 +56,5 @@ Pour repartir d'une base vide : arrêter le serveur, supprimer `.wrangler/state`
 - Journées procédure : créneaux à 9 h et 14 h, ateliers de 20 min et 5 min de transition, autant de groupes que d'ateliers, le groupe g commence à l'atelier g.
 
 ## Prochains chantiers (détail dans `claude/ECOS_feuille_de_route.md` du projet)
-Le lot 1 (embargo du détail, saisie d'après le planning, page État du système, purge des connexions) est fait.
-Puis : relances des rédacteurs, liste d'attente automatique, nom d'évaluateur choisi dans une liste, SMS de rappel, tests automatiques.
+Faits : lot 1 (embargo, saisie d'après le planning, État du système, purge), inscription des évaluateurs, liste d'attente automatique, tests, nom d'évaluateur choisi dans une liste, relances de rédaction, sauvegarde hebdomadaire.
+Restent : SMS de rappel, progression conservée après anonymisation, conservation des fiches bénévoles, comptes nominatifs, réclamations, import billetterie.
