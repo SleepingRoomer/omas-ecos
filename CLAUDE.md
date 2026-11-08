@@ -67,6 +67,7 @@ Pour repartir d'une base vide : arrêter le serveur, supprimer `.wrangler/state`
 - Les évaluateurs sont vouvoyés dans les e-mails et le formulaire ; les bénévoles tutoyés.
 
 ## Règles métier à ne pas casser
+- Circuit de rédaction : rédaction, relecture pair, relecture experte, puis corrections et validation. Le test au chronomètre par un externe est facultatif : l'expert (« Valider et faire tester ») ou le rédacteur en corrections peut le demander (`FLOW` dans `src/index.js`).
 - Note d'une station = (points des aptitudes + communication) ÷ maximum × 20. La performance globale ne compte pas. En binôme, moyenne des grilles. Rang provisoire entre candidats complets, ex aequo au même rang.
 - Rotation ECOS : places 1 à 5 sur le circuit A, 6 à 10 sur le B, changement de circuit à la pause (`rotationFor`). Tours de 10 min, pause de 10 min après 5 tours, débrief de 30 min.
 - Vœux : idéal, possible, impossible ; au moins 6 possibles, au plus 3 idéaux. Attribution par flot de coût minimal, tirage reproductible.

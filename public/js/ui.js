@@ -99,7 +99,7 @@ export function plate(slot, size = '') {
 
 // Ordre du circuit de validation (pour les rails de progression)
 export const FLOW_ORDER = ['redaction', 'relecture_pair', 'relecture_expert', 'test', 'corrections', 'validation', 'validee'];
-export const FLOW_SHORT = ['Rédaction', 'Relecture pair', 'Relecture expert', 'Test', 'Corrections', 'Validation', 'Validée'];
+export const FLOW_SHORT = ['Rédaction', 'Relecture pair', 'Relecture expert', 'Test (facultatif)', 'Corrections', 'Validation', 'Validée'];
 
 export function rail(status, mini = false) {
   const i = FLOW_ORDER.indexOf(status);
