@@ -176,6 +176,36 @@ export function detailsState(planning, showDetails, nRounds = 10, now = Date.now
   return { visible: !!showDetails && !held, held, embargo, from: end ? end.toISOString() : null };
 }
 
+// ---------- liste d'attente automatique ----------
+// Une place libérée est proposée au premier de la liste d'attente, qui a un délai pour confirmer (24 h par défaut).
+// Le délai ne dépasse jamais trois heures avant la convocation ; s'il reste moins de deux heures pour répondre,
+// on ne propose plus rien automatiquement : l'équipe gère à l'accueil.
+const HOUR = 3600e3;
+export const WAITLIST_HOURS = 24;
+export function offerDeadline(planning, day, series, now = Date.now()) {
+  const ser = planning.days.find((d) => d.date === day)?.series[series - 1];
+  if (!ser || ser.closed) return null;
+  const conv = seriesStartsAt(day, ser.convocation || ser.start).getTime();
+  const hours = Number(planning.waitlist_hours) || WAITLIST_HOURS;
+  const dl = Math.min(now + hours * HOUR, conv - 3 * HOUR);
+  return dl - now >= 2 * HOUR ? new Date(dl) : null;
+}
+
+// Places libres qu'on peut encore proposer, de la plus proche à la plus lointaine.
+// taken : ensemble de clés « jour|série|place » occupées par un candidat non annulé.
+export function freeSeats(planning, nSeats, taken, now = Date.now()) {
+  const out = [];
+  for (const d of planning.days) {
+    d.series.forEach((s, i) => {
+      if (s.closed) return;
+      const deadline = offerDeadline(planning, d.date, i + 1, now);
+      if (!deadline) return;
+      for (let seat = 1; seat <= nSeats; seat++) if (!taken.has(`${d.date}|${i + 1}|${seat}`)) out.push({ day: d.date, series: i + 1, seat, deadline });
+    });
+  }
+  return out;
+}
+
 // Vœux : 2 = idéal, 1 = possible, 0 = impossible. Sans vœux enregistrés, tout est possible.
 export const WISH_LEVELS = [
   { v: 2, l: 'Idéal' }, { v: 1, l: 'Possible' }, { v: 0, l: 'Impossible' },

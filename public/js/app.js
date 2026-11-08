@@ -61,12 +61,32 @@ function loginView() {
             <label for="code">${role === 'admin' ? 'Mot de passe' : role === 'evaluateur' ? 'Code de la salle' : "Code d'accès"}</label>
             <input id="code" ${role === 'admin' ? 'type="password"' : 'type="text" class="code-input" autocapitalize="characters" autocomplete="off" spellcheck="false" maxlength="12"'}
               value="${esc(params.get('code') || '')}" placeholder="${role === 'admin' ? '' : 'A93K7XPQ'}" required>
-            ${role === 'evaluateur' ? '<label for="name">Ton nom <span class="hint">(pas besoin avec un code personnel)</span></label><input id="name" type="text" autocomplete="name" placeholder="Prénom Nom">' : ''}
+            ${role === 'evaluateur' ? '<div id="namebox"><label for="name">Ton nom <span class="hint">(pas besoin avec un code personnel)</span></label><input id="name" type="text" autocomplete="name" placeholder="Prénom Nom"></div>' : ''}
             <button class="primary" style="width:100%;margin-top:18px">${role === 'etudiant' ? 'Accéder à mon espace' : role === 'evaluateur' ? 'Ouvrir ma salle' : role === 'redaction' ? 'Voir mes stations' : 'Entrer'}</button>
           </form>
         </div>
       </div>`;
     app.querySelectorAll('[data-r]').forEach((b) => b.addEventListener('click', () => { role = b.dataset.r; draw(); app.querySelector('#code').focus(); }));
+    // code de salle : on propose les noms des évaluateurs affectés à la salle aujourd'hui, pour éviter les doublons
+    if (role === 'evaluateur') {
+      let asked = '';
+      const lookup = async () => {
+        const code = app.querySelector('#code').value.toUpperCase().replace(/\s+/g, '');
+        if (code.length < 8 || code === asked) return;
+        asked = code;
+        const r = await api('/room-names', { method: 'POST', body: { code } }).catch(() => null);
+        const box = app.querySelector('#namebox');
+        if (!box || !r?.names?.length) return;
+        box.innerHTML = `<label for="name-pick">Qui es-tu ? <span class="hint">(salle ${esc(r.slot)}, d'après le planning)</span></label>
+          <select id="name-pick">${r.names.map((n) => `<option>${esc(n)}</option>`).join('')}<option value="">Quelqu'un d'autre…</option></select>
+          <input id="name" type="text" autocomplete="name" placeholder="Prénom Nom" value="${esc(r.names[0])}" hidden>`;
+        const pick = box.querySelector('#name-pick'); const input = box.querySelector('#name');
+        pick.addEventListener('change', () => { input.hidden = !!pick.value; input.value = pick.value; if (!pick.value) input.focus(); });
+      };
+      app.querySelector('#code').addEventListener('input', lookup);
+      app.querySelector('#code').addEventListener('blur', lookup);
+      lookup();
+    }
     app.querySelector('#f').addEventListener('submit', async (e) => {
       e.preventDefault();
       try {

@@ -1,6 +1,9 @@
 // État du système (page de l'équipe) et tâche planifiée de la nuit.
 // Les migrations sont collées à la main dans la console D1 : on vérifie ici que les tables et colonnes attendues existent.
 import { dailyReminders, mailReady } from './mail.js';
+import { expireOffers } from './waitlist.js';
+import { weeklyRecap } from './writing.js';
+import { weeklyBackup, lastBackup } from './backup.js';
 
 // Ce que chaque migration doit avoir créé : table, ou table.colonne
 export const MIGRATIONS = [
@@ -64,9 +67,21 @@ export async function nightly(env) {
   const started = new Date().toISOString();
   const out = { at: started, reminders: null, purge: null, error: null };
   try { out.reminders = await dailyReminders(env); } catch (e) { out.error = `rappels : ${String(e.message || e).slice(0, 200)}`; }
+  try { out.waitlist = await expireOffers(env); } catch (e) { out.error = `${out.error ? `${out.error} ; ` : ''}liste d'attente : ${String(e.message || e).slice(0, 200)}`; }
+  try { out.writing = await weeklyRecap(env); } catch (e) { out.error = `${out.error ? `${out.error} ; ` : ''}relances : ${String(e.message || e).slice(0, 200)}`; }
+  try { out.backup = await weeklyBackup(env); } catch (e) { out.error = `${out.error ? `${out.error} ; ` : ''}sauvegarde : ${String(e.message || e).slice(0, 200)}`; }
   try { out.purge = await purge(db); } catch (e) { out.error = `${out.error ? `${out.error} ; ` : ''}purge : ${String(e.message || e).slice(0, 200)}`; }
   out.ms = Date.now() - new Date(started).getTime();
   await saveSetting(db, 'cron_last', out);
+  return out;
+}
+
+// Toutes les heures (à la demie) : les offres de la liste d'attente arrivées à échéance passent au suivant
+export async function hourly(env) {
+  const out = { at: new Date().toISOString(), waitlist: null, error: null };
+  try { out.waitlist = await expireOffers(env); } catch (e) { out.error = String(e.message || e).slice(0, 200); }
+  if (out.error || out.waitlist?.expired) await saveSetting(env.DB, 'cron_hourly_last', out);
+  else await saveSetting(env.DB, 'cron_hourly_last', { at: out.at, idle: true });
   return out;
 }
 
@@ -84,6 +99,7 @@ export function registerSystem(app, h) {
     const db = c.env.DB;
     const env = c.env;
     const count = (sql) => one(db, sql).then((r) => r?.n ?? null).catch(() => null);
+    const [hourlyLast, backup] = await Promise.all([setting(db, 'cron_hourly_last'), lastBackup(env)]);
     const [migrations, cronLast, mailSettings, d1mig, sessions, expired, failures, mails, mailFailed, lastMail] = await Promise.all([
       checkMigrations(db),
       setting(db, 'cron_last'),
@@ -105,8 +121,9 @@ export function registerSystem(app, h) {
         reply_to: mailSettings?.reply_to || null, auto: mailSettings ? Object.fromEntries(Object.entries(mailSettings).filter(([k]) => k.startsWith('auto_'))) : null,
         sent_30d: mails, failed_30d: mailFailed, last: lastMail,
       },
-      cron: { last: cronLast, next: nextCron(), schedule: '0 16 * * * (UTC), soit 17 h en hiver et 18 h en été à Paris' },
+      cron: { last: cronLast, next: nextCron(), schedule: '0 16 * * * (UTC), soit 17 h en hiver et 18 h en été à Paris', hourly: hourlyLast },
       sessions: { total: sessions, expired, failures_24h: failures },
+      backup,
       secrets: { ADMIN_PASSWORD: !!env.ADMIN_PASSWORD, BREVO_API_KEY: !!env.BREVO_API_KEY, MAIL_FROM: !!env.MAIL_FROM, MAIL_FROM_NAME: !!env.MAIL_FROM_NAME, SITE_URL: !!env.SITE_URL },
     });
   });
@@ -116,4 +133,10 @@ export function registerSystem(app, h) {
 
   // Lancer la tâche de la nuit à la main (les rappels ne partent qu'une fois : le journal des e-mails fait foi)
   app.post('/system/run-nightly', need('admin'), async (c) => c.json(await nightly(c.env)));
+
+  // Sauvegarde immédiate (sinon elle part le dimanche soir)
+  app.post('/system/backup', need('admin'), async (c) => c.json(await weeklyBackup(c.env, { force: true })));
+
+  // Envoyer tout de suite le récapitulatif des relances (sinon il part le lundi soir)
+  app.post('/system/writing-recap', need('admin'), async (c) => c.json(await weeklyRecap(c.env, { force: true })));
 }

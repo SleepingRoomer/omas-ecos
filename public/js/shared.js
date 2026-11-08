@@ -249,3 +249,28 @@ export function rankMap(entries) {
   });
   return ranks;
 }
+
+// Deux façons d'écrire le nom d'une même personne : « Dr Martin », « martin », « Martin Dupont »
+const foldName = (t) => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+  .replace(/\b(dr|docteur|pr)\b\.?\s*/g, '').replace(/[^a-z ]/g, ' ').replace(/\s+/g, ' ').trim();
+export function sameName(full, typed) {
+  const A = foldName(full); const B = foldName(typed);
+  if (!A || !B) return false;
+  if (A === B) return true;
+  const wa = A.split(' '); const wb = B.split(' ');
+  return wb.every((w) => wa.includes(w)) && wb.join('').length >= 4;
+}
+
+// ---------- circuit de rédaction : à qui est la station, et pour quand ----------
+export const STEP_OWNER = { redaction: 'author', relecture_pair: 'peer', relecture_expert: 'expert', test: 'author', corrections: 'author', validation: 'admin' };
+export const DEADLINE_STEPS = ['redaction', 'relecture_pair', 'relecture_expert', 'test', 'corrections', 'validation'];
+export const ownerId = (st) => ({ author: st.author_id, peer: st.peer_id, expert: st.expert_id }[STEP_OWNER[st.status]] ?? null);
+
+// Échéance de l'étape en cours (date « AAAA-MM-JJ » fixée par l'équipe) et retard en jours, à l'heure de Paris
+export function stepDeadline(st, deadlines, now = Date.now()) {
+  const d = deadlines?.[st.status];
+  if (!d || !/^\d{4}-\d{2}-\d{2}$/.test(d) || !STEP_OWNER[st.status]) return null;
+  const today = new Date(now).toLocaleDateString('en-CA', { timeZone: 'Europe/Paris' });
+  const days = Math.round((Date.parse(`${today}T12:00:00Z`) - Date.parse(`${d}T12:00:00Z`)) / 864e5);
+  return { date: d, late: days > 0 ? days : 0, left: days <= 0 ? -days : 0 };
+}

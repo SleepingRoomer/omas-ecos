@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
 import {
-  DEFAULT_SLOTS, STATUSES, normalizeContent, qualityChecks, computeScore, missingAnswers, rankMap,
+  DEFAULT_SLOTS, STATUSES, normalizeContent, qualityChecks, computeScore, missingAnswers, rankMap, sameName,
 } from '../public/js/shared.js';
 import { registerJp } from './jp.js';
 import { normalizePlanning } from '../public/js/planning-shared.js';
@@ -13,7 +13,10 @@ import { registerBanque } from './banque.js';
 import { registerProgression } from './progression.js';
 import { registerMail, notifier } from './mail.js';
 import { examState, loadExamState, closedMessage } from './state.js';
-import { registerSystem, nightly } from './system.js';
+import { registerSystem, nightly, hourly } from './system.js';
+import { offerLater } from './waitlist.js';
+import { withDeadlines, notifyStepLater } from './writing.js';
+import { examDataset as datasetOf } from './dataset.js';
 
 const app = new Hono().basePath('/api');
 const COOKIE = 'omas_s';
@@ -191,12 +194,38 @@ app.post('/login', async (c) => {
     if (!st) throw await failed(c, role, 'Code de salle inconnu');
     const E = await loadExamState(db, st.exam_id);
     if (!E.eval.open) throw httpError(403, closedMessage(E.eval));
-    const n = String(name || '').trim();
+    let n = String(name || '').trim().replace(/\s+/g, ' ');
     if (n.length < 2) throw httpError(400, 'Indiquez votre nom');
+    // un nom tapé qui correspond à une personne affectée à la salle prend son orthographe exacte :
+    // « dr martin » et « Martin Dupont » ne font plus deux évaluateurs dans les résultats
+    const known = (await roomNames(db, st)).filter((x) => sameName(x, n));
+    if (known.length === 1) n = known[0];
     await createSession(c, 'evaluateur', st.id, n, 14);
     return c.json({ kind: 'evaluateur' });
   }
   throw httpError(400, 'Rôle inconnu');
+});
+
+// Personnes affectées à une salle aujourd'hui (évaluateurs), pour choisir son nom au lieu de le taper
+async function roomNames(db, st) {
+  const rows = await all(db, `SELECT DISTINCT v.first_name || ' ' || v.last_name AS n, a.half FROM assignments a
+    JOIN volunteer_signups s ON s.id = a.signup_id JOIN volunteers v ON v.id = s.volunteer_id
+    WHERE a.station_id = ? AND a.day = ? AND a.role = 'evaluateur' ORDER BY v.last_name`, st.id, parisToday()).catch(() => []);
+  const half = Number(new Date().toLocaleTimeString('en-GB', { timeZone: 'Europe/Paris', hour: '2-digit' })) < 12 ? 'am' : 'pm';
+  return [...new Set([...rows.filter((r) => r.half === half), ...rows].map((r) => r.n))];
+}
+
+app.post('/room-names', async (c) => {
+  const db = c.env.DB;
+  const code = String((await c.req.json()).code || '').toUpperCase().replace(/\s+/g, '');
+  if (code.length < 6) return c.json({ names: [] });
+  await checkAttempts(c, 'evaluateur');
+  const st = await one(db, 'SELECT * FROM stations WHERE eval_code = ?', code);
+  // code personnel de bénévole, ou code inconnu : rien à proposer (le formulaire de connexion dira la suite)
+  if (!st) return c.json({ names: [] });
+  const E = await loadExamState(db, st.exam_id);
+  if (!E.eval.open) return c.json({ names: [], closed: closedMessage(E.eval) });
+  return c.json({ slot: st.slot, names: await roomNames(db, st) });
 });
 
 app.post('/logout', async (c) => {
@@ -330,7 +359,7 @@ app.delete('/people/:id', need('admin'), async (c) => {
 
 const STATION_LIST_SQL = `SELECT s.id, s.exam_id, s.slot, s.played, s.domain, s.type, s.discipline, s.title, s.status,
   s.author_id, s.peer_id, s.expert_id, s.eval_code, s.updated_at,
-  a.name AS author_name, p.name AS peer_name, x.name AS expert_name, e.name AS exam_name,
+  a.name AS author_name, p.name AS peer_name, x.name AS expert_name, e.name AS exam_name, e.planning AS exam_planning,
   (SELECT COUNT(*) FROM evaluations v WHERE v.station_id = s.id) AS n_evaluations,
   (SELECT COUNT(*) FROM reviews r WHERE r.station_id = s.id AND r.action = 'comment') AS n_comments
   FROM stations s
@@ -341,7 +370,7 @@ const STATION_LIST_SQL = `SELECT s.id, s.exam_id, s.slot, s.played, s.domain, s.
 
 app.get('/exams/:id/stations', need('admin'), async (c) => {
   const rows = await all(c.env.DB, `${STATION_LIST_SQL} WHERE s.exam_id = ? ORDER BY s.played DESC, s.slot`, c.req.param('id'));
-  return c.json(rows);
+  return c.json(withDeadlines(rows));
 });
 
 app.post('/exams/:id/stations', need('admin'), async (c) => {
@@ -374,7 +403,19 @@ app.patch('/stations/:id', need('admin'), async (c) => {
     await run(db, 'INSERT INTO reviews (station_id, author_name, stage, action, comment) VALUES (?,?,?,?,?)',
       st.id, 'Administrateur', st.status, 'status', `Statut changé : ${STATUSES[st.status]} → ${STATUSES[b.status]}`);
   }
+  // la station arrive chez quelqu'un (nouvelle étape ou nouvelle personne sur l'étape en cours) : on le prévient
+  if ((b.status && b.status !== st.status) || ['author_id', 'peer_id', 'expert_id'].some((f) => f in b && b[f] && b[f] !== st[f])) notifyStepLater(c, st.id);
   return c.json({ ok: true });
+});
+
+// Échéances du circuit de rédaction, une date par étape (dans le planning de la session)
+app.put('/exams/:id/writing', need('admin'), async (c) => {
+  const E = await loadExamState(c.env.DB, c.req.param('id'));
+  if (!E) throw httpError(404, 'Session introuvable');
+  const b = (await c.req.json()).deadlines || {};
+  const deadlines = Object.fromEntries(Object.entries(b).filter(([k, v]) => STATUSES[k] && /^\d{4}-\d{2}-\d{2}$/.test(v)));
+  await run(c.env.DB, 'UPDATE exams SET planning = ? WHERE id = ?', JSON.stringify({ ...E.planning, writing_deadlines: deadlines }), E.exam.id);
+  return c.json({ ok: true, deadlines });
 });
 
 // Nouveaux codes pour toutes les salles d'une session (entre deux week-ends, par exemple) :
@@ -413,13 +454,14 @@ app.get('/redaction/stations', need('auteur'), async (c) => {
   const id = c.get('session').subject_id;
   const rows = await all(c.env.DB, `${STATION_LIST_SQL} WHERE s.author_id = ? OR s.peer_id = ? OR s.expert_id = ?
     ORDER BY e.id DESC, s.slot`, id, id, id);
-  return c.json(rows);
+  return c.json(withDeadlines(rows));
 });
 
 app.get('/stations/:id', need('admin', 'auteur', 'evaluateur'), async (c) => {
   const db = c.env.DB;
-  const st = await one(db, `${STATION_LIST_SQL} WHERE s.id = ?`, c.req.param('id'));
-  if (!st) throw httpError(404, 'Station introuvable');
+  const row = await one(db, `${STATION_LIST_SQL} WHERE s.id = ?`, c.req.param('id'));
+  if (!row) throw httpError(404, 'Station introuvable');
+  const [st] = withDeadlines([row]);
   const rights = stationRights(c.get('session'), st);
   if (!rights.read) throw httpError(403, 'Accès refusé');
   if (rights.isEval && !rights.involved) await openRoom(c);
@@ -485,6 +527,7 @@ app.post('/stations/:id/review', need('admin', 'auteur'), async (c) => {
       if (errors.length) throw httpError(400, `Validation impossible : ${errors.length} point(s) bloquant(s) dans la check-list.`);
     }
     await run(db, "UPDATE stations SET status = ?, updated_at = datetime('now') WHERE id = ?", step.to, st.id);
+    notifyStepLater(c, st.id);
   }
   await run(db, 'INSERT INTO reviews (station_id, author_name, stage, action, comment) VALUES (?,?,?,?,?)',
     st.id, s.name || 'Administrateur', st.status, action, text || null);
@@ -535,7 +578,10 @@ app.patch('/candidates/:id', need('admin'), async (c) => {
   }
   if (('day' in b || 'series' in b) && !('seat' in b)) sets.push('seat = NULL', 'number = NULL');
   if (b.status === 'annule') sets.push('seat = NULL', 'number = NULL');
+  const before = b.status === 'annule' ? await one(c.env.DB, 'SELECT exam_id, status, day FROM candidates WHERE id = ?', c.req.param('id')) : null;
   if (sets.length) await run(c.env.DB, `UPDATE candidates SET ${sets.join(', ')} WHERE id = ?`, ...vals, c.req.param('id'));
+  // une place annulée par l'équipe repart aussi à la liste d'attente
+  if (before && before.status !== 'annule' && before.day) offerLater(c, before.exam_id);
   return c.json({ ok: true });
 });
 
@@ -717,33 +763,11 @@ async function candidateReport(db, candidateId, asAdmin) {
 app.get('/me/results', need('etudiant'), async (c) => c.json(await candidateReport(c.env.DB, c.get('session').subject_id, false)));
 app.get('/candidates/:id/report', need('admin'), async (c) => c.json(await candidateReport(c.env.DB, c.req.param('id'), true)));
 
-// ---------- jeu de données pour l'analyse ----------
-// SQLite assemble lui-même le JSON des grilles : le Worker ne fait que concaténer, ce qui reste rapide
-// même avec plusieurs milliers de grilles.
-async function jsonRows(db, sql, ...args) {
-  const rows = await all(db, sql, ...args);
-  return `[${rows.map((r) => r.j).join(',')}]`;
-}
-
+// ---------- jeu de données pour l'analyse et sauvegarde (src/dataset.js) ----------
 async function examDataset(db, examId, full) {
-  const exam = await one(db, 'SELECT * FROM exams WHERE id = ?', examId);
-  if (!exam) throw httpError(404, 'Session introuvable');
-  const candCols = full
-    ? "'key', id, 'number', number, 'last_name', last_name, 'first_name', first_name, 'email', email, 'phone', phone, 'faculty', faculty, 'year', year, 'slot_label', slot_label, 'day', day, 'series', series, 'seat', seat, 'status', status, 'code', code, 'confirmed_at', confirmed_at, 'extra', json(COALESCE(extra, 'null'))"
-    : "'id', id, 'number', number, 'faculty', faculty, 'year', year, 'day', day, 'series', series, 'seat', seat, 'status', status, 'extra', json(COALESCE(extra, 'null'))";
-  const [stations, candidates, evaluations] = await Promise.all([
-    jsonRows(db, `SELECT json_object('${full ? 'key' : 'id'}', id, 'slot', slot, 'played', played, 'domain', domain, 'type', type, 'discipline', discipline,
-      'title', title, 'status', status, 'content', json(content)) AS j FROM stations WHERE exam_id = ? ORDER BY slot`, examId),
-    jsonRows(db, `SELECT json_object(${candCols}) AS j FROM candidates WHERE exam_id = ? ORDER BY id`, examId),
-    jsonRows(db, `SELECT json_object('station', station_id, 'candidate', candidate_id, 'evaluator_name', evaluator_name, 'absent', absent,
-      'answers', json(answers), 'global', global, 'comment', comment, 'points', points, 'max_points', max_points, 'score', score,
-      'created_at', created_at) AS j FROM evaluations WHERE exam_id = ? ORDER BY id`, examId),
-  ]);
-  const head = full
-    ? { format: 'omas-ecos-session', version: 1, exported_at: new Date().toISOString(),
-      exam: { name: exam.name, starts_on: exam.starts_on, ends_on: exam.ends_on, planning: parse(exam.planning, null) } }
-    : { exam };
-  return `${JSON.stringify(head).slice(0, -1)},"stations":${stations},"candidates":${candidates},"evaluations":${evaluations}}`;
+  const r = await datasetOf(db, examId, full);
+  if (!r) throw httpError(404, 'Session introuvable');
+  return r;
 }
 
 app.get('/exams/:id/dataset', need('admin'), async (c) => new Response(await examDataset(c.env.DB, c.req.param('id'), false),
@@ -961,5 +985,6 @@ app.all('*', () => { throw httpError(404, 'Route inconnue'); });
 // la tâche planifiée (tous les jours en fin d'après-midi) : rappels de la veille, purge des connexions expirées
 export default {
   fetch: app.fetch,
-  scheduled: (event, env, ctx) => ctx.waitUntil(nightly(env)),
+  // deux déclencheurs : 16 h UTC pour la tâche du soir, toutes les heures pour la liste d'attente
+  scheduled: (event, env, ctx) => ctx.waitUntil(event.cron === '0 16 * * *' ? nightly(env) : hourly(env)),
 };

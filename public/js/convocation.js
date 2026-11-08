@@ -80,6 +80,7 @@ export async function convocationPanel(box, reload) {
         </div>
       </section>
       <div class="row no-print" style="margin:10px 0 4px">
+        ${C.offer_expires_at ? `<p class="alert warn" style="width:100%"><strong>Cette place t'est proposée depuis la liste d'attente.</strong> Confirme ta venue avant le ${esc(new Date(C.offer_expires_at).toLocaleString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Paris' }))}, sinon elle passe automatiquement à la personne suivante.</p>` : ''}
         ${C.confirmed_at ? `<span class="pill ok">Venue confirmée</span><button class="small quiet" data-confirm="0">Je ne peux plus venir</button>`
           : '<button class="primary" data-confirm="1">Je confirme ma venue</button>'}
         <button class="small" id="ics">Ajouter à mon agenda</button>

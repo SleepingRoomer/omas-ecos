@@ -1,0 +1,17 @@
+# Tests automatiques d'INES : lancés à chaque push et sur chaque pull request.
+# Une croix rouge sur la pull request = ne pas fusionner avant d'avoir regardé.
+name: Tests
+on:
+  push:
+  pull_request:
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test

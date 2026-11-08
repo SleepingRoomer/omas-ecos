@@ -4,7 +4,7 @@ import { normalizePlanning } from '../public/js/planning-shared.js';
 import { examState } from './state.js';
 
 const FAKE = /@(exemple|example)\.(org|com|fr)$/i;
-const DEFAULTS = { auto_swap: true, auto_waitlist: true, auto_volunteer: true, auto_reminder: true, reply_to: '' };
+const DEFAULTS = { auto_swap: true, auto_waitlist: true, auto_volunteer: true, auto_reminder: true, auto_writing: true, reply_to: '' };
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
 export const longDate = (iso) => (iso ? new Date(`${iso}T12:00:00Z`).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' }) : '');
@@ -29,7 +29,7 @@ ${after ? `<tr><td style="padding:14px 28px 0;font-size:14px;line-height:1.55">$
 
 export function mailReady(env) { return !!(env.BREVO_API_KEY && env.MAIL_FROM); }
 
-async function getSettings(db) {
+export async function getSettings(db) {
   const r = await db.prepare("SELECT value FROM settings WHERE key = 'mail'").first().catch(() => null);
   try { return { ...DEFAULTS, ...JSON.parse(r?.value || '{}') }; } catch { return { ...DEFAULTS }; }
 }
@@ -118,7 +118,7 @@ export function registerMail(app, h) {
   app.put('/mail/settings', need('admin'), async (c) => {
     const b = await c.req.json();
     const S = { ...(await getSettings(c.env.DB)) };
-    for (const k of ['auto_swap', 'auto_waitlist', 'auto_volunteer', 'auto_reminder']) if (k in b) S[k] = !!b[k];
+    for (const k of ['auto_swap', 'auto_waitlist', 'auto_volunteer', 'auto_reminder', 'auto_writing']) if (k in b) S[k] = !!b[k];
     if ('reply_to' in b) S.reply_to = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(b.reply_to).trim()) ? String(b.reply_to).trim() : '';
     await run(c.env.DB, "INSERT INTO settings (key, value) VALUES ('mail', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", JSON.stringify(S));
     return c.json(S);

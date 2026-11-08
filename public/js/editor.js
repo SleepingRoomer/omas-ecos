@@ -1,4 +1,4 @@
-import { api, esc, nl, toast, setTitle, plate, atelierPlate, rail, FLOW_ORDER, FLOW_SHORT, dom, disc, uploadStationFile, fileThumb } from './ui.js';
+import { api, esc, nl, toast, setTitle, frDate, plate, atelierPlate, rail, FLOW_ORDER, FLOW_SHORT, dom, disc, uploadStationFile, fileThumb } from './ui.js';
 import { state } from './app.js';
 import { TYPES, TYPES_SHORT, TYPE_LINE, STATUSES, COM_ATTENDUS, GLOBAL_LEVELS, COM_LEVELS, DISCIPLINES, uid } from './shared.js';
 
@@ -32,7 +32,8 @@ export async function myStations(app) {
         <div class="tags small" style="margin-top:2px">${dom(s.domain)}${s.discipline ? `<span>${disc(s.discipline)}</span>` : ''}<span class="faint">${esc(s.exam_name)}</span></div>
         ${rail(s.status, true)}</div>
       <div style="text-align:right"><span class="pill s-${s.status}">${STATUSES[s.status]}</span>
-        <div class="small muted" style="margin-top:4px">${myRoles(s).map((r) => ROLE_LABEL[r]).join(', ')}</div></div></a>`).join('');
+        <div class="small muted" style="margin-top:4px">${myRoles(s).map((r) => ROLE_LABEL[r]).join(', ')}</div>
+        ${urgent && s.deadline ? `<div class="small" style="margin-top:4px;${s.deadline.late ? 'color:var(--ko);font-weight:700' : ''}">${s.deadline.late ? `${s.deadline.late} j de retard` : `à rendre avant le ${esc(frDate(s.deadline.date))}`}</div>` : ''}</div></a>`).join('');
   app.innerHTML = `<div class="narrow">
     <h1>Mes stations</h1>
     <p class="lede">Bonjour ${esc(state.me.name.split(' ')[0])}.${todo.length ? ` ${todo.length === 1 ? 'Une station attend' : `${todo.length} stations attendent`} ton passage.` : ' Rien ne t\'attend pour l\'instant.'}</p>

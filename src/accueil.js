@@ -1,6 +1,8 @@
 // Jour J et places : émargement par QR code, désistements, liste d'attente, matériel des stations
 import { normalizePlanning, candidateNumber, seriesTimes, frTime } from '../public/js/planning-shared.js';
 import { normalizeContent } from '../public/js/shared.js';
+import { offerLater, offerMail, manualDeadline } from './waitlist.js';
+import { sendMails, siteUrl, getSettings } from './mail.js';
 
 export function registerAccueil(app, h) {
   const { need, httpError, all, one, run, parse, genCode, freshCodes } = h;
@@ -62,7 +64,10 @@ export function registerAccueil(app, h) {
         extra = json_set(COALESCE(extra, '{}'), '$.released_at', ?, '$.released_from', ?) WHERE id = ?`)
         .bind(new Date().toISOString(), cand.day ? `${cand.day}|${cand.series}|${cand.seat}` : null, cand.id),
       db.prepare("UPDATE swaps SET status = 'cancelled' WHERE candidate_id = ? AND status = 'open'").bind(cand.id),
+      db.prepare("UPDATE waitlist SET status = 'declined', updated_at = datetime('now') WHERE candidate_id = ? AND status = 'offered'").bind(cand.id),
     ]);
+    // la place libérée part tout de suite au premier de la liste d'attente
+    if (cand.day) offerLater(c, cand.exam_id);
     return c.json({ ok: true });
   });
 
@@ -94,11 +99,24 @@ export function registerAccueil(app, h) {
     return c.json({ ok: true, position: pos.n });
   });
 
-  app.get('/exams/:id/waitlist', need('admin'), async (c) => c.json(await all(c.env.DB, `SELECT w.*, c.code, c.number, c.confirmed_at, c.status AS cand_status
+  app.get('/exams/:id/waitlist', need('admin'), async (c) => c.json(await all(c.env.DB, `SELECT w.*, c.code, c.number, c.confirmed_at, c.status AS cand_status, c.extra
     FROM waitlist w LEFT JOIN candidates c ON c.id = w.candidate_id WHERE w.exam_id = ? ORDER BY w.id`, c.req.param('id'))));
 
+  // Réglages de la liste d'attente automatique, puis un passage immédiat si on vient de l'activer
+  app.put('/exams/:id/waitlist/settings', need('admin'), async (c) => {
+    const db = c.env.DB;
+    const { exam, planning } = await planningOf(db, c.req.param('id'));
+    const b = await c.req.json();
+    const next = { ...planning };
+    if ('auto' in b) next.waitlist_auto = !!b.auto;
+    if ('hours' in b) next.waitlist_hours = Math.min(72, Math.max(4, Number(b.hours) || 24));
+    await run(db, 'UPDATE exams SET planning = ? WHERE id = ?', JSON.stringify(next), exam.id);
+    if (next.waitlist_auto !== false) offerLater(c, exam.id);
+    return c.json({ ok: true });
+  });
+
   app.delete('/waitlist/:id', need('admin'), async (c) => {
-    await run(c.env.DB, "UPDATE waitlist SET status = 'removed', updated_at = datetime('now') WHERE id = ?", c.req.param('id'));
+    await run(c.env.DB, "UPDATE waitlist SET status = 'removed', updated_at = datetime('now') WHERE id = ? AND status = 'waiting'", c.req.param('id'));
     return c.json({ ok: true });
   });
 
@@ -112,13 +130,21 @@ export function registerAccueil(app, h) {
     const taken = await one(db, "SELECT id FROM candidates WHERE exam_id = ? AND day = ? AND series = ? AND seat = ? AND status != 'annule'", w.exam_id, day, series, seat);
     if (taken) throw httpError(409, 'Cette place vient d\'être prise.');
     const [code] = await freshCodes(db, 1);
-    const extra = JSON.stringify({ from_waitlist: true, tarif: w.tarif || undefined });
+    // même délai que les offres automatiques ; trop près de la série, pas de délai : l'équipe s'en occupe
+    const deadline = manualDeadline(planning, day, Number(series));
+    const extra = JSON.stringify({ from_waitlist: true, waitlist_id: w.id, tarif: w.tarif || undefined, offered_at: new Date().toISOString(), ...(deadline ? { offer_expires_at: deadline.toISOString() } : {}) });
+    const number = candidateNumber(planning, day, Number(series), Number(seat));
     const r = await run(db, `INSERT INTO candidates (exam_id, last_name, first_name, email, phone, faculty, year, day, series, seat, number, status, code, extra)
       VALUES (?,?,?,?,?,?,?,?,?,?,?,'inscrit',?,?)`, w.exam_id, w.last_name, w.first_name, w.email, w.phone, w.faculty, w.year,
-    day, Number(series), Number(seat), candidateNumber(planning, day, Number(series), Number(seat)), code, extra);
+    day, Number(series), Number(seat), number, code, extra);
     await run(db, "UPDATE waitlist SET status = 'offered', candidate_id = ?, updated_at = datetime('now') WHERE id = ?", r.meta.last_row_id, w.id);
-    h.notifier?.(c).waitlist(r.meta.last_row_id);
-    return c.json({ ok: true, candidate_id: r.meta.last_row_id, code });
+    if ((await getSettings(db)).auto_waitlist) {
+      const { exam } = await planningOf(db, w.exam_id);
+      const p = sendMails(c.env, db, [offerMail(await siteUrl(c.env, db, c), exam, planning,
+        { id: r.meta.last_row_id, email: w.email, first_name: w.first_name, last_name: w.last_name, day, series: Number(series), number, code }, deadline)]).catch(() => {});
+      try { c.executionCtx.waitUntil(p); } catch { await p; }
+    }
+    return c.json({ ok: true, candidate_id: r.meta.last_row_id, code, deadline: deadline?.toISOString() || null });
   });
 
   // ---------- matériel ----------
