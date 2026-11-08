@@ -11,6 +11,9 @@
   },
   "keep_vars": true,
   "triggers": { "crons": ["0 16 * * *", "30 * * * *"] },
+  // Sauvegarde hebdomadaire (src/backup.js) : créer d'abord le bucket R2 « omas-ecos-sauvegardes » dans Cloudflare
+  // (Storage & databases, R2), puis enlever les deux barres devant la ligne ci-dessous. Sans bucket, le déploiement échouerait.
+  // "r2_buckets": [{ "binding": "BACKUP", "bucket_name": "omas-ecos-sauvegardes" }],
   "d1_databases": [
     {
       "binding": "DB",

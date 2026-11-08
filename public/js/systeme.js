@@ -38,8 +38,14 @@ export async function systemView(app) {
           ${last.purge ? `Purge : ${last.purge.sessions} connexion(s), ${last.purge.failures} tentative(s).` : ''}
           ${last.error ? `<br><span class="pill ko">Erreur</span> ${esc(last.error)}` : ''}</p>`
     : '<p class="alert info">Aucune exécution enregistrée pour l\'instant : la première trace apparaîtra après le prochain passage (ou lance-la à la main ci-dessous).</p>'}
-        <p class="small muted">Prochaine exécution prévue : ${when(C.next)}.</p>
+        <p class="small muted">Prochaine exécution prévue : ${when(C.next)}.${C.hourly ? ` Passage horaire de la liste d'attente : ${when(C.hourly.at)}${C.hourly.waitlist?.expired ? `, ${C.hourly.waitlist.expired} offre(s) expirée(s), ${C.hourly.waitlist.offered} reproposée(s)` : ''}${C.hourly.error ? `, erreur : ${esc(C.hourly.error)}` : ''}.` : ''}</p>
         <div class="row"><button class="small" id="run">Lancer maintenant</button><span class="small muted">Les rappels déjà envoyés ne repartent pas : le journal des e-mails fait foi.</span></div></div>
+
+      <div class="panel"><div class="row between"><h2 style="margin:0">Sauvegarde hebdomadaire</h2>${S.backup?.configured ? pill(!!S.backup.last && (Date.now() - Date.parse(`${S.backup.last}T12:00:00Z`)) / 864e5 < 9, 'À jour', S.backup.last ? 'En retard' : 'Jamais faite') : pill(false, '', 'Non branchée')}</div>
+        ${S.backup?.configured ? `<p class="small">Dernière sauvegarde : <strong>${S.backup.last ? esc(S.backup.last) : 'aucune'}</strong>${S.backup.last ? `, ${S.backup.files.length} fichier(s), ${Math.round(S.backup.files.reduce((a, f) => a + f.size, 0) / 1024)} Ko` : ''}. ${S.backup.weeks} semaine(s) gardée(s) sur huit.</p>
+          <p class="small muted">Chaque dimanche soir : un fichier par session en cours ou récente (réimportable depuis la liste des sessions) et l'annuaire de l'équipe, dans le bucket R2. Les images des stations n'y sont pas.</p>
+          <button class="small" id="backup">Sauvegarder maintenant</button>`
+    : `<p class="small">Pas encore branchée : il faut créer un espace de stockage R2 dans Cloudflare puis activer la ligne prévue dans <code>wrangler.jsonc</code>. Tant que ce n'est pas fait, pense au bouton « Télécharger la sauvegarde » de chaque session.</p>`}</div>
 
       <div class="panel"><div class="row between"><h2 style="margin:0">Connexions</h2>${pill(!S.sessions.expired, 'Propre', `${S.sessions.expired} expirée(s)`)}</div>
         <p class="small">${S.sessions.total ?? '–'} connexion(s) en base, dont ${S.sessions.expired ?? '–'} expirée(s). ${S.sessions.failures_24h ?? 0} tentative(s) de connexion ratée(s) depuis 24 h.</p>
@@ -49,6 +55,9 @@ export async function systemView(app) {
     <p class="small muted" style="margin-top:18px">État relevé le ${when(S.now)}.</p>`;
   app.querySelector('#purge').addEventListener('click', async () => {
     try { const r = await api('/system/purge', { method: 'POST' }); toast(`${r.sessions} connexion(s) et ${r.failures} tentative(s) supprimées`); systemView(app); } catch (err) { toast(err.message, 'error'); }
+  });
+  app.querySelector('#backup')?.addEventListener('click', async () => {
+    try { const r = await api('/system/backup', { method: 'POST' }); toast(`${r.files} fichier(s) sauvegardé(s)`); systemView(app); } catch (err) { toast(err.message, 'error'); }
   });
   app.querySelector('#run').addEventListener('click', async () => {
     try { const r = await api('/system/run-nightly', { method: 'POST' }); toast(r.error ? `Terminé avec une erreur : ${r.error}` : 'Tâche exécutée', r.error ? 'error' : 'ok'); systemView(app); } catch (err) { toast(err.message, 'error'); }
