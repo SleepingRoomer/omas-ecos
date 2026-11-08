@@ -949,7 +949,8 @@ app.get('/eval/context', need('evaluateur'), async (c) => {
   const E = st.exam_state;
   const exam = { id: E.exam.id, name: E.exam.name, eval_open: E.eval.open, closes_at: E.eval.closes_at };
   const content = normalizeContent(parse(st.content, {}));
-  const candidates = await all(db, `SELECT c.id, c.number, c.first_name, substr(c.last_name, 1, 1) || '.' AS last_name, c.day, c.series, c.seat,
+  // les évaluateurs ne voient jamais le nom des candidats : seulement leur numéro (anonymat de l'évaluation)
+  const candidates = await all(db, `SELECT c.id, c.number, c.day, c.series, c.seat,
     v.id AS eval_id, v.absent, v.score, v.evaluator_name,
     (SELECT COUNT(*) FROM evaluations o WHERE o.candidate_id = c.id AND o.station_id = ? AND o.evaluator_name != ?) AS n_others
     FROM candidates c LEFT JOIN evaluations v ON v.candidate_id = c.id AND v.station_id = ? AND v.evaluator_name = ?

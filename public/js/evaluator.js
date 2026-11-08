@@ -3,6 +3,9 @@ import { COM_LEVELS, GLOBAL_LEVELS, TYPE_LINE, missingAnswers, computeScore } fr
 import { seriesTimes, frTime, roomNow, gridCheck } from './planning-shared.js';
 import { raceHtml } from './race.js';
 
+// Les candidats sont anonymes pour l'évaluateur : on ne montre que leur numéro (ou leur place s'ils ne sont pas encore numérotés)
+const candLabel = (c) => c.number || (c.series && c.seat ? `Série ${c.series}, place ${c.seat}` : 'Sans numéro');
+
 let ctx = null;
 const filters = { day: null, series: '', q: '' };
 let raceOpen = false;
@@ -73,9 +76,9 @@ export async function roomView(app) {
     const todays = ctx.candidates.filter((c) => c.day === parisToday());
     if (!todays.length) return '';
     const N = roomNow(ctx.sch.planning, ctx.sch.slots, ctx.sch.slot, todays);
-    const card = (x, label, main) => `<button class="now-card ${main ? 'main' : ''} ${x.c.eval_id ? 'done' : ''}" data-id="${x.c.id}">
-      <span class="small">${label}, ${frTime(x.p.startHHMM)}</span><span class="now-no">${esc(x.c.number || '')}</span>
-      <span>${esc(x.c.first_name)} ${esc((x.c.last_name || '').slice(0, 1))}.</span>${x.c.eval_id ? '<span class="small">grille saisie</span>' : ''}</button>`;
+    const card = (x, title, main) => `<button class="now-card ${main ? 'main' : ''} ${x.c.eval_id ? 'done' : ''}" data-id="${x.c.id}">
+      <span class="small">${title}, ${frTime(x.p.startHHMM)}</span><span class="now-no">${esc(candLabel(x.c))}</span>
+      ${x.c.eval_id ? '<span class="small">grille saisie</span>' : ''}</button>`;
     if (!N.current && !N.next) return '';
     return `<div class="now-box">${N.current ? card(N.current, 'Dans ta salle en ce moment', true) : ''}${N.next ? card(N.next, 'Ensuite', !N.current) : ''}
       <p class="small muted" style="margin:0;flex-basis:100%">Vérifie le numéro sur l'étiquette du candidat avant de remplir sa grille. Tu peux aussi scanner son étiquette avec l'appareil photo : sa grille s'ouvre directement.</p></div>`;
@@ -89,7 +92,7 @@ export async function roomView(app) {
   const draw = () => {
     const shown = ctx.candidates.filter((c) => (!filters.day || c.day === filters.day)
       && (!filters.series || String(c.series) === filters.series)
-      && (!filters.q || `${c.number} ${c.first_name} ${c.last_name}`.toLowerCase().includes(filters.q.toLowerCase())));
+      && (!filters.q || candLabel(c).toLowerCase().includes(filters.q.toLowerCase())));
     const done = shown.filter((c) => c.eval_id).length;
     const next = shown.find((c) => !c.eval_id && !queued()[`${s.id}|${c.id}`] && c.time);
     app.innerHTML = `
@@ -120,11 +123,11 @@ export async function roomView(app) {
         <div class="chips" role="group" aria-label="Série"><button data-s="" class="${!filters.series ? 'on' : ''}">Toutes</button>
           ${seriesOf.map((n) => `<button data-s="${n}" class="${String(n) === filters.series ? 'on' : ''}">Série ${n}</button>`).join('')}</div>
         <span class="spacer"></span>
-        <input id="q" type="text" placeholder="Numéro ou nom" value="${esc(filters.q)}" style="max-width:180px" aria-label="Chercher un candidat">
+        <input id="q" type="text" placeholder="Numéro" value="${esc(filters.q)}" style="max-width:180px" aria-label="Chercher un candidat">
       </div>
       <p class="muted small" style="margin:12px 0 0">${done} grille${done > 1 ? 's' : ''} saisie${done > 1 ? 's' : ''} sur ${shown.length}. <button class="small quiet" id="reload">Actualiser</button></p>
       <div class="cand-list">${shown.map((c) => `<button class="cand ${c.eval_id || queued()[`${s.id}|${c.id}`] ? 'done' : ''} ${c === next ? 'next' : ''}" data-id="${c.id}">${c === next ? '<span class="next-tag">À suivre</span>' : ''}
-          <span class="cand-no">${esc(c.number || 'Sans numéro')}</span>${c.time ? `<span class="small muted">${frTime(c.time)}</span>` : ''}<span class="who">${esc(c.first_name)} ${esc((c.last_name || '').slice(0, 1))}.</span>
+          <span class="cand-no">${esc(candLabel(c))}</span>${c.time ? `<span class="small muted">${frTime(c.time)}</span>` : ''}
           <span class="st">${queued()[`${s.id}|${c.id}`] ? 'En attente d\'envoi' : c.eval_id ? (c.absent ? 'Absent' : `${fmt(c.score, 1)} sur 20`) : 'À évaluer'}${c.n_others ? `<small class="faint" style="display:block">${c.eval_id ? 'ton binôme aussi' : 'déjà notée par ton binôme'}</small>` : ''}</span></button>`).join('') || '<p class="muted">Aucun candidat avec ces filtres.</p>'}</div>`;
     app.querySelector('#day')?.addEventListener('change', (e) => { filters.day = e.target.value; filters.series = ''; roomView(app); });
     app.querySelectorAll('[data-s]').forEach((b) => b.addEventListener('click', () => { filters.series = b.dataset.s; draw(); }));
@@ -162,7 +165,7 @@ export async function gridView(app, candidateId) {
   let absent = !!existing?.absent;
   let comment = existing?.comment || '';
   let showMissing = false;
-  setTitle(`${cand.number || ''}, salle ${ctx.station.slot}`);
+  setTitle(`${candLabel(cand)}, salle ${ctx.station.slot}`);
 
   const saveDraft = () => { const d = readStore(DKEY); d[qkey] = { candidate_id: cand.id, absent, answers: { apt: ans.apt, com: ans.com }, global, comment }; writeStore(DKEY, d); };
   const dropDraft = () => { const d = readStore(DKEY); delete d[qkey]; writeStore(DKEY, d); };
@@ -175,8 +178,7 @@ export async function gridView(app, candidateId) {
     app.innerHTML = `
       <a class="back" href="#/eval">Retour à la liste</a>
       <div class="row between">
-        <div class="cand-head">${plate(ctx.station.slot, 'lg')}<div><span class="cand-no">${esc(cand.number || '')}</span>
-          <div class="muted">${esc(cand.first_name)} ${esc(cand.last_name)}</div>
+        <div class="cand-head">${plate(ctx.station.slot, 'lg')}<div><span class="cand-no">${esc(candLabel(cand))}</span>
           ${cand.time ? `<div class="small muted">Prévu dans ta salle à ${frTime(cand.time)}${cand.day !== new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Paris' }) ? `, le ${frDate(cand.day)}` : ''}</div>` : ''}</div></div>
         <button id="absent" class="${absent ? 'danger solid' : 'danger'}">${absent ? 'Absent : annuler' : 'Candidat absent'}</button></div>
       ${existing ? '<p class="alert info small">Tu as déjà rempli cette grille. Ce que tu enregistres remplace ta version.</p>' : ''}
@@ -236,13 +238,13 @@ export async function gridView(app, candidateId) {
         const chk = gridCheck(ctx.sch.planning, ctx.sch.slots, ctx.sch.slot, cand);
         const msg = cand.day !== today ? `${cand.number} est convoqué le ${frDate(cand.day)}, pas aujourd'hui.`
           : !chk.ok ? `${cand.number} n'arrive dans ta salle qu'à ${frTime(chk.p.startHHMM)}.` : '';
-        if (msg && !window.confirm(`${msg}\n\nVérifie le numéro sur son étiquette. C'est bien ${cand.first_name} ${(cand.last_name || '').slice(0, 1)}. qui est devant toi ?`)) return;
+        if (msg && !window.confirm(`${msg}\n\nVérifie le numéro sur son étiquette : c'est bien ${candLabel(cand)} qui est devant toi ?`)) return;
       }
       const clean = Object.fromEntries(Object.entries(ans.apt).map(([k, v]) => [k, { ok: v.ok, comment: (v.comment || '').trim() }]));
       const body = { candidate_id: cand.id, absent, answers: { apt: clean, com: ans.com }, global, comment };
       try {
         const r = await api('/eval/evaluations', { method: 'PUT', body });
-        toast(absent ? `${cand.number} noté absent` : `Grille enregistrée : ${fmt(r.score, 1)} sur 20`);
+        toast(absent ? `${candLabel(cand)} noté absent` : `Grille enregistrée : ${fmt(r.score, 1)} sur 20`);
       } catch (err) {
         if (err.status !== undefined && err.status < 500) { toast(err.message, 'error'); return; }
         // pas de réseau : la grille attend dans le téléphone

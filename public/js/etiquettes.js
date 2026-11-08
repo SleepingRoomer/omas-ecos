@@ -41,7 +41,6 @@ export async function labelsView(app, exam) {
       const ser = P.days.find((d) => d.date === c.day)?.series[c.series - 1];
       const start = ser ? frTime(seriesTimes(P, ser, D.slots.length).start) : '';
       return `<div class="lab c-${circ}"><div class="lab-txt"><div class="lab-no">${esc(c.number)}</div>
-        <div class="lab-name">${esc(c.first_name)} ${esc((c.last_name || '').slice(0, 1))}.</div>
         <div class="lab-meta">Série ${c.series}${start ? ` · ${start}` : ''} · départ ${esc(first)}</div></div>
         <div class="lab-qr">${qrSvg(`${location.origin}/#/q/${c.number}`)}</div></div>`;
     };
@@ -49,7 +48,7 @@ export async function labelsView(app, exam) {
       <div class="no-print" style="margin-bottom:14px">
         <a class="back" href="#/admin/session/${exam.id}/accueil">Accueil</a>
         <h1>Étiquettes des candidats</h1>
-        <p class="lede">À remettre à l'émargement et à coller sur la blouse. Le numéro se lit de loin, la couleur dit le circuit de départ (bleu A, turquoise B), et le QR code ouvre directement la grille du candidat sur le téléphone de l'évaluateur.</p>
+        <p class="lede">À remettre à l'émargement et à coller sur la blouse. Le numéro se lit de loin, la couleur dit le circuit de départ (bleu A, turquoise B), et le QR code ouvre directement la grille du candidat sur le téléphone de l'évaluateur. Pas de nom : les candidats restent anonymes pour les évaluateurs.</p>
         <div class="row" style="gap:10px;align-items:flex-end">
           <div><label for="l-day" style="margin-top:0">Jour</label><select id="l-day">${days.map((d) => `<option value="${d}" ${d === opts.day ? 'selected' : ''}>${esc(longDate(d))}</option>`).join('')}<option value="all" ${opts.day === 'all' ? 'selected' : ''}>Tous les jours</option></select></div>
           <div><label for="l-ser" style="margin-top:0">Série</label><select id="l-ser"><option value="">Toutes</option>${[1, 2, 3, 4, 5, 6].filter((n) => P.days.some((d) => d.series[n - 1])).map((n) => `<option value="${n}" ${String(n) === opts.series ? 'selected' : ''}>Série ${n}</option>`).join('')}</select></div>
@@ -67,10 +66,10 @@ export async function labelsView(app, exam) {
         .lab::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 2.6mm; }
         .lab.c-a::before { background: #2d2f84; } .lab.c-b::before { background: #00a09a; }
         .lab-txt { flex: 1; min-width: 0; }
-        .lab-no { font-weight: 800; font-size: ${F.h > 50 ? 30 : F.w > 80 ? 24 : 17}pt; line-height: 1; letter-spacing: .01em; white-space: nowrap; }
+        .lab-no { font-weight: 800; font-size: ${F.h > 50 ? 36 : F.w > 80 ? 28 : 19}pt; line-height: 1; letter-spacing: .01em; white-space: nowrap; }
         .lab.c-a .lab-no { color: #2d2f84; } .lab.c-b .lab-no { color: #00807b; }
         .lab-name { font-weight: 700; font-size: ${F.h > 50 ? 16 : 11}pt; margin-top: 1.2mm; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .lab-meta { font-size: 7.5pt; color: #4a4c68; margin-top: .8mm; white-space: nowrap; }
+        .lab-meta { font-size: 8pt; color: #4a4c68; margin-top: 1.5mm; white-space: nowrap; }
         .lab-qr { width: ${F.h > 50 ? 30 : 22}mm; height: ${F.h > 50 ? 30 : 22}mm; flex: none; } .lab-qr svg { width: 100%; height: 100%; display: block; }
         .sheet-head { font-size: 9pt; color: #8c8ea6; text-align: center; margin: 0 auto 4px; width: 210mm; }
         @media print { body * { visibility: hidden; } .sheets, .sheets * { visibility: visible; } .sheets { position: absolute; left: 0; top: 0; }
