@@ -21,7 +21,7 @@ INES (Interface numérique d'ECOS et de simulation) est la plateforme des ECOS b
 - Relances de rédaction (`src/writing.js`) : échéance par étape dans `planning.writing_deadlines`, e-mail à la personne qui reçoit une station, récapitulatif le lundi (tâche du soir) aux rédacteurs et relecteurs, et à l'adresse de réponse des e-mails pour l'équipe.
 - Saisie des grilles : ouverte d'après le planning (une heure avant la première convocation du jour, trois quarts d'heure après le dernier tour), ou forcée par `planning.eval_mode` ('auto', 'open', 'closed'). Détail des grilles retenu jusqu'à la fin de la dernière série (`planning.details_embargo`). Tout passe par `src/state.js` (`examState`, `loadExamState`) : ne plus lire `exams.eval_open` directement.
 - E-mails : Brevo, un appel pour 200 destinataires, journal dans `mail_log`. Sans clé, rien ne part et le site fonctionne quand même.
-- Hors connexion : `public/sw.js`. Changer le nom du cache (`ines-v11` aujourd'hui) quand les fichiers du front changent beaucoup.
+- Hors connexion : `public/sw.js`. Changer le nom du cache (`ines-v12` aujourd'hui) quand les fichiers du front changent beaucoup.
 - Sécurité : `public/_headers` (CSP stricte : pas de script ni de police externes, pas de gestionnaire `onclick` en ligne).
 
 ## Identité (charte complète dans le projet claude.ai « OMAS », document `claude/INES_charte.md`)
@@ -53,6 +53,7 @@ Pour repartir d'une base vide : arrêter le serveur, supprimer `.wrangler/state`
 - Import des inscrits : `guessColumns` (shared.js) reconnaît les exports HelloAsso (participant plutôt que payeur). Réimporter le même fichier ne crée pas de doublon (e-mail + nom) et passe en annulé les billets remboursés.
 
 ## Repérer le bon candidat dans la salle
+- Les candidats sont anonymes pour les évaluateurs : `/eval/context` ne renvoie ni nom ni prénom, l'écran de salle et les étiquettes n'affichent que le numéro (ou « Série x, place y » s'il n'est pas encore numéroté). Ne pas réintroduire de nom côté évaluateur.
 - Étiquettes à coller sur la blouse (`public/js/etiquettes.js`, lien dans l'onglet Accueil) : numéro, prénom, circuit de départ en couleur, QR code vers `#/q/<numéro>` qui ouvre la grille chez l'évaluateur connecté à sa salle.
 - Écran de l'évaluateur : « Dans ta salle en ce moment » et « Ensuite » (`roomNow`), et confirmation avant d'enregistrer la grille d'un candidat pas encore passé dans la salle ou convoqué un autre jour (`gridCheck`).
 - Onglet En direct : « Grilles à vérifier », enregistrées avant le passage prévu du candidat (`passageInRoom`). Une grille erronée se supprime depuis le bulletin du candidat (vue de l'équipe).
