@@ -21,7 +21,7 @@ INES (Interface numérique d'ECOS et de simulation) est la plateforme des ECOS b
 - Relances de rédaction (`src/writing.js`) : échéance par étape dans `planning.writing_deadlines`, e-mail à la personne qui reçoit une station, récapitulatif le lundi (tâche du soir) aux rédacteurs et relecteurs, et à l'adresse de réponse des e-mails pour l'équipe.
 - Saisie des grilles : ouverte d'après le planning (une heure avant la première convocation du jour, trois quarts d'heure après le dernier tour), ou forcée par `planning.eval_mode` ('auto', 'open', 'closed'). Détail des grilles retenu jusqu'à la fin de la dernière série (`planning.details_embargo`). Tout passe par `src/state.js` (`examState`, `loadExamState`) : ne plus lire `exams.eval_open` directement.
 - E-mails : Brevo, un appel pour 200 destinataires, journal dans `mail_log`. Sans clé, rien ne part et le site fonctionne quand même.
-- Hors connexion : `public/sw.js`. Changer le nom du cache (`ines-v12` aujourd'hui) quand les fichiers du front changent beaucoup.
+- Hors connexion : `public/sw.js`. Changer le nom du cache (`ines-v13` aujourd'hui) quand les fichiers du front changent beaucoup.
 - Sécurité : `public/_headers` (CSP stricte : pas de script ni de police externes, pas de gestionnaire `onclick` en ligne).
 
 ## Identité (charte complète dans le projet claude.ai « OMAS », document `claude/INES_charte.md`)
@@ -62,11 +62,17 @@ Pour repartir d'une base vide : arrêter le serveur, supprimer `.wrangler/state`
 - Écran de l'évaluateur : « Dans ta salle en ce moment » et « Ensuite » (`roomNow`), et confirmation avant d'enregistrer la grille d'un candidat pas encore passé dans la salle ou convoqué un autre jour (`gridCheck`).
 - Onglet En direct : « Grilles à vérifier », enregistrées avant le passage prévu du candidat (`passageInRoom`). Une grille erronée se supprime depuis le bulletin du candidat (vue de l'équipe).
 
+## Matériel et impressions
+- Onglet Matériel d'une session (`public/js/materiel.js`) : en haut « À imprimer » (étiquettes, vignettes, fiches codes, grilles papier de secours, documents, planning, signalétique, attestations, avec les quantités), puis le matériel commun (liste proposée par zone, modifiable, gardée dans `planning.materiel_common`), puis le matériel des stations. Cases à cocher dans `planning.materiel_check` (clés `print|…`, `commun|…`, `<salle>|<article>`).
+- Pages d'impression : `#/admin/session/:id/imprimer-vignettes`, `-grilles`, `-documents`, `-signaletique` (`public/js/printables.js`).
+
 ## Bénévoles et évaluateurs
 - Une même table (`volunteers`, `volunteer_signups`) et deux liens publics : `#/benevole/:id` (externes : PS, PSS, logistique, évaluateur ; une demi-journée par jour) et `#/evaluateur/:id` (médecins et internes : disciplines préférées, attestation, journée entière possible). La piste est dans `volunteer_signups.prefs` (JSON, migration 0013) ; sans la colonne, l'inscription passe quand même.
 - Les évaluateurs sont vouvoyés dans les e-mails et le formulaire ; les bénévoles tutoyés.
 
 ## Règles métier à ne pas casser
+- Grille : chaque item d'aptitude vaut 1 point (observé ou non, jamais de demi-point) ; la communication se note par quart de point (0, 0,25, 0,5, 0,75, 1). L'éditeur ne propose plus de choisir les points, le serveur les remet à 1 tant qu'aucune grille n'est saisie.
+- Pas de calibration par station : tout est expliqué au briefing, une heure avant la première série (textes des formulaires et e-mails). La vue de calibration reste dans le code mais n'est plus proposée.
 - Note d'une station = (points des aptitudes + communication) ÷ maximum × 20. La performance globale ne compte pas. En binôme, moyenne des grilles. Rang provisoire entre candidats complets, ex aequo au même rang.
 - Rotation ECOS : places 1 à 5 sur le circuit A, 6 à 10 sur le B, changement de circuit à la pause (`rotationFor`). Tours de 10 min, pause de 10 min après 5 tours, débrief de 30 min.
 - Vœux : idéal, possible, impossible ; au moins 6 possibles, au plus 3 idéaux. Attribution par flot de coût minimal, tirage reproductible.

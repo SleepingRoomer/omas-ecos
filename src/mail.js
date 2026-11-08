@@ -260,8 +260,8 @@ export function notifier(c) {
       return [{ kind: isEval ? 'evaluateur' : 'benevole', exam_id: x.exam_id, ref: String(signupId), to: x.email, name: `${x.first_name} ${x.last_name}`,
         subject: isEval ? `Merci : votre inscription comme évaluateur aux ${x.exam_name}` : `Merci ${x.first_name} : ton inscription de bénévole aux ${x.exam_name}`,
         html: layout({ title: `Merci, ${x.first_name} !`,
-          intro: vous ? 'Vos disponibilités sont bien notées. L\'équipe prépare le planning des salles : vous le retrouverez dans votre espace, avec la station qui vous est confiée et sa calibration (dix minutes en ligne, pour que les notes soient comparables d\'une salle à l\'autre).'
-            : 'On a bien noté tes disponibilités. L\'équipe prépare le planning des salles : tu le retrouveras dans ton espace bénévole, avec la calibration de ta station.',
+          intro: vous ? 'Vos disponibilités sont bien notées. L\'équipe prépare le planning des salles : vous le retrouverez dans votre espace, avec la station qui vous est confiée. Rien à préparer : tout vous est présenté au briefing, une heure avant la première série.'
+            : 'On a bien noté tes disponibilités. L\'équipe prépare le planning des salles : tu le retrouveras dans ton espace bénévole. Tout t\'est expliqué au briefing, une heure avant la première série.',
           rows: [[vous ? 'Votre code personnel' : 'Ton code personnel', `<span style="letter-spacing:2px">${esc(x.code)}</span>`]],
           button: { url: `${url}/#/?role=evaluateur&code=${encodeURIComponent(x.code)}`, label: vous ? 'Ouvrir mon espace évaluateur' : 'Ouvrir mon espace bénévole' },
           after: vous ? 'Le jour J, ce même code ouvre directement votre salle sur votre téléphone : la grille se remplit en deux minutes par candidat, même sans réseau.'
@@ -296,7 +296,7 @@ export async function dailyReminders(env) {
           rows: [['Date', esc(longDate(tomorrow))], ['Arrivée', esc(ser[0] ? `${ser[0].convocation}, ${x.half === 'am' ? 'le matin' : 'l\'après-midi'}` : x.half === 'am' ? 'le matin' : 'l\'après-midi')],
             ['Rôle', esc(ROLE[x.role] || x.role)], ...(x.slot ? [['Salle', esc(x.slot)]] : []), ...(P.place ? [['Lieu', esc(P.place)]] : [])],
           button: { url: `${url}/#/?role=evaluateur&code=${encodeURIComponent(x.code)}`, label: 'Mon espace bénévole' },
-          after: 'Si ce n\'est pas déjà fait, prends cinq minutes ce soir pour la calibration de ta station.' }) };
+          after: 'Arrive une heure avant la première convocation : briefing, café, installation de la salle.' }) };
     }),
   ];
   return msgs.length ? sendMails(env, db, msgs) : { sent: 0 };

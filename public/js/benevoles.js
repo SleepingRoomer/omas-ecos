@@ -1,4 +1,4 @@
-// Bénévoles : inscription publique, espace personnel, planning de l'équipe, calibration et suivi
+// Bénévoles : inscription publique, espace personnel, planning de l'équipe et suivi (la calibration reste dans le code, mais n'est plus proposée)
 import { api, esc, toast, setTitle, plate, frDate, longDate, fmt, pct, csvCell } from './ui.js';
 import { COM_LEVELS, computeScore } from './shared.js';
 
@@ -16,7 +16,7 @@ export async function publicSignup(app, examId) {
   app.innerHTML = `<div class="narrow" style="max-width:660px">
     <h1>Devenir bénévole</h1>
     <p class="lede">${esc(E.name)}</p>
-    <p>Sans évaluateurs, patients et professionnels standardisés, pas d'ECOS blancs. Une demi-journée suffit, et on t'explique tout : grille en main, calibration en ligne avant la session, débrief à la fin.</p>
+    <p>Sans évaluateurs, patients et professionnels standardisés, pas d'ECOS blancs. Une demi-journée suffit, et on t'explique tout sur place : briefing avant la première série, grille en main, débrief à la fin.</p>
     <form id="vf" class="panel">
       <div class="grid cols-2" style="gap:10px"><div><label for="v-ln" style="margin-top:0">Nom</label><input id="v-ln" name="last_name" required autocomplete="family-name"></div>
         <div><label for="v-fn" style="margin-top:0">Prénom</label><input id="v-fn" name="first_name" required autocomplete="given-name"></div></div>
@@ -46,7 +46,7 @@ export async function publicSignup(app, examId) {
       const r = await api(`/public/exams/${examId}/benevoles`, { method: 'POST', body });
       app.querySelector('#vf').remove();
       app.querySelector('#vf-out').innerHTML = `<div class="alert ok"><strong>Merci, c'est noté${r.updated ? ' (ton inscription est mise à jour)' : ''} !</strong>
-        <p>Ton code personnel : <span class="code" style="font-size:1.3em">${esc(r.code)}</span>. Garde-le : il ouvre ton espace bénévole, avec ton planning, la calibration de ta station et l'accès direct à ta salle le jour J.</p>
+        <p>Ton code personnel : <span class="code" style="font-size:1.3em">${esc(r.code)}</span>. Garde-le : il ouvre ton espace bénévole, avec ton planning et, le jour J, l'accès direct à ta salle.</p>
         <a class="button primary" href="#/?role=evaluateur&code=${esc(r.code)}">Ouvrir mon espace</a></div>`;
     } catch (err) { toast(err.message, 'error'); }
   });
@@ -66,7 +66,7 @@ export async function publicEvaluatorSignup(app, examId) {
     <div class="panel ev-why">
       <p>Les ECOS blancs d'OMAS Externat reproduisent l'examen national : dix stations de huit minutes, deux circuits, des patients standardisés. Ce qui en fait un vrai entraînement, c'est le regard d'un soignant dans chaque salle.</p>
       <div class="ev-steps">
-        <div><b>Avant</b><span>Dix minutes en ligne : la vignette de votre station et une calibration sur un passage de référence, pour que les notes soient comparables d'une salle à l'autre.</span></div>
+        <div><b>Avant</b><span>Rien à préparer : vous recevez votre code personnel et votre planning. La station, sa vignette et sa grille vous sont présentées au briefing.</span></div>
         <div><b>Le jour J</b><span>Briefing une heure avant la première série, puis vous notez chaque candidat sur votre téléphone : grille d'items, communication, un mot de retour. ${E.per_room > 1 ? `Vous êtes ${E.per_room} par salle.` : ''}</span></div>
         <div><b>Après</b><span>Un débrief de trente minutes avec les candidats de la série, et une attestation de participation si vous la souhaitez.</span></div>
       </div>
@@ -99,7 +99,7 @@ export async function publicEvaluatorSignup(app, examId) {
       const r = await api(`/public/exams/${examId}/evaluateurs`, { method: 'POST', body });
       app.querySelector('#ef').remove();
       app.querySelector('#ef-out').innerHTML = `<div class="alert ok"><strong>Merci, c'est noté${r.updated ? ' (votre inscription est mise à jour)' : ''} !</strong>
-        <p>Votre code personnel : <span class="code" style="font-size:1.3em">${esc(r.code)}</span>. Gardez-le : il ouvre votre espace évaluateur, avec votre planning, la calibration de votre station et, le jour J, l'accès direct à votre salle.</p>
+        <p>Votre code personnel : <span class="code" style="font-size:1.3em">${esc(r.code)}</span>. Gardez-le : il ouvre votre espace évaluateur, avec votre planning et, le jour J, l'accès direct à votre salle.</p>
         <a class="button primary" href="#/?role=evaluateur&code=${esc(r.code)}">Ouvrir mon espace</a></div>`;
     } catch (err) { toast(err.message, 'error'); }
   });
@@ -288,10 +288,10 @@ export async function benevolesTab(box, exam) {
         </div>
         <div class="row"><label for="b-per" class="small" style="margin:0">Évaluateurs par salle</label>
           <select id="b-per" style="width:auto">${[1, 2, 3].map((n) => `<option ${n === D.per_room ? 'selected' : ''}>${n}</option>`).join('')}</select></div></div>
-        <p class="small muted" style="margin:10px 0 0">Deux liens, un même espace : les bénévoles (externes, PS, PSS, logistique) et les évaluateurs (médecins, internes, avec leurs disciplines préférées et la journée entière possible). Chacun reçoit un code personnel qui ouvre son espace (onglet Évaluateur de la page de connexion) : planning, calibration de sa station, et le jour J un bouton qui ouvre directement sa salle, sans code de porte. Dans les listes ci-dessous, ★ signale une discipline cochée par la personne.</p></div>
+        <p class="small muted" style="margin:10px 0 0">Deux liens, un même espace : les bénévoles (externes, PS, PSS, logistique) et les évaluateurs (médecins, internes, avec leurs disciplines préférées et la journée entière possible). Chacun reçoit un code personnel qui ouvre son espace (onglet Évaluateur de la page de connexion) : planning, et le jour J un bouton qui ouvre directement sa salle, sans code de porte. Dans les listes ci-dessous, ★ signale une discipline cochée par la personne.</p></div>
 
       <h2>Inscrits <span class="muted">(${D.signups.length}, dont ${D.signups.filter((s) => s.prefs?.track === 'evaluateur').length} par le lien évaluateurs)</span></h2>
-      ${D.signups.length ? `<div class="table-wrap"><table><thead><tr><th>Personne</th><th>Rôles</th>${D.halfdays.map((h) => `<th class="num small">${esc(frDate(h.day))}<br>${HALF[h.half]}</th>`).join('')}<th>Calibration</th><th></th></tr></thead><tbody>
+      ${D.signups.length ? `<div class="table-wrap"><table><thead><tr><th>Personne</th><th>Rôles</th>${D.halfdays.map((h) => `<th class="num small">${esc(frDate(h.day))}<br>${HALF[h.half]}</th>`).join('')}<th></th></tr></thead><tbody>
         ${D.signups.map((s) => `<tr data-s="${s.id}"><td><strong>${esc(s.last_name)}</strong> ${esc(s.first_name)}${s.prefs?.track === 'evaluateur' ? ' <span class="pill ink" style="font-size:.7rem">Évaluateur</span>' : ''}${s.prefs?.first_time ? ' <span class="pill" style="font-size:.7rem">1re fois</span>' : ''}
             <div class="small muted">${esc(s.status || '')}${s.specialty ? `, ${esc(s.specialty)}` : ''}${s.prefs?.disciplines?.length ? `<br>★ ${s.prefs.disciplines.map(esc).join(', ')}` : ''}${s.prefs?.track === 'evaluateur' && !s.prefs.attestation ? '<br>Sans attestation' : ''}</div>
             <div class="small muted">${esc(s.email)}${s.phone ? `, ${esc(s.phone)}` : ''}</div>${s.note ? `<div class="small">${esc(s.note)}</div>` : ''}</td>
@@ -299,7 +299,6 @@ export async function benevolesTab(box, exam) {
           ${D.halfdays.map((h) => { const a = D.assignments.find((x) => x.signup_id === s.id && `${x.day}|${x.half}` === h.key);
             const st = a?.station_id && D.stations.find((x) => x.id === a.station_id);
             return `<td class="num small">${a ? `<strong>${st ? esc(st.slot) : 'Log.'}</strong>` : s.halfdays.includes(h.key) ? '<span class="muted">dispo</span>' : ''}</td>`; }).join('')}
-          <td class="small">${s.calibration.length ? s.calibration.map((k) => `${pct(k.agreement)}`).join(', ') : '<span class="muted">–</span>'}</td>
           <td><div class="row" style="flex-wrap:nowrap;gap:4px"><button class="small quiet" data-copy="${esc(s.code)}" title="Copier son lien personnel">Lien</button><button class="small quiet" data-del>Retirer</button></div></td></tr>`).join('')}
       </tbody></table></div><button class="small" id="b-csv" style="margin-top:8px">Exporter en CSV</button>` : `<p class="panel">Personne pour l'instant. Ouvre les inscriptions et partage le lien.</p>`}
 
@@ -308,13 +307,13 @@ export async function benevolesTab(box, exam) {
         <span class="pill ${c.got === c.need ? 'ok' : c.got ? 'warn' : ''}">${c.got}/${c.need}</span></button>`; }).join('')}</div>
       <div class="row between" style="margin:10px 0"><span class="small muted">${A.length} bénévole${A.length > 1 ? 's' : ''} disponible${A.length > 1 ? 's' : ''}, ${cov.got} poste${cov.got > 1 ? 's' : ''} pourvu${cov.got > 1 ? 's' : ''} sur ${cov.need}.</span>
         <div class="row"><button class="small" id="b-auto">Compléter automatiquement</button><button class="small quiet" id="b-clear">Vider</button><button class="small primary" id="b-save">Enregistrer</button></div></div>
-      <div class="table-wrap"><table class="vol-matrix"><thead><tr><th>Salle</th><th>Évaluateurs</th><th>PS / PSS</th><th>Calibration</th></tr></thead><tbody>
-        ${D.stations.map((st) => { const N = needs(st, D.per_room); const k = D.calibrations.find((x) => x.station_id === st.id);
+      <div class="table-wrap"><table class="vol-matrix"><thead><tr><th>Salle</th><th>Évaluateurs</th><th>PS / PSS</th></tr></thead><tbody>
+        ${D.stations.map((st) => { const N = needs(st, D.per_room);
           return `<tr><td><div class="row">${plate(st.slot)}<span class="small">${esc(st.title || '')}</span></div></td>
           <td>${N.filter((n) => n.role === 'evaluateur').map((n, i) => `<select data-slot="${st.id}|evaluateur|${i}" aria-label="${esc(st.slot)} ${n.label}">${opt('evaluateur', slotOf(hd, st.id, 'evaluateur', i), st)}</select>`).join('')}</td>
           <td>${N.filter((n) => n.role !== 'evaluateur').map((n) => `<select data-slot="${st.id}|${n.role}|0" aria-label="${esc(st.slot)} ${n.label}">${opt(n.role, slotOf(hd, st.id, n.role, 0))}</select>`).join('') || '<span class="small muted">Pas besoin</span>'}</td>
-          <td><a class="small" href="#/calibration/${st.id}">${k ? 'Modifier' : 'Préparer'}</a></td></tr>`; }).join('')}
-        <tr><td><strong>Accueil et logistique</strong></td><td colspan="3">${A.filter((s) => s.roles.includes('logistique') && (!U.has(s.id) || plan[hd].logistique.includes(s.id)))
+          </tr>`; }).join('')}
+        <tr><td><strong>Accueil et logistique</strong></td><td colspan="2">${A.filter((s) => s.roles.includes('logistique') && (!U.has(s.id) || plan[hd].logistique.includes(s.id)))
           .map((s) => `<label class="check" style="display:inline-flex;margin:0 12px 0 0"><input type="checkbox" data-log="${s.id}" ${plan[hd].logistique.includes(s.id) ? 'checked' : ''}><span>${esc(s.first_name)} ${esc(s.last_name)}</span></label>`).join('') || '<span class="small muted">Personne de disponible pour ce rôle.</span>'}</td></tr>
       </tbody></table></div>
       ${A.filter((s) => !U.has(s.id)).length ? `<p class="small">Disponibles sans poste : ${A.filter((s) => !U.has(s.id)).map((s) => `${esc(s.first_name)} ${esc(s.last_name)} <span class="muted">(${s.roles.map((r) => r === 'evaluateur' ? 'éval.' : r === 'logistique' ? 'log.' : r.toUpperCase()).join(', ')})</span>`).join(', ')}</p>` : ''}` : ''}
@@ -374,12 +373,12 @@ export async function engagementView(app) {
       <p class="lede">${V.length} personne${V.length > 1 ? 's' : ''} inscrite${V.length > 1 ? 's' : ''} au moins une fois, dont ${fidele} revenue${fidele > 1 ? 's' : ''} sur plusieurs sessions.</p>
       <p class="small muted">Les fiches sans participation depuis la durée fixée dans État du système (trois ans par défaut) sont effacées automatiquement.</p>
       <input id="q" type="search" placeholder="Chercher un nom, une spécialité…" value="${esc(q)}" style="max-width:360px">
-      <div class="table-wrap" style="margin-top:12px"><table><thead><tr><th>Bénévole</th><th>Sessions</th><th class="num">Demi-journées</th><th class="num">Évaluateur</th><th class="num">PS</th><th class="num">PSS</th><th class="num">Logistique</th><th class="num">Grilles</th><th class="num">Calibrations</th><th></th></tr></thead><tbody>
+      <div class="table-wrap" style="margin-top:12px"><table><thead><tr><th>Bénévole</th><th>Sessions</th><th class="num">Demi-journées</th><th class="num">Évaluateur</th><th class="num">PS</th><th class="num">PSS</th><th class="num">Logistique</th><th class="num">Grilles</th><th></th></tr></thead><tbody>
       ${list.sort((a, b) => b.halfdays - a.halfdays || a.name.localeCompare(b.name)).map((v) => `<tr><td><strong>${esc(v.name)}</strong>${v.sessions.length >= 3 ? ' <span class="pill ok">Pilier</span>' : ''}
           <div class="small muted">${esc(v.status || '')}${v.specialty ? `, ${esc(v.specialty)}` : ''}, ${esc(v.email)}</div></td>
         <td class="small">${v.sessions.map((s) => esc(s.name)).join('<br>')}</td>
         <td class="num"><strong>${v.halfdays}</strong></td>${['evaluateur', 'ps', 'pss', 'logistique'].map((r) => `<td class="num">${v.by_role[r] || ''}</td>`).join('')}
-        <td class="num">${v.grids || ''}</td><td class="num">${v.calibrations || ''}</td>
+        <td class="num">${v.grids || ''}</td>
         <td>${/^efface-/.test(v.email) ? '<span class="small muted">effacé</span>' : `<button class="small quiet" data-erase="${v.id}" title="Droit à l'effacement">Effacer</button>`}</td></tr>`).join('')}
       </tbody></table></div>`;
     app.querySelector('#q').addEventListener('input', (e) => { q = e.target.value.toLowerCase(); const p = e.target.selectionStart; draw(); const i = app.querySelector('#q'); i.focus(); i.setSelectionRange(p, p); });
