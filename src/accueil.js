@@ -156,13 +156,25 @@ export function registerAccueil(app, h) {
       all(db, "SELECT day, COUNT(*) AS n FROM candidates WHERE exam_id = ? AND status != 'annule' GROUP BY day", exam.id),
     ]);
     return c.json({
-      days: planning.days.map((d) => d.date), checks: planning.materiel_check || {},
+      days: planning.days.map((d) => d.date), checks: planning.materiel_check || {}, common: Array.isArray(planning.materiel_common) ? planning.materiel_common : null,
+      n_stations: stations.length, n_candidates: counts.reduce((a, r) => a + r.n, 0), n_series: planning.days.reduce((a, d) => a + d.series.filter((x) => !x.closed).length, 0),
       perDay: Object.fromEntries(counts.map((r) => [r.day || '', r.n])),
       stations: stations.map((s) => {
         const ct = normalizeContent(parse(s.content, {}));
         return { id: s.id, slot: s.slot, title: s.title, type: s.type, liste: ct.materiel.liste.filter((m) => String(m.article || '').trim()), disposition: ct.materiel.disposition };
       }),
     });
+  });
+
+  // Matériel commun (accueil, salles, équipe) : une liste propre à la session, modifiable
+  app.put('/exams/:id/materiel-common', need('admin'), async (c) => {
+    const db = c.env.DB;
+    const { exam, planning } = await planningOf(db, c.req.param('id'));
+    const { items = [] } = await c.req.json();
+    const clean = items.filter((x) => String(x.article || '').trim()).slice(0, 120)
+      .map((x) => ({ zone: String(x.zone || 'Divers').slice(0, 40), article: String(x.article).trim().slice(0, 120), qte: String(x.qte || '').slice(0, 40) }));
+    await run(db, 'UPDATE exams SET planning = ? WHERE id = ?', JSON.stringify({ ...planning, materiel_common: clean }), exam.id);
+    return c.json({ ok: true, n: clean.length });
   });
 
   app.put('/exams/:id/materiel-check', need('admin'), async (c) => {

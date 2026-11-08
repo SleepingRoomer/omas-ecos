@@ -1,7 +1,22 @@
 // Matériel des ECOS : par station, et la liste totale à préparer, avec une check-list pour l'installation de la veille
-import { api, esc, plate, longDate, downloadCsv } from './ui.js';
+import { api, esc, plate, longDate, downloadCsv, toast } from './ui.js';
 
 const MARGE = 1.1; // 10 % de consommables en plus, pour les gants déchirés et les imprévus
+
+// Matériel commun proposé par défaut : à adapter, il s'enregistre avec la session
+export const COMMON = [
+  ['Accueil', 'Table et chaises pour l\'émargement', '1'], ['Accueil', 'Téléphone de l\'équipe connecté à INES (scan des QR codes)', '2'],
+  ['Accueil', 'Étiquettes des candidats, rangées par série', '1 planche par série'], ['Accueil', 'Planning des séries imprimé (secours)', '1 par série'],
+  ['Accueil', 'Stylos', '10'], ['Accueil', 'Petit déjeuner : café, thé, eau, jus, viennoiseries', 'selon les inscrits du matin'],
+  ['Accueil', 'Gobelets, serviettes, sacs poubelle', ''], ['Accueil', 'Signalétique (Accueil, Salle d\'attente, Circuits, Débrief)', '1 jeu'],
+  ['Salles', 'Vignette sur la porte et sur la table', '2 par salle'], ['Salles', 'Fiche « code de salle » remise à l\'évaluateur', '1 par salle'],
+  ['Salles', 'Grilles papier de secours', '10 par salle et par demi-journée'], ['Salles', 'Stylos', '2 par salle'],
+  ['Salles', 'Solution hydroalcoolique', '1 par salle'], ['Salles', 'Boîte de gants (S, M, L)', '1 par salle d\'examen ou de procédure'],
+  ['Salles', 'Mouchoirs et bouteille d\'eau pour le PS', '1 par salle avec PS'], ['Salles', 'Patafix ou scotch pour les vignettes', '1'],
+  ['Équipe', 'Chronomètre ou sonnerie commune audible dans les salles', '1'], ['Équipe', 'Multiprises et chargeurs de téléphone', '3'],
+  ['Équipe', 'Ordinateur avec INES ouvert (En direct)', '1'], ['Équipe', 'Trousse de premiers secours', '1'],
+  ['Équipe', 'Codes des salles de rechange et liste des téléphones des bénévoles', '1'], ['Débrief', 'Vidéoprojecteur ou écran (mode projection)', '1'],
+];
 
 export async function materielTab(box, exam) {
   const M = await api(`/exams/${exam.id}/materiel`);
@@ -21,8 +36,35 @@ export async function materielTab(box, exam) {
   const need = (a, n) => Math.ceil(a.conso * n * MARGE);
   const check = (key, label) => `<label class="check mat-check"><input type="checkbox" data-key="${esc(key)}" ${M.checks[key] ? 'checked' : ''}><span>${label}</span></label>`;
   const empty = M.stations.filter((s) => !s.liste.length);
+  let common = (M.common || COMMON.map(([zone, article, qte]) => ({ zone, article, qte })));
+  const prints = [
+    ['Étiquettes des candidats', `${M.n_candidates} étiquettes, une planche par série`, 'etiquettes'],
+    ['Vignettes de porte', `${M.n_stations * 2} pages : porte et table de chaque salle`, 'imprimer-vignettes'],
+    ['Fiches « code de salle »', `${M.n_stations} fiches, remises aux évaluateurs (jamais sur la porte)`, 'affiches'],
+    ['Grilles papier de secours', `1 par station, à photocopier : 10 par salle et par demi-journée`, 'imprimer-grilles'],
+    ['Documents des stations', 'ECG, radios, bilans remis aux candidats', 'imprimer-documents'],
+    ['Planning des séries', `${M.n_series} pages, à afficher à l'accueil et dans le couloir`, 'planning-imprimer'],
+    ['Signalétique', '7 panneaux A4 : accueil, salle d\'attente, circuits, débrief', 'imprimer-signaletique'],
+    ['Attestations des évaluateurs', 'Après la session', 'attestations'],
+  ];
   const draw = () => {
+    const zones = [...new Set(common.map((x) => x.zone))];
     box.innerHTML = `
+      <h2 style="margin-top:0">À imprimer</h2>
+      <p class="small muted">Tout ce qu'il faut imprimer pour la session, avec les quantités. Chaque lien ouvre une page prête à imprimer ; coche quand c'est fait.</p>
+      <div class="table-wrap"><table><thead><tr><th>Quoi</th><th>Combien</th><th></th><th>Fait</th></tr></thead><tbody>
+        ${prints.map(([t, q, tab]) => `<tr><td><strong>${esc(t)}</strong></td><td class="small">${esc(q)}</td><td><a class="btn small" href="#/admin/session/${exam.id}/${tab}" target="_blank">Ouvrir</a></td>
+          <td>${check(`print|${tab}`, '')}</td></tr>`).join('')}</tbody></table></div>
+      <h2>Matériel commun</h2>
+      <p class="small muted">Ce qui ne dépend pas des stations : accueil, salles, équipe, débrief. Une proposition à adapter : modifie, ajoute, puis enregistre.</p>
+      <div class="mat-zones">${zones.map((z) => `<div class="panel"><strong>${esc(z)}</strong>
+        ${common.map((x, i) => (x.zone === z ? `<div class="mat-common">${check(`commun|${x.article.toLowerCase()}`, '')}<input data-ci="${i}" data-f="article" value="${esc(x.article)}" aria-label="Article">
+          <input data-ci="${i}" data-f="qte" value="${esc(x.qte)}" placeholder="Quantité" aria-label="Quantité"><button class="small quiet" data-crm="${i}" aria-label="Retirer">✕</button></div>` : '')).join('')}
+        <button class="small quiet" data-cadd="${esc(z)}">Ajouter</button></div>`).join('')}</div>
+      <div class="row" style="margin:6px 0 24px"><button class="small primary" id="c-save">Enregistrer le matériel commun</button>
+        ${M.common ? '<button class="small quiet" id="c-reset">Revenir à la liste proposée</button>' : '<span class="small muted">Liste proposée, pas encore enregistrée pour cette session.</span>'}</div>
+      <h2>Matériel des stations</h2>`;
+    box.insertAdjacentHTML('beforeend', `
       <div class="facts"><div><div class="v">${rows.length}</div><div class="l">articles différents</div></div>
         <div><div class="v">${total}</div><div class="l">candidats sur la session</div></div>
         <div><div class="v">${Object.keys(M.checks).length}</div><div class="l">cases cochées</div></div></div>
@@ -40,7 +82,15 @@ export async function materielTab(box, exam) {
       <div class="mat-rooms">${M.stations.map((s) => `<div class="panel mat-room"><div class="row" style="margin-bottom:6px">${plate(s.slot)}<strong>${esc(s.title || '')}</strong></div>
         ${s.liste.map((m) => check(`${s.slot}|${m.article.toLowerCase()}`, `${esc(m.article)}${Number(m.installe) ? ` <span class="muted">× ${m.installe}</span>` : ''}`)).join('') || '<p class="small muted">Rien de renseigné.</p>'}
         ${s.disposition ? `<p class="small muted" style="margin-bottom:0">${esc(s.disposition)}</p>` : ''}
-        ${check(`${s.slot}|__salle`, '<strong>Salle prête</strong>')}</div>`).join('')}</div>`;
+        ${check(`${s.slot}|__salle`, '<strong>Salle prête</strong>')}</div>`).join('')}</div>`);
+    const readCommon = () => { box.querySelectorAll('[data-ci]').forEach((inp) => { common[Number(inp.dataset.ci)][inp.dataset.f] = inp.value; }); };
+    box.querySelectorAll('[data-crm]').forEach((b) => b.addEventListener('click', () => { readCommon(); common.splice(Number(b.dataset.crm), 1); draw(); }));
+    box.querySelectorAll('[data-cadd]').forEach((b) => b.addEventListener('click', () => { readCommon(); common.push({ zone: b.dataset.cadd, article: '', qte: '' }); draw(); box.querySelector(`[data-ci="${common.length - 1}"]`)?.focus(); }));
+    box.querySelector('#c-save').addEventListener('click', async () => {
+      readCommon();
+      try { await api(`/exams/${exam.id}/materiel-common`, { method: 'PUT', body: { items: common } }); M.common = common.filter((x) => x.article.trim()); common = [...M.common]; draw(); toast('Matériel commun enregistré'); } catch (err) { toast(err.message, 'error'); }
+    });
+    box.querySelector('#c-reset')?.addEventListener('click', () => { common = COMMON.map(([zone, article, qte]) => ({ zone, article, qte })); draw(); toast('Liste proposée rétablie : enregistre pour la garder'); });
     box.querySelectorAll('[data-key]').forEach((cb) => cb.addEventListener('change', async () => {
       try { await api(`/exams/${exam.id}/materiel-check`, { method: 'PUT', body: { key: cb.dataset.key, done: cb.checked } }); if (cb.checked) M.checks[cb.dataset.key] = true; else delete M.checks[cb.dataset.key]; }
       catch { cb.checked = !cb.checked; }

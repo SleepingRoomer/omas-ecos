@@ -823,3 +823,11 @@ fieldset legend { font-weight: 700; padding: 0 6px; }
 
 /* répétition */
 .rep-steps { padding-left: 20px; display: grid; gap: 10px; margin: 10px 0 14px; } .rep-steps li { line-height: 1.6; } .rep-steps button, .rep-steps select { margin: 4px 4px 0 0; }
+
+/* signalétique imprimable */
+.sign-sheet { display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; position: relative; }
+.sign-big { font-weight: 800; font-size: 96pt; color: var(--a); line-height: 1; letter-spacing: -.02em; }
+.sign-sub { font-size: 24pt; color: var(--ink-2); margin-top: 10mm; }
+.sign-logo { position: absolute; bottom: 10mm; right: 12mm; height: 14mm; }
+.mat-zones { display: grid; grid-template-columns: repeat(auto-fit, minmax(520px, 1fr)); gap: 12px; } @media (max-width: 640px) { .mat-zones { grid-template-columns: 1fr; } }
+.mat-common { display: flex; gap: 6px; align-items: center; margin: 4px 0; } .mat-common .mat-check { margin: 0; } .mat-common input { min-width: 0; margin: 0; } .mat-common input[data-f=article] { flex: 3; } .mat-common input[data-f=qte] { flex: 2; }

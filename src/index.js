@@ -491,6 +491,8 @@ app.put('/stations/:id/content', need('admin', 'auteur'), async (c) => {
   const content = normalizeContent(b.content);
   const evals = await one(db, 'SELECT COUNT(*) AS n FROM evaluations WHERE station_id = ?', st.id);
   if (evals.n > 0 && !rights.isAdmin) throw httpError(400, 'Station déjà évaluée : modification impossible.');
+  // chaque item d'aptitude vaut 1 point (observé ou non) ; une station déjà évaluée garde ses points d'origine pour que ses notes ne bougent pas
+  if (!evals.n) content.grille.apt = content.grille.apt.map((i) => ({ ...i, points: 1 }));
   await run(db, `UPDATE stations SET content = ?, title = ?, discipline = ?, updated_at = datetime('now') WHERE id = ?`,
     JSON.stringify(content), b.title ?? st.title, b.discipline ?? st.discipline, st.id);
   const updated = { ...st, title: b.title ?? st.title };

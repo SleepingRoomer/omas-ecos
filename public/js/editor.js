@@ -180,12 +180,12 @@ export async function stationEditor(app, id) {
     <section id="sec-grille" class="panel">${head('grille', 7, "Grille d'évaluation")}
       <div class="row between" style="margin-top:18px"><h3 style="margin:0">Aptitudes cliniques et techniques</h3>
         <span class="counter ${aptN >= 10 && aptN <= 15 ? '' : 'off'}">${aptN} sur 10 à 15</span></div>
-      <p class="sec-help">Un indicateur = une action que l'évaluateur voit ou entend. Quand plusieurs réponses sont acceptées, écris le seuil : « cite au moins 2 des 4 signes ».</p>
+      <p class="sec-help">Chaque indicateur vaut 1 point : observé ou non, jamais de demi-point. Un indicateur = une action que l'évaluateur voit ou entend. Quand plusieurs réponses sont acceptées, écris le seuil : « cite au moins 2 des 4 signes ».</p>
       ${c.grille.apt.map((it, i) => `<div class="apt-row" style="margin:8px 0">
         <span class="idx">${i + 1}</span>
         <textarea data-path="grille.apt.${i}.label" rows="2" style="min-height:44px" ${dis} aria-label="Indicateur ${i + 1}"
           placeholder="${i === 0 ? 'Recherche des signes de mauvaise tolérance : FC, FR, PA, SpO2 (point si 3 sur 4)' : ''}">${esc(it.label)}</textarea>
-        <div class="pts-in"><input type="number" min="0.5" step="0.5" data-num data-path="grille.apt.${i}.points" value="${esc(it.points ?? 1)}" ${dis} aria-label="Points" title="Points"></div>
+        <div class="pts-in small muted" style="line-height:42px;text-align:center" title="Chaque item vaut 1 point : observé ou non">1 pt</div>
         ${ro ? '' : `<div class="tools"><button type="button" data-up="grille.apt" data-i="${i}" aria-label="Monter">↑</button>
           <button type="button" data-down="grille.apt" data-i="${i}" aria-label="Descendre">↓</button>
           <button type="button" data-del="grille.apt" data-i="${i}" aria-label="Retirer">✕</button></div>`}</div>`).join('')}
@@ -378,7 +378,7 @@ export async function stationEditor(app, id) {
 
 // ---------- aperçus imprimables ----------
 
-function vignetteHtml(st, c) {
+export function vignetteHtml(st, c) {
   const v = c.vignette;
   const list = (a) => a.filter((x) => x?.trim()).map((x) => `<li>${esc(x)}</li>`).join('');
   return `<div class="vignette-nat">
@@ -391,7 +391,7 @@ function vignetteHtml(st, c) {
     <p><strong>${esc(TYPE_LINE[st.type] || '')}</strong></p></div>`;
 }
 
-function paperGrid(st, c, header = true) {
+export function paperGrid(st, c, header = true) {
   const apt = c.grille.apt.filter((i) => i.label?.trim());
   const com = c.grille.com.filter((i) => i.label?.trim());
   return `${header ? `<div class="print-head"><span>INES · ECOS blancs OMAS Externat, ${esc(st.exam_name || '')}</span><span>Station ${esc(st.slot)}</span></div>
