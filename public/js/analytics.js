@@ -510,6 +510,7 @@ function render(box, D, A, filter, exam) {
       <div class="panel">${bars([0, 1, 2, 3, 4].map((l) => { const xs = A.grids.filter((g) => g.global === l && !g.absent); return { label: GLOBAL_LEVELS[l], value: mean(xs.map((g) => g.score)), extra: [`${xs.length} grilles`] }; }), { max: 20, format: (v) => `${fmt(v, 1)} / 20` })}</div>` : ''}
 
     ${D.feedback?.length ? feedbackHtml(D.feedback, A.stations, A.cands.length) : ''}
+    ${D.team?.list?.length ? teamFeedbackHtml(D.team) : ''}
     ${A.timing ? timingHtml(A.timing) : ''}
     ${A.groups.length ? `<h2>Par groupe de candidats</h2><p class="muted small">Moyenne sur 20 des candidats de chaque groupe. Un écart de moins d'un point entre groupes de cette taille relève du hasard.</p>` : ''}
     ${A.groups.map((g) => `<h3>Par ${g.label.toLowerCase()}</h3><div class="panel">${bars(g.rows.map((r) => ({
@@ -540,7 +541,26 @@ export async function analyticsTab(box, exam) {
     api(`/exams/${exam.id}/feedback`).catch(() => []),
   ]);
   D.feedback = FB;
+  D.team = await api(`/exams/${exam.id}/team-feedback`).catch(() => null);
   if (!D.evaluations?.length) { box.innerHTML = '<p class="alert info">Aucune grille saisie : l\'analyse apparaîtra avec les premières grilles.</p>'; return; }
   const filter = {};
   render(box, D, compute(D, filter), filter, exam);
+}
+
+// Avis de l'équipe de la journée (bénévoles et évaluateurs), présentés sans nom
+const POST_LABEL = { evaluateur: 'Évaluateur', ps: 'PS', pss: 'PSS', logistique: 'Accueil', reserve: 'Réserve' };
+function teamFeedbackHtml(T) {
+  const L = T.list;
+  const avg = (k) => mean(L.map((f) => f[k]).filter((v) => typeof v === 'number'));
+  const again = (k) => L.filter((f) => f.again === k).length;
+  const who = (f) => (f.posts.length ? f.posts.map((p) => POST_LABEL[p] || p).join(', ') : f.track === 'evaluateur' ? 'Évaluateur' : 'Bénévole');
+  const comments = L.filter((f) => f.comment);
+  return `<h2>L'avis de l'équipe de la journée</h2>
+    <p class="muted small">${L.length} réponse${L.length > 1 ? 's' : ''} sur ${T.asked} bénévoles et évaluateurs placés. Présentées sans nom.</p>
+    <div class="facts">
+      <div><div class="v">${fmt(avg('orga'), 1)}<span class="faint"> / 5</span></div><div class="l">organisation de la journée</div></div>
+      <div><div class="v">${fmt(avg('briefing'), 1)}<span class="faint"> / 5</span></div><div class="l">le briefing a suffi</div></div>
+      <div><div class="v">${again('oui')}<span class="faint"> oui · ${again('peut-etre')} peut-être · ${again('non')} non</span></div><div class="l">reviendraient</div></div>
+    </div>
+    ${comments.length ? `<div class="panel"><h3 style="margin-top:0">Ce qu'il faudrait changer</h3>${comments.map((f) => `<p style="margin:0 0 10px"><span class="pill">${esc(who(f))}</span> ${esc(f.comment)}</p>`).join('')}</div>` : ''}`;
 }

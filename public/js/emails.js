@@ -1,7 +1,7 @@
 // E-mails automatiques : réglages et journal (page Communication), envois d'une session et anonymisation (Réglages)
 import { api, esc, toast } from './ui.js';
 
-const KINDS = { convocation: 'Convocation', rappel: 'Rappel de la veille', resultats: 'Résultats en ligne', echange: 'Échange de créneau', attente: 'Place libérée (liste d\'attente)', benevole: 'Inscription bénévole', rappel_benevole: 'Rappel bénévole', test: 'Test' };
+const KINDS = { convocation: 'Convocation', rappel: 'Rappel de la veille', resultats: 'Résultats en ligne', echange: 'Échange de créneau', attente: 'Place libérée (liste d\'attente)', benevole: 'Inscription bénévole', rappel_benevole: 'Rappel bénévole', merci_benevole: 'Merci aux bénévoles et évaluateurs', test: 'Test' };
 const STATUS = { sent: ['ok', 'envoyé'], skipped: ['', 'non envoyé'], failed: ['warn', 'échec'] };
 const when = (s) => new Date(`${s}Z`).toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 

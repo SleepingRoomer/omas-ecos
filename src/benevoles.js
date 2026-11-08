@@ -189,15 +189,41 @@ export function registerBenevoles(app, h) {
     };
     const mine = assigns.map((a) => ({ ...a, times: times(a.day, a.half),
       now: a.day === t && ((a.half === 'am' && m < 13 * 60 + 30) || (a.half === 'pm' && m >= 12 * 60)) }));
+    // son avis s'ouvre dès que sa première demi-journée est passée
+    const done = (a) => a.day < t || (a.day === t && ((a.half === 'am' && m >= 12 * 60) || (a.half === 'pm' && m >= 17 * 60)));
+    const prefs = parse(s.prefs, null) || {};
     // ses stations à calibrer : celles où il évalue, sinon toutes celles qui ont un cas
     const myStations = new Set(assigns.filter((a) => a.role === 'evaluateur' && a.station_id).map((a) => a.station_id));
     return c.json({
       me: { first_name: s.first_name, last_name: s.last_name, roles: parse(s.roles, []), halfdays: parse(s.halfdays, []), code: s.code, prefs: parse(s.prefs, null) || { track: 'benevole' } },
       exam: { id: exam.id, name: exam.name, eval_open: state.eval.open, opens_at: state.eval.opens_at, place: planning.place },
       roles: POSTS, assignments: mine,
+      feedback: prefs.feedback || null, feedback_open: assigns.some(done),
       calibrations: calibs.filter((k) => !myStations.size || myStations.has(k.station_id)),
       history,
     });
+  });
+
+  // Avis de l'équipe de la journée : trois questions et un mot libre, après sa première demi-journée
+  app.post('/benevole/feedback', need('benevole'), async (c) => {
+    const { db, s } = await meSignup(c);
+    const b = await c.req.json();
+    const note = (v) => (Number.isInteger(Number(v)) && Number(v) >= 1 && Number(v) <= 5 ? Number(v) : null);
+    const fb = { orga: note(b.orga), briefing: note(b.briefing), again: ['oui', 'peut-etre', 'non'].includes(b.again) ? b.again : null,
+      comment: String(b.comment || '').trim().slice(0, 1500), at: new Date().toISOString() };
+    if (!fb.orga && !fb.briefing && !fb.again && !fb.comment) throw httpError(400, 'Réponds au moins à une question.');
+    const prefs = parse(s.prefs, null) || { track: 'benevole' };
+    await run(db, 'UPDATE volunteer_signups SET prefs = ? WHERE id = ?', JSON.stringify({ ...prefs, feedback: fb }), s.id);
+    return c.json({ ok: true });
+  });
+
+  app.get('/exams/:id/team-feedback', need('admin'), async (c) => {
+    const db = c.env.DB;
+    const rows = await all(db, `SELECT s.id, s.prefs, v.first_name, (SELECT group_concat(DISTINCT a.role) FROM assignments a WHERE a.signup_id = s.id) AS posts
+      FROM volunteer_signups s JOIN volunteers v ON v.id = s.volunteer_id WHERE s.exam_id = ?`, c.req.param('id')).catch(() => []);
+    const list = rows.map((r) => ({ id: r.id, first_name: r.first_name, posts: (r.posts || '').split(',').filter(Boolean), track: (parse(r.prefs, null) || {}).track || 'benevole', ...((parse(r.prefs, null) || {}).feedback || {}) }))
+      .filter((r) => r.at);
+    return c.json({ list, asked: rows.filter((r) => r.posts).length });
   });
 
   // Entrer dans sa salle : si une affectation d'évaluateur tombe maintenant, on ouvre la salle sous son nom

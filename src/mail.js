@@ -301,3 +301,42 @@ export async function dailyReminders(env) {
   ];
   return msgs.length ? sendMails(env, db, msgs) : { sent: 0 };
 }
+
+// Le lendemain de sa dernière demi-journée : un merci à chaque bénévole et évaluateur, avec ce qu'il a fait
+// (grilles saisies, salle, rôle) et un lien vers son espace pour donner son avis en deux minutes.
+export async function teamThanks(env) {
+  const db = env.DB;
+  const yesterday = parisDate(new Date(Date.now() - 864e5));
+  const rows = (await db.prepare(`SELECT s.id AS signup_id, s.code, s.prefs, s.exam_id, v.email, v.first_name, v.last_name, e.name AS exam_name,
+      group_concat(a.role || ':' || COALESCE(st.slot, ''), ',') AS posts, MAX(a.day) AS last_day
+    FROM assignments a JOIN volunteer_signups s ON s.id = a.signup_id JOIN volunteers v ON v.id = s.volunteer_id JOIN exams e ON e.id = a.exam_id
+    LEFT JOIN stations st ON st.id = a.station_id
+    WHERE e.anonymized_at IS NULL AND NOT EXISTS (SELECT 1 FROM mail_log m WHERE m.kind = 'merci_benevole' AND m.ref = CAST(s.id AS TEXT) AND m.status IN ('sent', 'skipped'))
+    GROUP BY s.id HAVING MAX(a.day) = ?`).bind(yesterday).all().catch(() => ({ results: [] }))).results;
+  if (!rows.length) return { sent: 0 };
+  const exams = [...new Set(rows.map((r) => r.exam_id))];
+  const grids = (await db.prepare(`SELECT exam_id, lower(evaluator_name) AS n, COUNT(*) AS k FROM evaluations WHERE exam_id IN (${exams.map(() => '?').join(',')}) GROUP BY exam_id, lower(evaluator_name)`)
+    .bind(...exams).all()).results;
+  const gridsOf = (r) => grids.find((g) => g.exam_id === r.exam_id && g.n === `${r.first_name} ${r.last_name}`.toLowerCase())?.k || 0;
+  const url = await siteUrl(env, db);
+  const msgs = rows.map((r) => {
+    const isEval = (JSON.parse(r.prefs || 'null') || {}).track === 'evaluateur';
+    const posts = (r.posts || '').split(',').map((x) => x.split(':'));
+    const rooms = [...new Set(posts.filter(([, sl]) => sl).map(([, sl]) => sl))];
+    const n = gridsOf(r);
+    const did = [];
+    if (n) did.push(isEval ? `vous avez saisi <b>${n} grille${n > 1 ? 's' : ''}</b>` : `tu as saisi <b>${n} grille${n > 1 ? 's' : ''}</b>`);
+    if (posts.some(([ro]) => ro === 'ps' || ro === 'pss')) did.push(`tu as joué le patient${rooms.length ? ` en salle ${rooms.join(', ')}` : ''}`);
+    if (posts.some(([ro]) => ro === 'logistique')) did.push('tu as tenu l\'accueil et la logistique');
+    if (posts.some(([ro]) => ro === 'reserve')) did.push('tu étais en réserve, prêt à remplacer un absent');
+    const button = { url: `${url}/#/?role=evaluateur&code=${encodeURIComponent(r.code)}`, label: 'Donner mon avis' };
+    return { kind: 'merci_benevole', exam_id: r.exam_id, ref: String(r.signup_id), to: r.email, name: `${r.first_name} ${r.last_name}`,
+      subject: isEval ? `Merci pour votre aide aux ${r.exam_name}` : `Merci ${r.first_name} pour ton aide aux ${r.exam_name}`,
+      html: layout(isEval
+        ? { title: 'Merci !', intro: `Merci d'avoir évalué aux <b>${esc(r.exam_name)}</b>${rooms.length ? `, en salle ${esc(rooms.join(', '))}` : ''}. ${n ? `Vous avez saisi <b>${n} grille${n > 1 ? 's' : ''}</b> : chaque candidat relira votre mot avec la correction.` : 'Vos retours comptent beaucoup pour les candidats.'}`,
+          button, after: 'Deux minutes pour nous dire ce qui a marché et ce qu\'il faut changer : votre avis sert directement à préparer la prochaine session.' }
+        : { title: 'Merci !', intro: `Merci d'être venu aider aux <b>${esc(r.exam_name)}</b>${did.length ? ` : ${did.join(', ')}` : ''}. Sans toi, la journée n'aurait pas tourné.`,
+          button, after: 'Deux minutes pour nous dire ce qui a marché et ce qu\'il faut changer : ton avis sert directement à préparer la prochaine session.' }) };
+  });
+  return sendMails(env, db, msgs);
+}

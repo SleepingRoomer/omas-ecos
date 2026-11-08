@@ -125,6 +125,7 @@ export async function volunteerSpace(app) {
         <div class="row" style="margin-top:6px">${a.slot ? plate(a.slot) : ''}<span>${esc(M.roles[a.role])}${a.slot ? `, salle ${esc(a.slot)}` : ''}</span></div>
         ${a.title && a.role !== 'logistique' ? `<div class="small muted">${esc(a.title)}</div>` : ''}${a.role === 'reserve' ? '<div class="small muted">Tu restes près de la table de l\'équipe : si un PS ou un PSS manque, tu prends sa place. Le script de la station t\'est donné sur place.</div>' : ''}</div>`).join('')}</div>`
     : `<p class="panel">L'équipe prépare le planning. Tu as proposé : ${M.me.halfdays.map((k) => esc(hdLabel(k))).join(', ') || 'aucune demi-journée'}.</p>`}
+    ${M.feedback_open ? `<div id="vol-fb"></div>` : ''}
     ${M.calibrations.length ? `<h2>Calibration</h2>
       <p class="small muted">Avant la session, note un passage de référence avec la grille de ta station. Tu vois ensuite où tu t'écartes de la correction de l'équipe : c'est ce qui rend les notes comparables d'une salle à l'autre.</p>
       <div class="vol-plan">${M.calibrations.map((k) => `<a class="vol-slot link" href="#/calibration/${k.station_id}">
@@ -137,6 +138,42 @@ export async function volunteerSpace(app) {
   app.querySelector('#enter')?.addEventListener('click', async () => {
     try { await api('/benevole/enter', { method: 'POST' }); location.hash = '#/eval'; location.reload(); } catch (err) { toast(err.message, 'error'); }
   });
+  const fbBox = app.querySelector('#vol-fb');
+  if (fbBox) teamFeedbackForm(fbBox, M.feedback, isEval);
+}
+
+// Avis de l'équipe de la journée : deux notes, « reviendrais-tu ? » et un mot libre. Vouvoiement pour les évaluateurs.
+function teamFeedbackForm(box, saved, isEval) {
+  const v = isEval;
+  let fb = { orga: saved?.orga || 0, briefing: saved?.briefing || 0, again: saved?.again || '', comment: saved?.comment || '' };
+  let editing = !saved;
+  const stars = (key, label) => `<div class="fb-q"><span>${label}</span><div class="stars" role="radiogroup" aria-label="${esc(label)}">${[1, 2, 3, 4, 5].map((n) =>
+    `<button type="button" class="star ${fb[key] >= n ? 'on' : ''}" data-k="${key}" data-n="${n}" role="radio" aria-checked="${fb[key] === n}" aria-label="${n} sur 5">★</button>`).join('')}</div></div>`;
+  const draw = () => {
+    if (!editing) {
+      box.innerHTML = `<div class="panel fb-done"><h2 style="margin-top:0">Merci pour ${v ? 'votre' : 'ton'} avis</h2>
+        <p class="small muted">Il est lu par l'équipe et sert à préparer la prochaine session.</p>
+        <button class="small quiet" id="fb-edit">Modifier mon avis</button></div>`;
+      box.querySelector('#fb-edit').addEventListener('click', () => { editing = true; draw(); });
+      return;
+    }
+    box.innerHTML = `<div class="panel"><h2 style="margin-top:0">${v ? 'Votre avis' : 'Ton avis'} sur la journée</h2>
+      <p class="small muted">Deux minutes, lues par l'équipe pour préparer la prochaine session.</p>
+      ${stars('orga', 'L\'organisation de la journée')}
+      ${stars('briefing', v ? 'Le briefing vous a suffi pour noter' : 'Le briefing t\'a suffi pour ton rôle')}
+      <div class="fb-q"><span>${v ? 'Reviendriez-vous ?' : 'Tu reviendrais ?'}</span><div class="row" style="gap:6px">${[['oui', 'Oui'], ['peut-etre', 'Peut-être'], ['non', 'Non']].map(([k, l]) =>
+        `<button type="button" class="small ${fb.again === k ? 'primary' : 'quiet'}" data-again="${k}">${l}</button>`).join('')}</div></div>
+      <label for="fb-c">${v ? 'Ce qu\'il faudrait changer, ce qui vous a manqué' : 'Ce qu\'il faudrait changer, ce qui t\'a manqué'}</label>
+      <textarea id="fb-c" rows="3" maxlength="1500">${esc(fb.comment)}</textarea>
+      <button class="primary" id="fb-send" style="margin-top:10px">Envoyer</button></div>`;
+    box.querySelectorAll('.star').forEach((b) => b.addEventListener('click', () => { fb.comment = box.querySelector('#fb-c').value; fb[b.dataset.k] = Number(b.dataset.n); draw(); }));
+    box.querySelectorAll('[data-again]').forEach((b) => b.addEventListener('click', () => { fb.comment = box.querySelector('#fb-c').value; fb.again = b.dataset.again; draw(); }));
+    box.querySelector('#fb-send').addEventListener('click', async () => {
+      fb.comment = box.querySelector('#fb-c').value;
+      try { await api('/benevole/feedback', { method: 'POST', body: fb }); editing = false; draw(); toast('Merci !'); } catch (err) { toast(err.message, 'error'); }
+    });
+  };
+  draw();
 }
 
 // ---------- calibration ----------

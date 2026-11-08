@@ -21,7 +21,7 @@ INES (Interface numérique d'ECOS et de simulation) est la plateforme des ECOS b
 - Relances de rédaction (`src/writing.js`) : échéance par étape dans `planning.writing_deadlines`, e-mail à la personne qui reçoit une station, récapitulatif le lundi (tâche du soir) aux rédacteurs et relecteurs, et à l'adresse de réponse des e-mails pour l'équipe.
 - Saisie des grilles : ouverte d'après le planning (une heure avant la première convocation du jour, trois quarts d'heure après le dernier tour), ou forcée par `planning.eval_mode` ('auto', 'open', 'closed'). Détail des grilles retenu jusqu'à la fin de la dernière série (`planning.details_embargo`). Tout passe par `src/state.js` (`examState`, `loadExamState`) : ne plus lire `exams.eval_open` directement.
 - E-mails : Brevo, un appel pour 200 destinataires, journal dans `mail_log`. Sans clé, rien ne part et le site fonctionne quand même.
-- Hors connexion : `public/sw.js`. Changer le nom du cache (`ines-v14` aujourd'hui) quand les fichiers du front changent beaucoup.
+- Hors connexion : `public/sw.js`. Changer le nom du cache (`ines-v15` aujourd'hui) quand les fichiers du front changent beaucoup.
 - Sécurité : `public/_headers` (CSP stricte : pas de script ni de police externes, pas de gestionnaire `onclick` en ligne).
 
 ## Identité (charte complète dans le projet claude.ai « OMAS », document `claude/INES_charte.md`)
@@ -68,6 +68,10 @@ Pour repartir d'une base vide : arrêter le serveur, supprimer `.wrangler/state`
 - PS ou PSS de réserve : poste `reserve` dans `assignments` (`POSTS` de `src/benevoles.js`), au moins un par demi-journée dès qu'une station a un PS ou un PSS ; compté dans la couverture du planning des salles et signalé au tableau de bord.
 - Tableau de bord (`src/dashboard.js`, `public/js/dashboard.js`) : premier onglet d'une session. Liste « À faire » calculée côté serveur (stations, créneaux, numéros, convocations, postes à pourvoir, réserve, accueil, code d'accueil, impressions, salles prêtes, réclamations, anonymisation), compteurs, et l'équipe de chaque demi-journée.
 - `PUT /exams/:id/planning` ne réécrit jamais `accueil_code`, `materiel_check` ni `materiel_common` (gérés par leurs propres routes).
+
+## Messages aux salles et avis de l'équipe
+- Messages aux salles (`src/messages.js`, panneau en haut d'En direct) : gardés dans `planning.broadcasts` (20 derniers), visibles 45 minutes ou jusqu'à « Retirer ». Bandeau `#broadcast` (index.html) relu toutes les 30 secondes par `app.js` chez les évaluateurs (toutes les salles ou la leur), l'accueil, les bénévoles (et leur salle du jour) et l'écran de projection. « Vu » le masque sur l'appareil.
+- Avis de l'équipe : dans l'espace bénévole dès la fin de sa première demi-journée (deux notes, « reviendrais-tu ? », un mot libre), gardé dans `volunteer_signups.prefs.feedback`. Résumé sans nom dans Analyse (`/exams/:id/team-feedback`). Merci automatique le lendemain de sa dernière demi-journée (`teamThanks` dans `src/mail.js`, tâche du soir, `mail_log` kind `merci_benevole`), avec ses grilles saisies, sa salle et son rôle.
 
 ## Matériel et impressions
 - Onglet Matériel d'une session (`public/js/materiel.js`) : en haut « À imprimer » (étiquettes, vignettes, fiches codes, grilles papier de secours, documents, planning, signalétique, attestations, avec les quantités), puis le matériel commun (liste proposée par zone, modifiable, gardée dans `planning.materiel_common`), puis le matériel des stations. Cases à cocher dans `planning.materiel_check` (clés `print|…`, `commun|…`, `<salle>|<article>`).

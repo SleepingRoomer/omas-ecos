@@ -7,8 +7,12 @@ let timer = null;
 let chosen = null;
 const GRACE = 10; // minutes laissées après la fin d'un tour avant de signaler une grille manquante
 
-export async function liveTab(box, exam) {
+export async function liveTab(root, exam) {
   clearInterval(timer);
+  // le panneau des messages reste en place : la mise à jour automatique ne touche que la suite
+  root.innerHTML = '<div id="msg-panel"></div><div id="live-body"></div>';
+  const box = root.querySelector('#live-body');
+  messagesPanel(root.querySelector('#msg-panel'), exam);
   const draw = async () => {
     const [R, P, Res] = await Promise.all([
       api(`/exams/${exam.id}/race${chosen ? `?day=${chosen}` : ''}`),
@@ -76,4 +80,37 @@ export async function liveTab(box, exam) {
     if (!location.hash.endsWith('/direct') || document.visibilityState !== 'visible') return;
     draw().catch(() => {});
   }, 30000);
+}
+
+// ---------- messages aux salles ----------
+// Un message tapé ici s'affiche en bandeau chez les évaluateurs (toutes les salles ou une seule), à l'accueil,
+// chez les bénévoles connectés et sur l'écran de projection, pendant 45 minutes ou jusqu'à ce qu'on le retire.
+async function messagesPanel(box, exam) {
+  const [M, P] = await Promise.all([api(`/exams/${exam.id}/broadcasts`), api(`/exams/${exam.id}/planning`)]);
+  const time = (iso) => new Date(iso).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Paris' });
+  const draw = () => {
+    box.innerHTML = `<div class="panel"><h3 style="margin-top:0">Message aux salles</h3>
+      <form id="msg-form" class="row" style="gap:8px;flex-wrap:wrap">
+        <input id="msg-text" maxlength="200" placeholder="Pause prolongée de 5 min" style="flex:1;min-width:220px" aria-label="Message">
+        <select id="msg-slot" style="width:auto" aria-label="Pour qui"><option value="">Toutes les salles et l'accueil</option>${P.slots.map((s) => `<option value="${esc(s)}">Salle ${esc(s)} seulement</option>`).join('')}</select>
+        <button class="primary" type="submit">Envoyer</button></form>
+      <p class="small muted" style="margin:6px 0 0">Il s'affiche en bandeau sur les téléphones des évaluateurs, à l'accueil et sur l'écran de projection, en moins de 30 secondes, pendant ${M.minutes} minutes.</p>
+      ${M.list.length ? `<div class="msg-list">${M.list.slice(0, 6).map((m) => `<div class="msg-item ${m.live ? '' : 'off'}">
+        <span class="small muted">${time(m.at)}</span>${m.slot ? plate(m.slot, 'sm') : ''}<span style="flex:1">${esc(m.text)}</span>
+        ${m.live ? `<button class="small quiet" data-rm="${m.id}">Retirer</button>` : `<span class="small muted">${m.cleared_at ? 'retiré' : 'expiré'}</span>`}</div>`).join('')}</div>` : ''}
+      </div>`;
+    box.querySelector('#msg-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const text = box.querySelector('#msg-text').value.trim(); if (!text) return;
+      try {
+        await api(`/exams/${exam.id}/broadcasts`, { method: 'POST', body: { text, slot: box.querySelector('#msg-slot').value || null } });
+        Object.assign(M, await api(`/exams/${exam.id}/broadcasts`)); draw(); toast('Message envoyé');
+      } catch (err) { toast(err.message, 'error'); }
+    });
+    box.querySelectorAll('[data-rm]').forEach((b) => b.addEventListener('click', async () => {
+      await api(`/exams/${exam.id}/broadcasts/${b.dataset.rm}`, { method: 'DELETE' });
+      Object.assign(M, await api(`/exams/${exam.id}/broadcasts`)); draw();
+    }));
+  };
+  draw();
 }

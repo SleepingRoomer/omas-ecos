@@ -22,6 +22,7 @@ import { registerTeam, teamLogin, auditMiddleware, audit } from './team.js';
 import { registerClaims, windowOf, CLAIM_STATUS } from './claims.js';
 import { registerDemo } from './demo.js';
 import { registerDashboard } from './dashboard.js';
+import { registerMessages } from './messages.js';
 
 const app = new Hono().basePath('/api');
 const COOKIE = 'omas_s';
@@ -1027,6 +1028,7 @@ registerProgression(app, { need, httpError, all, one });
 registerMail(app, { need, httpError, all, one, run, parse, batch });
 registerSystem(app, { need, all, one });
 registerDashboard(app, { need, httpError, all, one, parse });
+registerMessages(app, { need, httpError, one, run, parse });
 registerRgpd(app, { need, httpError, all, one, run });
 registerTeam(app, { need, httpError, all, one, run });
 registerClaims(app, { need, httpError, all, one, run });

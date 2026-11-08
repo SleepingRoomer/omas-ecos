@@ -1,6 +1,6 @@
 // État du système (page de l'équipe) et tâche planifiée de la nuit.
 // Les migrations sont collées à la main dans la console D1 : on vérifie ici que les tables et colonnes attendues existent.
-import { dailyReminders, mailReady } from './mail.js';
+import { dailyReminders, mailReady, teamThanks } from './mail.js';
 import { expireOffers } from './waitlist.js';
 import { weeklyRecap } from './writing.js';
 import { weeklyBackup, lastBackup } from './backup.js';
@@ -70,6 +70,7 @@ export async function nightly(env) {
   const out = { at: started, reminders: null, purge: null, error: null };
   try { out.reminders = await dailyReminders(env); } catch (e) { out.error = `rappels : ${String(e.message || e).slice(0, 200)}`; }
   try { out.waitlist = await expireOffers(env); } catch (e) { out.error = `${out.error ? `${out.error} ; ` : ''}liste d'attente : ${String(e.message || e).slice(0, 200)}`; }
+  try { out.thanks = await teamThanks(env); } catch (e) { out.error = `${out.error ? `${out.error} ; ` : ''}merci aux bénévoles : ${String(e.message || e).slice(0, 200)}`; }
   try { out.writing = await weeklyRecap(env); } catch (e) { out.error = `${out.error ? `${out.error} ; ` : ''}relances : ${String(e.message || e).slice(0, 200)}`; }
   try { out.backup = await weeklyBackup(env); } catch (e) { out.error = `${out.error ? `${out.error} ; ` : ''}sauvegarde : ${String(e.message || e).slice(0, 200)}`; }
   try { out.rgpd = await rgpdPurge(env); } catch (e) { out.error = `${out.error ? `${out.error} ; ` : ''}données personnelles : ${String(e.message || e).slice(0, 200)}`; }
