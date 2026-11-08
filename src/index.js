@@ -736,7 +736,7 @@ async function candidateReport(db, candidateId, asAdmin) {
   const needContent = showResults || showCorr;
   const [contents, mine] = needContent ? await Promise.all([
     all(db, 'SELECT id, content FROM stations WHERE exam_id = ? AND played = 1', cand.exam_id),
-    showDetails ? all(db, 'SELECT station_id, evaluator_name, absent, answers, comment, score FROM evaluations WHERE candidate_id = ?', cand.id) : [],
+    showDetails ? all(db, 'SELECT id, station_id, evaluator_name, absent, answers, comment, score, created_at FROM evaluations WHERE candidate_id = ?', cand.id) : [],
   ]) : [[], []];
   const contentOf = new Map(contents.map((r) => [r.id, normalizeContent(parse(r.content, {}))]));
   const stations = R.played.map((s) => {
@@ -763,7 +763,7 @@ async function candidateReport(db, candidateId, asAdmin) {
           .map((i) => ({ label: i.label, value: grids.reduce((a, g) => a + (Number(g.answers?.com?.[i.id]) || 0), 0) / k }));
         out.comments = grids.map((g) => g.comment).filter(Boolean);
         out.comment = out.comments.join('\n\n');
-        if (asAdmin) out.by_rater = grids.map((g) => ({ name: g.evaluator_name, score: g.score }));
+        if (asAdmin) out.by_rater = grids.map((g) => ({ id: g.id, name: g.evaluator_name, score: g.score, at: g.created_at }));
       }
     }
     if (showCorr && content) out.correction = { text: content.pedago.correction, references: content.pedago.references,
@@ -914,6 +914,10 @@ async function race(db, examId, wanted) {
   }
   return { day, days, today, target: target.n, horses: [...by.values()].sort((a, b) => b.n - a.n || a.name.localeCompare(b.name)) };
 }
+
+// Heure d'enregistrement de chaque grille d'un jour, pour repérer celles saisies avant le passage prévu du candidat
+app.get('/exams/:id/live-checks', need('admin'), async (c) => c.json(await all(c.env.DB, `SELECT v.station_id, s.slot, v.candidate_id, v.evaluator_name, v.created_at
+  FROM evaluations v JOIN stations s ON s.id = v.station_id JOIN candidates c ON c.id = v.candidate_id WHERE v.exam_id = ? AND c.day = ? AND v.absent = 0`, c.req.param('id'), c.req.query('day') || '')));
 
 app.get('/exams/:id/race', need('admin'), async (c) => c.json(await race(c.env.DB, c.req.param('id'), c.req.query('day'))));
 app.get('/eval/race', need('evaluateur'), async (c) => {

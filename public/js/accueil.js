@@ -15,6 +15,7 @@ export async function scanView(app, token) {
       <p class="lede">${ok ? (R.already ? 'Déjà émargé tout à l\'heure.' : 'Présence enregistrée.') : 'Inscription annulée : ce candidat a libéré sa place.'}</p>
       ${ok ? `<p>${c.day ? `${esc(longDate(c.day))}, série ${c.series}` : 'Sans créneau'}${R.convocation ? `, convocation à ${R.convocation}` : ''}.</p>` : ''}
       ${R.wrong_day ? '<p class="alert warn">Attention : ce candidat n\'est pas convoqué aujourd\'hui.</p>' : ''}
+      ${ok && c.number ? `<p class="alert info">Donne-lui l'étiquette <strong>${esc(c.number)}</strong>, à coller sur sa blouse.</p>` : ''}
       <p class="small muted">${esc(R.exam.name)}. Scanne le QR code suivant avec l'appareil photo.</p>
       <a class="btn" href="#/admin/session/${R.exam.id}/accueil">Liste de l'accueil</a></div>`;
   } catch (e) {
@@ -41,6 +42,9 @@ export async function accueilTab(box, exam) {
         <input id="acc-q" placeholder="Nom ou numéro" value="${esc(state.q)}" style="max-width:240px" aria-label="Chercher">
         <span class="spacer"></span><button class="small" id="acc-reload">Actualiser</button></div>
       <p class="alert info small">Le plus rapide : un membre de l'équipe, connecté en admin sur son téléphone, scanne le QR code de la convocation avec l'appareil photo. La présence s'enregistre toute seule. Cette liste sert pour ceux qui n'ont pas leur QR code.</p>
+      <div class="panel row between" style="margin:10px 0"><div><strong>Étiquettes des candidats</strong>
+        <div class="small muted">Une planche par série, à imprimer avant le jour J et à remettre à l'émargement : numéro, prénom, circuit de départ et QR code qui ouvre la grille chez l'évaluateur.</div></div>
+        <a class="btn small" href="#/admin/session/${exam.id}/etiquettes" target="_blank">Imprimer les étiquettes</a></div>
       <div class="facts"><div><div class="v">${here}<span class="faint"> / ${list.length}</span></div><div class="l">présents</div></div>
         <div><div class="v">${list.filter((c) => c.confirmed_at).length}</div><div class="l">avaient confirmé leur venue</div></div></div>
       ${(day?.series || []).map((s, i) => {

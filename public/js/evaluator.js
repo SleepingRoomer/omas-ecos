@@ -1,6 +1,6 @@
 import { api, esc, nl, toast, fmt, frDate, setTitle, plate, dom, disc } from './ui.js';
 import { COM_LEVELS, GLOBAL_LEVELS, TYPE_LINE, missingAnswers, computeScore } from './shared.js';
-import { seriesTimes, frTime } from './planning-shared.js';
+import { seriesTimes, frTime, roomNow, gridCheck } from './planning-shared.js';
 import { raceHtml } from './race.js';
 
 let ctx = null;
@@ -41,6 +41,7 @@ setInterval(() => { if (Object.keys(readStore(QKEY)).length) flushQueue(); }, 30
 async function loadCtx() {
   const [c, sch] = await Promise.all([api('/eval/context'), api('/eval/schedule').catch(() => null)]);
   ctx = c;
+  ctx.sch = sch;
   // heure de passage de chaque candidat dans cette salle, d'après sa place dans la série
   if (sch) {
     for (const cand of ctx.candidates) {
@@ -65,6 +66,26 @@ export async function roomView(app) {
   const list = (a) => (a || []).filter((x) => x?.trim()).map((x) => `<li>${esc(x)}</li>`).join('');
   const seriesOf = [...new Set(ctx.candidates.filter((c) => !filters.day || c.day === filters.day).map((c) => c.series).filter(Boolean))].sort();
 
+  // Le candidat attendu en ce moment dans la salle, d'après la rotation et les horaires
+  const parisToday = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Paris' });
+  const nowBox = () => {
+    if (!ctx.sch) return '';
+    const todays = ctx.candidates.filter((c) => c.day === parisToday());
+    if (!todays.length) return '';
+    const N = roomNow(ctx.sch.planning, ctx.sch.slots, ctx.sch.slot, todays);
+    const card = (x, label, main) => `<button class="now-card ${main ? 'main' : ''} ${x.c.eval_id ? 'done' : ''}" data-id="${x.c.id}">
+      <span class="small">${label}, ${frTime(x.p.startHHMM)}</span><span class="now-no">${esc(x.c.number || '')}</span>
+      <span>${esc(x.c.first_name)} ${esc((x.c.last_name || '').slice(0, 1))}.</span>${x.c.eval_id ? '<span class="small">grille saisie</span>' : ''}</button>`;
+    if (!N.current && !N.next) return '';
+    return `<div class="now-box">${N.current ? card(N.current, 'Dans ta salle en ce moment', true) : ''}${N.next ? card(N.next, 'Ensuite', !N.current) : ''}
+      <p class="small muted" style="margin:0;flex-basis:100%">Vérifie le numéro sur l'étiquette du candidat avant de remplir sa grille. Tu peux aussi scanner son étiquette avec l'appareil photo : sa grille s'ouvre directement.</p></div>`;
+  };
+  clearInterval(window.__nowTimer);
+  window.__nowTimer = setInterval(() => {
+    const el = app.querySelector('#now'); if (!el || !location.hash.startsWith('#/eval')) return;
+    el.innerHTML = nowBox(); el.querySelectorAll('[data-id]').forEach((b) => b.addEventListener('click', () => { location.hash = `#/eval/candidat/${b.dataset.id}`; }));
+  }, 30000);
+
   const draw = () => {
     const shown = ctx.candidates.filter((c) => (!filters.day || c.day === filters.day)
       && (!filters.series || String(c.series) === filters.series)
@@ -77,6 +98,7 @@ export async function roomView(app) {
           <div class="tags" style="margin-top:6px">${dom(s.domain)}${s.discipline ? `<span>${disc(s.discipline)}</span>` : ''}</div>
           <div class="muted small" style="margin-top:4px">${esc(ctx.evaluator)}, ${esc(ctx.exam.name)}</div></div></div>
       ${ctx.exam.eval_open ? '' : '<p class="alert warn">La saisie n\'est pas encore ouverte : elle suit les horaires du planning.</p>'}
+      <div id="now">${nowBox()}</div>
       <p class="alert warn row between" data-queue ${Object.keys(queued()).length ? '' : 'hidden'}><span><b>${Object.keys(queued()).length}</b> grille(s) gardée(s) sur ce téléphone, en attente de réseau. Elles partiront toutes seules.<span class="err small"></span></span>
         <button class="small" data-flush>Envoyer maintenant</button></p>
       <details class="panel" style="padding:14px 18px"><summary style="cursor:pointer"><strong>Relire la vignette et les consignes</strong></summary>
@@ -109,7 +131,7 @@ export async function roomView(app) {
     app.querySelector('#q').addEventListener('input', (e) => { filters.q = e.target.value; const pos = e.target.selectionStart; draw(); const q = app.querySelector('#q'); q.focus(); q.setSelectionRange(pos, pos); });
     app.querySelector('#reload').addEventListener('click', () => roomView(app));
     app.querySelector('[data-flush]')?.addEventListener('click', () => flushQueue());
-    app.querySelectorAll('.cand').forEach((b) => b.addEventListener('click', () => { location.hash = `#/eval/candidat/${b.dataset.id}`; }));
+    app.querySelectorAll('.cand, #now [data-id]').forEach((b) => b.addEventListener('click', () => { location.hash = `#/eval/candidat/${b.dataset.id}`; }));
     const rp = app.querySelector('.race-panel');
     rp.addEventListener('toggle', () => { raceOpen = rp.open; });
     api('/eval/race').then((R) => {
@@ -154,7 +176,8 @@ export async function gridView(app, candidateId) {
       <a class="back" href="#/eval">Retour à la liste</a>
       <div class="row between">
         <div class="cand-head">${plate(ctx.station.slot, 'lg')}<div><span class="cand-no">${esc(cand.number || '')}</span>
-          <div class="muted">${esc(cand.first_name)} ${esc(cand.last_name)}</div></div></div>
+          <div class="muted">${esc(cand.first_name)} ${esc(cand.last_name)}</div>
+          ${cand.time ? `<div class="small muted">Prévu dans ta salle à ${frTime(cand.time)}${cand.day !== new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Paris' }) ? `, le ${frDate(cand.day)}` : ''}</div>` : ''}</div></div>
         <button id="absent" class="${absent ? 'danger solid' : 'danger'}">${absent ? 'Absent : annuler' : 'Candidat absent'}</button></div>
       ${existing ? '<p class="alert info small">Tu as déjà rempli cette grille. Ce que tu enregistres remplace ta version.</p>' : ''}
       ${absent ? '<p class="alert warn">Le candidat sera noté absent à cette station. Elle ne comptera pas dans sa moyenne.</p>' : `
@@ -207,6 +230,14 @@ export async function gridView(app, candidateId) {
         app.querySelector('.missing')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
         return;
       }
+      // garde-fou : un candidat qui n'est pas encore passé dans cette salle, ou convoqué un autre jour
+      const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Paris' });
+      if (ctx.sch && cand.day && !existing) {
+        const chk = gridCheck(ctx.sch.planning, ctx.sch.slots, ctx.sch.slot, cand);
+        const msg = cand.day !== today ? `${cand.number} est convoqué le ${frDate(cand.day)}, pas aujourd'hui.`
+          : !chk.ok ? `${cand.number} n'arrive dans ta salle qu'à ${frTime(chk.p.startHHMM)}.` : '';
+        if (msg && !window.confirm(`${msg}\n\nVérifie le numéro sur son étiquette. C'est bien ${cand.first_name} ${(cand.last_name || '').slice(0, 1)}. qui est devant toi ?`)) return;
+      }
       const clean = Object.fromEntries(Object.entries(ans.apt).map(([k, v]) => [k, { ok: v.ok, comment: (v.comment || '').trim() }]));
       const body = { candidate_id: cand.id, absent, answers: { apt: clean, com: ans.com }, global, comment };
       try {
@@ -224,4 +255,13 @@ export async function gridView(app, candidateId) {
     });
   };
   draw();
+}
+
+// Étiquette scannée : #/q/J1-S3-04 ouvre la grille de ce candidat dans la salle de l'évaluateur
+export async function scanLabel(app, number) {
+  await loadCtx();
+  const n = decodeURIComponent(number).toUpperCase();
+  const cand = ctx.candidates.find((c) => String(c.number || '').toUpperCase() === n);
+  if (!cand) { app.innerHTML = `<div class="narrow"><p class="alert error">Le candidat ${esc(n)} n'est pas dans cette session.</p><a class="btn" href="#/eval">Retour à ma salle</a></div>`; return; }
+  location.replace(`#/eval/candidat/${cand.id}`);
 }

@@ -178,6 +178,37 @@ export function detailsState(planning, showDetails, nRounds = 10, now = Date.now
   return { visible: !!showDetails && !held, held, embargo, from: end ? end.toISOString() : null };
 }
 
+// ---------- qui est dans la salle ----------
+// Passage d'un candidat dans une salle : début et fin de son tour, à l'heure de Paris (Date)
+export function passageInRoom(planning, slots, slot, cand) {
+  const d = planning.days.find((x) => x.date === cand.day);
+  const ser = d?.series[(cand.series || 0) - 1];
+  if (!ser || !cand.seat) return null;
+  const rot = rotationFor(slots);
+  let round = null;
+  for (let r = 1; r <= rot.seats; r++) if (rot.at(cand.seat, r) === slot) round = r;
+  if (!round) return null;
+  const T = seriesTimes(planning, ser, slots.length).rounds[round - 1];
+  return { round, start: seriesStartsAt(cand.day, T.start), end: seriesStartsAt(cand.day, T.end), startHHMM: T.start };
+}
+
+// Le candidat attendu maintenant dans la salle, et le suivant (parmi ceux du jour)
+export function roomNow(planning, slots, slot, candidates, now = Date.now()) {
+  const list = candidates.map((c) => ({ c, p: passageInRoom(planning, slots, slot, c) })).filter((x) => x.p).sort((a, b) => a.p.start - b.p.start);
+  const current = list.find((x) => now >= x.p.start.getTime() && now < x.p.end.getTime()) || null;
+  const next = list.find((x) => x.p.start.getTime() > now) || null;
+  return { current, next };
+}
+
+// Avant d'enregistrer une grille : ce candidat est-il plausible dans cette salle à cette heure ?
+// Trop tôt (son tour ici n'a pas commencé) ou un autre jour : on demande confirmation à l'évaluateur.
+export function gridCheck(planning, slots, slot, cand, now = Date.now()) {
+  const p = passageInRoom(planning, slots, slot, cand);
+  if (!p) return { ok: true };
+  if (now < p.start.getTime() - 2 * 60e3) return { ok: false, why: 'early', p };
+  return { ok: true, p };
+}
+
 // ---------- réclamations ----------
 // Un étudiant peut demander la révision d'une grille une fois le détail visible, pendant planning.claims_days jours.
 // Point de départ : la fin de la dernière série (embargo), sinon la fin du dernier jour de la session.

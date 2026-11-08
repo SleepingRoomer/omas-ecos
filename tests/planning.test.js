@@ -70,3 +70,21 @@ test('attribution des vœux : capacités respectées, aucun « impossible », ti
   const b = assign(P2, cands, 3, 42);
   assert.deepEqual([...a.result], [...b.result]);
 });
+
+import { passageInRoom, roomNow, gridCheck } from '../public/js/planning-shared.js';
+test('qui est dans la salle : passage, candidat du moment et suivant, contrôle avant enregistrement', () => {
+  const P = normalizePlanning({ days: [{ date: '2026-11-14' }] });
+  // place 1, série 1 (8 h 30) : A1 au tour 1, A2 au tour 2 ; après la pause, B1 au tour 6 (9 h 30)
+  const c1 = { id: 1, day: '2026-11-14', series: 1, seat: 1 };
+  const c2 = { id: 2, day: '2026-11-14', series: 1, seat: 2 };
+  assert.equal(passageInRoom(P, SLOTS, 'A2', c1).startHHMM, '08:40');
+  assert.equal(passageInRoom(P, SLOTS, 'B1', c1).startHHMM, '09:30');
+  assert.equal(passageInRoom(P, SLOTS, 'A2', c2).startHHMM, '08:30');
+  const at = (s) => Date.parse(s);
+  const N = roomNow(P, SLOTS, 'A2', [c1, c2], at('2026-11-14T07:35:00Z')); // 8 h 35 à Paris
+  assert.equal(N.current.c.id, 2);
+  assert.equal(N.next.c.id, 1);
+  // à 8 h 33, l'évaluateur de A2 ouvre par erreur la grille de la place 1, qui n'arrive qu'à 8 h 40
+  assert.equal(gridCheck(P, SLOTS, 'A2', c1, at('2026-11-14T07:33:00Z')).ok, false);
+  assert.equal(gridCheck(P, SLOTS, 'A2', c1, at('2026-11-14T07:52:00Z')).ok, true);
+});
