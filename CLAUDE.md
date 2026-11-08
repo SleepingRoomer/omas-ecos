@@ -12,7 +12,7 @@ INES (Interface numérique d'ECOS et de simulation) est la plateforme des ECOS b
 ## Technique
 - Cloudflare Workers + Hono (`src/`) + D1 (SQLite), interface en modules JS sans compilation (`public/js/`), routes en `#/...`. Logique partagée serveur et navigateur : `public/js/shared.js` (notes, contrôles qualité), `planning-shared.js` (planning, rotation, vœux), `jp-shared.js` (journées procédure).
 - Formule gratuite : 50 requêtes D1 et 50 appels sortants par exécution, 100 paramètres par requête (utiliser `multiInsert` et `batch` de `src/index.js`). Les calculs lourds (onglet Analyse) se font dans le navigateur.
-- Migrations : `migrations/00xx_*.sql`. En production, elles sont collées à la main dans la console D1 (une instruction par ligne, sans commentaires), donc la table `d1_migrations` de production est vide. Dernière migration : 0013. Le code tolère l'absence des tables récentes (`.catch`).
+- Migrations : `migrations/00xx_*.sql`. En production, elles sont collées à la main dans la console D1 (une instruction par ligne, sans commentaires), donc la table `d1_migrations` de production est vide. Dernière migration : 0014. Le code tolère l'absence des tables récentes (`.catch`).
 - Secrets du Worker : `ADMIN_PASSWORD`, `BREVO_API_KEY`, `MAIL_FROM`, `MAIL_FROM_NAME` (facultatif, par défaut « INES · OMAS Externat »). `keep_vars` est activé dans `wrangler.jsonc`.
 - Tâches planifiées : `0 16 * * *` (UTC), soit 17 h l'hiver et 18 h l'été à Paris : rappels de la veille, liste d'attente, puis purge des connexions expirées (`src/system.js`, `nightly`) ; `30 * * * *` : offres de la liste d'attente arrivées à échéance (`hourly`). En local : `npx wrangler dev --test-scheduled`, puis POST sur `/cdn-cgi/local/explorer/api/local/scheduled?worker=omas-ecos` avec `{"cron": "30 * * * *"}`.
 - Liste d'attente automatique (`src/waitlist.js`) : une place libérée part au premier de la liste avec un délai (24 h, coupé à 3 h avant la convocation, rien en dessous de 2 h de délai). Le délai est dans `candidates.extra.offer_expires_at`.
@@ -21,7 +21,7 @@ INES (Interface numérique d'ECOS et de simulation) est la plateforme des ECOS b
 - Relances de rédaction (`src/writing.js`) : échéance par étape dans `planning.writing_deadlines`, e-mail à la personne qui reçoit une station, récapitulatif le lundi (tâche du soir) aux rédacteurs et relecteurs, et à l'adresse de réponse des e-mails pour l'équipe.
 - Saisie des grilles : ouverte d'après le planning (une heure avant la première convocation du jour, trois quarts d'heure après le dernier tour), ou forcée par `planning.eval_mode` ('auto', 'open', 'closed'). Détail des grilles retenu jusqu'à la fin de la dernière série (`planning.details_embargo`). Tout passe par `src/state.js` (`examState`, `loadExamState`) : ne plus lire `exams.eval_open` directement.
 - E-mails : Brevo, un appel pour 200 destinataires, journal dans `mail_log`. Sans clé, rien ne part et le site fonctionne quand même.
-- Hors connexion : `public/sw.js`. Changer le nom du cache (`ines-v9` aujourd'hui) quand les fichiers du front changent beaucoup.
+- Hors connexion : `public/sw.js`. Changer le nom du cache (`ines-v10` aujourd'hui) quand les fichiers du front changent beaucoup.
 - Sécurité : `public/_headers` (CSP stricte : pas de script ni de police externes, pas de gestionnaire `onclick` en ligne).
 
 ## Identité (charte complète dans le projet claude.ai « OMAS », document `claude/INES_charte.md`)
@@ -46,6 +46,12 @@ python3 scripts/demo/shots.py    # captures dans scripts/demo/shots/
 ```
 Pour repartir d'une base vide : arrêter le serveur, supprimer `.wrangler/state`, relancer la migration locale.
 
+## Équipe, journal, RGPD, réclamations
+- Comptes nominatifs (`src/team.js`, table `team_members`, migration 0014) : un code par membre, gardé sous forme d'empreinte. La session admin porte `subject_id` = id du membre (NULL avec le mot de passe commun, qui reste un accès de secours qu'on peut refuser). Journal des actions sensibles dans `audit_log` (middleware `auditMiddleware`, libellés dans `ACTIONS`) : jamais le contenu des requêtes.
+- RGPD (`src/rgpd.js`) : à l'anonymisation, l'empreinte salée de l'e-mail reste dans `candidates.extra.email_hash` pour la progression. Purge chaque soir : bénévoles inactifs depuis N ans, adresses du journal des e-mails, listes d'attente passées. Durées dans `settings` (clé `rgpd`), affichées sur la page publique `#/confidentialite`. Le sel est dans `settings.hash_salt` : ne jamais l'afficher ni le changer.
+- Réclamations (`src/claims.js`, table `claims`) : une par station et par candidat, pendant `planning.claims_days` jours après la fin de la dernière série (`claimsWindow`). Une réclamation acceptée peut corriger des items dans toutes les grilles du passage ; la note est recalculée avec `computeScore`.
+- Import des inscrits : `guessColumns` (shared.js) reconnaît les exports HelloAsso (participant plutôt que payeur). Réimporter le même fichier ne crée pas de doublon (e-mail + nom) et passe en annulé les billets remboursés.
+
 ## Bénévoles et évaluateurs
 - Une même table (`volunteers`, `volunteer_signups`) et deux liens publics : `#/benevole/:id` (externes : PS, PSS, logistique, évaluateur ; une demi-journée par jour) et `#/evaluateur/:id` (médecins et internes : disciplines préférées, attestation, journée entière possible). La piste est dans `volunteer_signups.prefs` (JSON, migration 0013) ; sans la colonne, l'inscription passe quand même.
 - Les évaluateurs sont vouvoyés dans les e-mails et le formulaire ; les bénévoles tutoyés.
@@ -58,4 +64,5 @@ Pour repartir d'une base vide : arrêter le serveur, supprimer `.wrangler/state`
 
 ## Prochains chantiers (détail dans `claude/ECOS_feuille_de_route.md` du projet)
 Faits : lot 1 (embargo, saisie d'après le planning, État du système, purge), inscription des évaluateurs, liste d'attente automatique, tests, nom d'évaluateur choisi dans une liste, relances de rédaction, sauvegarde hebdomadaire.
-Restent : SMS de rappel, progression conservée après anonymisation, conservation des fiches bénévoles, comptes nominatifs, réclamations, import billetterie.
+Aussi faits : RGPD (progression après anonymisation, durées de conservation, page publique), comptes nominatifs et journal, réclamations, import HelloAsso.
+Mis de côté pour l'instant : SMS de rappel, sauvegarde R2 (le code est prêt mais inactif).

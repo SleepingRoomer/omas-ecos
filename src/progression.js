@@ -1,5 +1,6 @@
 // Fiches procédures (membres connectés) et progression d'un étudiant d'une session à l'autre
 import { FICHES, FICHES_META } from './fiches-data.js';
+import { emailHash } from './rgpd.js';
 
 export function registerProgression(app, h) {
   const { need, httpError, all, one } = h;
@@ -18,9 +19,11 @@ export function registerProgression(app, h) {
     const db = c.env.DB;
     const me = await one(db, 'SELECT id, email, exam_id, first_name, last_name FROM candidates WHERE id = ?', c.get('session').subject_id);
     if (!me?.email) return c.json({ sessions: [] });
+    // sessions où la même adresse est encore en clair, et sessions anonymisées où seule son empreinte est restée
+    const hash = await emailHash(db, me.email);
     const rows = await all(db, `SELECT c.id, c.exam_id, e.name, e.starts_on FROM candidates c JOIN exams e ON e.id = c.exam_id
-      WHERE lower(c.email) = lower(?) AND (lower(c.last_name) = lower(?) OR lower(c.first_name) = lower(?))
-        AND c.status != 'annule' AND (e.show_results = 1 OR c.id = ?) ORDER BY e.starts_on, e.id`, me.email, me.last_name, me.first_name, me.id);
+      WHERE ((lower(c.email) = lower(?) AND (lower(c.last_name) = lower(?) OR lower(c.first_name) = lower(?))) OR json_extract(c.extra, '$.email_hash') = ?)
+        AND c.status != 'annule' AND (e.show_results = 1 OR c.id = ?) ORDER BY e.starts_on, e.id`, me.email, me.last_name, me.first_name, hash, me.id);
     if (!rows.length) return c.json({ sessions: [] });
     const stmts = rows.map((r) => db.prepare(`WITH st AS (SELECT candidate_id, station_id, AVG(score) AS s FROM evaluations WHERE exam_id = ? AND absent = 0 AND score IS NOT NULL GROUP BY candidate_id, station_id),
         ca AS (SELECT candidate_id, AVG(s) AS a, COUNT(*) AS n FROM st GROUP BY candidate_id),

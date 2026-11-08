@@ -1,5 +1,5 @@
 import { api, esc, toast, fmt, pct, frDate, setTitle, downloadCsv, parseTable, confirmBox, plate, rail, disc, daysLabel, daysPicker } from './ui.js';
-import { DOMAINS, TYPES, STATUSES, domainIcon, DEADLINE_STEPS } from './shared.js';
+import { DOMAINS, TYPES, STATUSES, domainIcon, DEADLINE_STEPS, guessColumns, isCancelled } from './shared.js';
 
 const link = (role, code) => `${location.origin}/#/?role=${role}&code=${code}`;
 // Jours d'une session : ceux du planning s'il existe, sinon l'intervalle d'origine
@@ -249,12 +249,8 @@ async function signsView(app, exam) {
 const FIELDS = [
   ['last_name', 'Nom'], ['first_name', 'Prénom'], ['email', 'E-mail'], ['phone', 'Téléphone'],
   ['faculty', 'Faculté'], ['year', 'Année'], ['slot_label', 'Créneau de la billetterie'], ['tarif', 'Tarif (adhérent ou non)'], ['prepa', 'Préparation (tutorat, prépa…)'],
+  ['amenagement', 'Aménagement'], ['status', 'Statut du billet (remboursé, annulé…)'],
 ];
-const GUESS = {
-  last_name: /^nom( |$)|nom participant|last ?name/i, first_name: /pr[ée]nom/i, email: /e-?mail|courriel/i,
-  phone: /t[ée]l[ée]phone|portable|phone/i, faculty: /facult|fac\b|universit/i, year: /ann[ée]e|niveau|promo/i,
-  slot_label: /cr[ée]neau|formule|s[ée]ance/i, tarif: /tarif|adh[ée]rent/i, prepa: /pr[ée]pa|tutorat|pr[ée]paration/i,
-};
 
 async function candidatesTab(box, exam) {
   const cands = await api(`/exams/${exam.id}/candidates`);
@@ -275,6 +271,7 @@ async function candidatesTab(box, exam) {
     </div>
     <details class="panel" ${cands.length ? '' : 'open'}>
       <summary style="cursor:pointer"><strong>Importer les inscrits</strong> <span class="muted">depuis l'export de la billetterie (CSV) ou un copier-coller du tableur</span></summary>
+      <p class="small muted">HelloAsso : exporte la liste des participants, en CSV (un fichier Excel s'ouvre puis s'enregistre en CSV). Les colonnes sont reconnues toutes seules ; vérifie-les avant d'importer.</p>
       <label for="file">Fichier CSV</label><input type="file" id="file" accept=".csv,.txt,.tsv">
       <label for="paste">Ou colle les lignes, en-têtes compris</label>
       <textarea id="paste" placeholder="Nom	Prénom	E-mail	Tarif…"></textarea>
@@ -309,7 +306,7 @@ async function candidatesTab(box, exam) {
       .map((c) => `<tr data-id="${c.id}" ${c.status === 'annule' ? 'style="opacity:.5"' : ''}>
         <td><span class="cand-no" style="font-size:1.1rem">${esc(c.number || '')}</span></td>
         <td><strong>${esc(c.last_name)}</strong> ${esc(c.first_name)}
-          <div class="small muted">${esc(c.email || '')}${c.faculty ? `, ${esc(c.faculty)}` : ''}${extraOf(c).tarif ? `, ${esc(extraOf(c).tarif)}` : ''}</div></td>
+          <div class="small muted">${esc(c.email || '')}${c.faculty ? `, ${esc(c.faculty)}` : ''}${extraOf(c).tarif ? `, ${esc(extraOf(c).tarif)}` : ''}</div>${extraOf(c).amenagement ? `<div class="small" style="color:#8a5a00">Aménagement : ${esc(extraOf(c).amenagement)}</div>` : ''}</td>
         <td>${c.day ? `${frDate(c.day)}, série ${c.series ?? '?'}` : '<span class="pill warn">À placer</span>'}<div class="small faint">${esc(c.slot_label || '')}</div></td>
         <td><span class="code">${esc(c.code)}</span></td>
         <td><select data-status aria-label="Statut"><option value="inscrit" ${c.status === 'inscrit' ? 'selected' : ''}>Inscrit</option>
@@ -410,20 +407,22 @@ async function candidatesTab(box, exam) {
     const rows = parseTable(text);
     if (rows.length < 2) { box.querySelector('#mapping').innerHTML = '<p class="alert warn">Aucune ligne lue : vérifie que la première ligne contient les en-têtes.</p>'; return; }
     const head = rows[0];
-    const guess = (f) => head.findIndex((h) => GUESS[f].test(h.trim()));
+    const G = guessColumns(head);
+    const guess = (f) => G[f];
     box.querySelector('#mapping').innerHTML = `
       <p class="alert info">${rows.length - 1} ligne(s) lues. Vérifie à quelle colonne correspond chaque information.</p>
       <div class="grid cols-4" style="gap:10px">${FIELDS.map(([f, l]) => `<div><label for="m-${f}">${l}</label><select id="m-${f}" data-map="${f}"><option value="-1">Aucune colonne</option>
         ${head.map((h, i) => `<option value="${i}" ${i === guess(f) ? 'selected' : ''}>${esc(h || `Colonne ${i + 1}`)}</option>`).join('')}</select></div>`).join('')}</div>
-      <p class="small muted">Les lignes sans nom sont ignorées. Les annulations se gèrent ensuite avec la colonne Statut.</p>
+      <p class="small muted">Les lignes sans nom sont ignorées. Tu peux réimporter le même export plus tard : les personnes déjà inscrites (même e-mail et même nom) ne sont pas recréées, et un billet remboursé ou annulé passe le candidat en annulé, ce qui libère sa place pour la liste d'attente.</p>
       <button class="primary" id="doimport">Importer ${rows.length - 1} inscrits</button>`;
     box.querySelector('#doimport').addEventListener('click', async () => {
       const map = {};
       box.querySelectorAll('[data-map]').forEach((s) => { map[s.dataset.map] = Number(s.value); });
       if (map.last_name < 0) { toast('Choisis au moins la colonne du nom', 'error'); return; }
-      const out = rows.slice(1).map((r) => Object.fromEntries(FIELDS.map(([f]) => [f, map[f] >= 0 ? (r[map[f]] || '').trim() : ''])));
+      const out = rows.slice(1).map((r) => Object.fromEntries(FIELDS.map(([f]) => [f, map[f] >= 0 ? (r[map[f]] || '').trim() : ''])))
+        .map((r) => ({ ...r, status: isCancelled(r.status) ? 'annule' : '' }));
       const res = await api(`/exams/${exam.id}/candidates`, { method: 'POST', body: { rows: out } });
-      toast(`${res.imported} inscrits importés`);
+      toast([`${res.imported} inscrit${res.imported > 1 ? 's' : ''} importé${res.imported > 1 ? 's' : ''}`, res.skipped ? `${res.skipped} déjà là` : '', res.cancelled ? `${res.cancelled} annulé${res.cancelled > 1 ? 's' : ''}` : ''].filter(Boolean).join(', '));
       candidatesTab(box, exam);
     });
   };
@@ -432,6 +431,53 @@ async function candidatesTab(box, exam) {
 }
 
 // ---------- résultats ----------
+
+// Réclamations des étudiants : réponse, et correction des items si l'équipe leur donne raison
+async function claimsPanel(el, exam, reload) {
+  const K = await api(`/exams/${exam.id}/claims`).catch(() => null);
+  if (!K) { el.innerHTML = ''; return; }
+  if (!K.ready) { el.innerHTML = '<p class="small muted">Réclamations : colle la migration 0014 dans la console D1 pour les activer.</p>'; return; }
+  const open = K.claims.filter((k) => k.status === 'open');
+  const done = K.claims.filter((k) => k.status !== 'open');
+  const W = K.window;
+  const when = (iso) => new Date(iso).toLocaleString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Paris' });
+  if (!K.claims.length && !W.enabled) { el.innerHTML = ''; return; }
+  el.innerHTML = `<details class="panel" ${open.length ? 'open' : ''}><summary style="cursor:pointer"><strong>Réclamations</strong>
+      <span class="muted">${open.length ? `${open.length} en attente` : 'aucune en attente'}${done.length ? `, ${done.length} traitée${done.length > 1 ? 's' : ''}` : ''}</span>
+      <span class="small muted">${W.open ? `· ouvertes aux étudiants${W.until ? ` jusqu'au ${esc(when(W.until))}` : ''}` : W.waiting ? '· s\'ouvriront avec le détail des grilles' : W.enabled ? '· fermées' : '· désactivées (Réglages)'}</span></summary>
+    ${open.map((k) => `<div class="card claim-card" data-k="${k.id}" style="margin:12px 0;border:1px solid var(--line);border-radius:12px;padding:14px">
+      <div class="row between"><div>${plate(k.slot)} <strong>${esc(k.last_name)} ${esc(k.first_name)}</strong> <span class="cand-no">${esc(k.number || '')}</span>
+        <span class="small muted">· ${esc(k.title || '')} · ${esc(frDate(k.created_at.slice(0, 10)))}</span></div>
+        <a class="small" href="#/admin/session/${exam.id}/candidat/${k.candidate_id}">Voir son bulletin</a></div>
+      <p style="white-space:pre-wrap;margin:8px 0">${esc(k.message)}</p>
+      <p class="small muted" style="margin:0 0 6px">Grilles : ${k.raters.map((r) => `${esc(r.name)} ${fmt(r.score, 1)}`).join(', ')}. Clique un item pour le cocher ou le décocher dans toutes les grilles du passage, si tu lui donnes raison.</p>
+      <div class="claim-items">${k.items.map((i) => { const n = i.ok.filter(Boolean).length; const st = n === i.ok.length ? 'ok' : n ? 'half' : 'ko';
+        return `<div class="it ${st}" data-item="${i.id}" data-orig="${st}"><span class="mark">${st === 'ok' ? '✓' : st === 'half' ? '½' : '✗'}</span><span class="txt">${esc(i.label)}</span><span class="pts">${i.points} pt</span></div>`; }).join('')}</div>
+      <label style="margin-top:10px">Réponse à l'étudiant</label><textarea rows="3" data-answer placeholder="Après relecture avec l'évaluateur, l'item 4 était bien réalisé : ta note passe à…"></textarea>
+      <div class="row" style="margin-top:8px"><button class="small primary" data-st="accepted">Accepter (avec les corrections)</button><button class="small" data-st="rejected">Refuser</button></div></div>`).join('')}
+    ${done.length ? `<h3>Traitées</h3><ul class="small">${done.map((k) => `<li>${plate(k.slot, 'sm')} ${esc(k.last_name)} ${esc(k.first_name)} : <strong>${k.status === 'accepted' ? 'acceptée' : 'refusée'}</strong> par ${esc(k.answered_by || '')}, ${esc(k.answer || '')}</li>`).join('')}</ul>` : ''}
+  </details>`;
+  el.querySelectorAll('.claim-card').forEach((card) => {
+    const fix = {};
+    card.querySelectorAll('[data-item]').forEach((it) => it.addEventListener('click', () => {
+      const id = it.dataset.item;
+      const now = id in fix ? !fix[id] : it.dataset.orig !== 'ok';
+      if ((now ? 'ok' : 'ko') === it.dataset.orig) delete fix[id]; else fix[id] = now;
+      const st = id in fix ? (fix[id] ? 'ok' : 'ko') : it.dataset.orig;
+      it.className = `it ${st}${id in fix ? ' changed' : ''}`; it.querySelector('.mark').textContent = st === 'ok' ? '✓' : st === 'half' ? '½' : '✗';
+    }));
+    card.querySelectorAll('[data-st]').forEach((b) => b.addEventListener('click', async () => {
+      const status = b.dataset.st;
+      const answer = card.querySelector('[data-answer]').value;
+      if (status === 'rejected' && Object.keys(fix).length && !window.confirm('Refuser annule les corrections cochées. Continuer ?')) return;
+      try {
+        const r = await api(`/claims/${card.dataset.k}`, { method: 'PATCH', body: { status, answer, corrections: status === 'accepted' ? fix : {} } });
+        toast(r.score !== null && r.score !== undefined ? `Réclamation acceptée, nouvelle note ${fmt(r.score, 2)}` : status === 'accepted' ? 'Réclamation acceptée' : 'Réclamation refusée');
+        reload();
+      } catch (err) { toast(err.message, 'error'); }
+    }));
+  });
+}
 
 async function resultsTab(box, exam) {
   const R = await api(`/exams/${exam.id}/results`);
@@ -447,6 +493,7 @@ async function resultsTab(box, exam) {
     <div class="row" style="margin:0 0 12px"><button id="refresh">Actualiser</button>
       <a class="btn" href="/api/exams/${exam.id}/results.csv">Exporter en CSV</a>
       <span class="small muted">Un candidat n'a un rang qu'une fois ses ${played.length} stations saisies.</span></div>
+    <div id="claimsbox"></div>
     <h2>Classement</h2>
     <div class="table-wrap"><table>
       <thead><tr><th class="num">Rang</th><th>Numéro</th><th>Candidat</th><th class="num">Moyenne</th>
@@ -459,6 +506,7 @@ async function resultsTab(box, exam) {
     </table></div>
     <p class="small muted">Les indicateurs de qualité (items, évaluateurs, discrimination) sont dans l'onglet <a href="#/admin/session/${exam.id}/analyse">Analyse</a>.</p>`;
   box.querySelector('#refresh').addEventListener('click', () => resultsTab(box, exam));
+  claimsPanel(box.querySelector('#claimsbox'), exam, () => resultsTab(box, exam));
   box.querySelectorAll('tr[data-id]').forEach((tr) => tr.addEventListener('click', () => {
     location.hash = `#/admin/session/${exam.id}/candidat/${tr.dataset.id}`;
   }));
@@ -471,6 +519,7 @@ async function settingsTab(box, exam) {
     <input type="checkbox" data-k="${k}" ${exam[k] ? 'checked' : ''} style="margin-top:3px">
     <span><strong>${title}</strong><br><span class="small muted">${desc}</span>${warn ? `<br><span class="small" style="color:#8a5a00">${warn}</span>` : ''}</span></label>`;
   const ES = exam.eval_state || {}; const DS = exam.details_state || {};
+  let PL = {}; try { PL = JSON.parse(exam.planning || 'null') || {}; } catch { /* pas de planning */ }
   const when = (iso) => (iso ? new Date(iso).toLocaleString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Paris' }) : '');
   const evalNow = ES.open ? `<span class="pill live ok">Ouverte en ce moment</span>` : '<span class="pill">Fermée en ce moment</span>';
   const evalNext = ES.mode !== 'auto' ? '' : ES.closes_at ? `Elle ferme d'elle-même le ${when(ES.closes_at)}.` : ES.opens_at ? `Prochaine ouverture : le ${when(ES.opens_at)}.`
@@ -487,6 +536,9 @@ async function settingsTab(box, exam) {
     ${flag('show_details', 'Les étudiants voient le détail des grilles', 'Items réussis et manqués, niveaux de communication, commentaires des évaluateurs.')}
     <label class="panel check" style="margin:10px 0 10px 28px"><input type="checkbox" id="embargo" ${DS.embargo ? 'checked' : ''} style="margin-top:3px">
       <span><strong>Retenir le détail jusqu'à la fin de la dernière série</strong><br><span class="small muted">Tant qu'une série reste à passer, les candidats déjà passés voient leur note mais pas les items attendus : rien à transmettre au week-end suivant.${DS.from ? ` Le détail s'ouvrira le ${esc(when(DS.from))}.` : ' Sans planning, le détail suit simplement la case du dessus.'}</span></span></label>
+    <div class="panel" style="margin:10px 0"><div class="row between"><div><strong>Réclamations sur une grille</strong>
+        <div class="small muted" style="margin-top:4px">Une fois le détail visible, chaque étudiant peut demander la révision d'une grille, une fois par station, pendant le délai choisi. Les demandes arrivent dans l'onglet Résultats.</div></div>
+      <select id="claims-days" style="width:auto" aria-label="Délai des réclamations">${[[0, 'Pas de réclamation'], [3, '3 jours'], [7, '7 jours'], [14, '14 jours']].map(([v, l]) => `<option value="${v}" ${Number(PL.claims_days ?? 7) === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div></div>
     <div class="panel"><h2>Message aux étudiants</h2>
       <p class="small muted">Affiché en haut de l'espace de chaque inscrit de la session : résultats en ligne, changement de salle, rappel… Laisse vide pour le retirer.</p>
       <textarea id="ann" rows="3" placeholder="Les résultats sont en ligne ! Les corrections arrivent dimanche soir."></textarea>
@@ -537,6 +589,10 @@ async function settingsTab(box, exam) {
     await api(`/exams/${exam.id}`, { method: 'PATCH', body: { eval_mode: e.target.value } });
     toast({ auto: 'La saisie suit le planning', open: 'Saisie forcée ouverte', closed: 'Saisie forcée fermée' }[e.target.value]);
     settingsTab(box, await api(`/exams/${exam.id}`));
+  });
+  box.querySelector('#claims-days').addEventListener('change', async (e) => {
+    await api(`/exams/${exam.id}`, { method: 'PATCH', body: { claims_days: Number(e.target.value) } });
+    toast(Number(e.target.value) ? `Réclamations possibles pendant ${e.target.value} jours` : 'Réclamations désactivées');
   });
   box.querySelector('#embargo').addEventListener('change', async (e) => {
     await api(`/exams/${exam.id}`, { method: 'PATCH', body: { details_embargo: e.target.checked } });

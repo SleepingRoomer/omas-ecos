@@ -41,11 +41,13 @@ export async function systemView(app) {
         <p class="small muted">Prochaine exécution prévue : ${when(C.next)}.${C.hourly ? ` Passage horaire de la liste d'attente : ${when(C.hourly.at)}${C.hourly.waitlist?.expired ? `, ${C.hourly.waitlist.expired} offre(s) expirée(s), ${C.hourly.waitlist.offered} reproposée(s)` : ''}${C.hourly.error ? `, erreur : ${esc(C.hourly.error)}` : ''}.` : ''}</p>
         <div class="row"><button class="small" id="run">Lancer maintenant</button><span class="small muted">Les rappels déjà envoyés ne repartent pas : le journal des e-mails fait foi.</span></div></div>
 
-      <div class="panel"><div class="row between"><h2 style="margin:0">Sauvegarde hebdomadaire</h2>${S.backup?.configured ? pill(!!S.backup.last && (Date.now() - Date.parse(`${S.backup.last}T12:00:00Z`)) / 864e5 < 9, 'À jour', S.backup.last ? 'En retard' : 'Jamais faite') : pill(false, '', 'Non branchée')}</div>
+      <div class="panel"><div class="row between"><h2 style="margin:0">Sauvegarde hebdomadaire</h2>${S.backup?.configured ? pill(!!S.backup.last && (Date.now() - Date.parse(`${S.backup.last}T12:00:00Z`)) / 864e5 < 9, 'À jour', S.backup.last ? 'En retard' : 'Jamais faite') : '<span class="pill">Pas activée</span>'}</div>
         ${S.backup?.configured ? `<p class="small">Dernière sauvegarde : <strong>${S.backup.last ? esc(S.backup.last) : 'aucune'}</strong>${S.backup.last ? `, ${S.backup.files.length} fichier(s), ${Math.round(S.backup.files.reduce((a, f) => a + f.size, 0) / 1024)} Ko` : ''}. ${S.backup.weeks} semaine(s) gardée(s) sur huit.</p>
           <p class="small muted">Chaque dimanche soir : un fichier par session en cours ou récente (réimportable depuis la liste des sessions) et l'annuaire de l'équipe, dans le bucket R2. Les images des stations n'y sont pas.</p>
           <button class="small" id="backup">Sauvegarder maintenant</button>`
-    : `<p class="small">Pas encore branchée : il faut créer un espace de stockage R2 dans Cloudflare puis activer la ligne prévue dans <code>wrangler.jsonc</code>. Tant que ce n'est pas fait, pense au bouton « Télécharger la sauvegarde » de chaque session.</p>`}</div>
+    : `<p class="small">Pas activée, et ce n'est pas indispensable : Cloudflare garde déjà sept jours d'historique de la base (Time Travel). Pense au bouton « Télécharger la sauvegarde » (Réglages de la session) à la fin de chaque week-end, et range le fichier dans un dossier partagé restreint.</p>`}</div>
+
+      <div class="panel" id="rgpd"><h2 style="margin:0">Données personnelles</h2><p class="small muted">Chargement…</p></div>
 
       <div class="panel"><div class="row between"><h2 style="margin:0">Connexions</h2>${pill(!S.sessions.expired, 'Propre', `${S.sessions.expired} expirée(s)`)}</div>
         <p class="small">${S.sessions.total ?? '–'} connexion(s) en base, dont ${S.sessions.expired ?? '–'} expirée(s). ${S.sessions.failures_24h ?? 0} tentative(s) de connexion ratée(s) depuis 24 h.</p>
@@ -53,6 +55,7 @@ export async function systemView(app) {
         <button class="small" id="purge">Purger maintenant</button></div>
     </div>
     <p class="small muted" style="margin-top:18px">État relevé le ${when(S.now)}.</p>`;
+  rgpdPanel(app.querySelector('#rgpd'));
   app.querySelector('#purge').addEventListener('click', async () => {
     try { const r = await api('/system/purge', { method: 'POST' }); toast(`${r.sessions} connexion(s) et ${r.failures} tentative(s) supprimées`); systemView(app); } catch (err) { toast(err.message, 'error'); }
   });
@@ -61,5 +64,31 @@ export async function systemView(app) {
   });
   app.querySelector('#run').addEventListener('click', async () => {
     try { const r = await api('/system/run-nightly', { method: 'POST' }); toast(r.error ? `Terminé avec une erreur : ${r.error}` : 'Tâche exécutée', r.error ? 'error' : 'ok'); systemView(app); } catch (err) { toast(err.message, 'error'); }
+  });
+}
+
+// Durées de conservation, sessions à anonymiser, fiches de bénévoles à effacer
+async function rgpdPanel(box) {
+  const R = await api('/rgpd').catch(() => null);
+  if (!R) { box.remove(); return; }
+  const S = R.settings;
+  const late = R.to_anonymize;
+  const num = (k, label, unit, min, max) => `<div><label for="r-${k}" style="margin-top:0">${label}</label><div class="row" style="flex-wrap:nowrap"><input id="r-${k}" type="number" min="${min}" max="${max}" value="${S[k]}" data-r="${k}" style="max-width:90px"><span class="small">${unit}</span></div></div>`;
+  box.innerHTML = `<div class="row between"><h2 style="margin:0">Données personnelles</h2>${late.length ? `<span class="pill warn">${late.length} session${late.length > 1 ? 's' : ''} à anonymiser</span>` : '<span class="pill ok">À jour</span>'}</div>
+    ${late.length ? `<p class="small">Terminées depuis plus de ${S.anonymize_months} mois et pas encore anonymisées : ${late.map((e) => `<a href="#/admin/session/${e.id}/reglages">${esc(e.name)}</a> (${e.n} inscrits)`).join(', ')}. L'anonymisation se fait dans les Réglages de la session, en bas de page.</p>` : '<p class="small">Aucune session ancienne à anonymiser.</p>'}
+    <p class="small">Bénévoles et évaluateurs : ${R.volunteers.total} fiche(s), dont ${R.volunteers.erased} effacée(s)${R.volunteers.due ? `, <strong>${R.volunteers.due} à effacer</strong> à la prochaine purge` : ''}.${R.last_purge ? ` Dernière purge : ${R.last_purge.volunteers} fiche(s), ${R.last_purge.mail_log} adresse(s) du journal, ${R.last_purge.waitlist} ligne(s) de liste d'attente.` : ''}</p>
+    <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:8px">
+      ${num('anonymize_months', 'Rappel d\'anonymisation', 'mois', 1, 24)}${num('volunteer_years', 'Fiches bénévoles', 'ans', 1, 5)}
+      ${num('waitlist_days', 'Liste d\'attente', 'jours', 7, 365)}${num('mail_log_months', 'Adresses du journal', 'mois', 3, 36)}</div>
+    <div class="row" style="margin-top:10px"><button class="small primary" id="r-save">Enregistrer les durées</button><button class="small quiet" id="r-purge">Purger maintenant</button>
+      <a class="small" href="#/confidentialite" target="_blank">Page publique « Données personnelles »</a></div>
+    <p class="small muted">La purge passe chaque soir avec la tâche planifiée. Les durées s'affichent telles quelles sur la page publique.</p>`;
+  box.querySelector('#r-save').addEventListener('click', async () => {
+    const body = Object.fromEntries([...box.querySelectorAll('[data-r]')].map((i) => [i.dataset.r, Number(i.value)]));
+    try { await api('/rgpd', { method: 'PUT', body }); toast('Durées enregistrées'); rgpdPanel(box); } catch (err) { toast(err.message, 'error'); }
+  });
+  box.querySelector('#r-purge').addEventListener('click', async () => {
+    if (!window.confirm('Lancer la purge maintenant ? Les fiches de bénévoles trop anciennes sont effacées définitivement.')) return;
+    try { const r = await api('/rgpd/purge', { method: 'POST' }); toast(`${r.volunteers} fiche(s), ${r.mail_log} adresse(s), ${r.waitlist} ligne(s) de liste d'attente`); rgpdPanel(box); } catch (err) { toast(err.message, 'error'); }
   });
 }

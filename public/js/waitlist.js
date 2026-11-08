@@ -19,7 +19,7 @@ export async function publicWaitlist(app, examId) {
         <div><label for="w-ye">Année</label><input id="w-ye" name="year" placeholder="DFASM2"></div></div>
       <label for="w-ta">Adhérent de l'OMAS ?</label><select id="w-ta" name="tarif"><option value="Adhérent">Oui</option><option value="Non adhérent">Non</option></select>
       <label for="w-no">Contraintes de date <span class="hint">(facultatif)</span></label><input id="w-no" name="note" placeholder="Pas disponible le samedi matin…">
-      <p class="small muted">Tes coordonnées servent uniquement à te proposer une place pour cette session.</p>
+      <p class="small muted">Tes coordonnées servent uniquement à te proposer une place pour cette session. <a href="#/confidentialite" target="_blank">En savoir plus</a>.</p>
       <button class="primary" style="margin-top:6px">M'inscrire sur la liste d'attente</button>
     </form><div id="wl-out"></div></div>`;
   app.querySelector('#wl').addEventListener('submit', async (e) => {

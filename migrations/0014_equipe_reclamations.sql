@@ -1,0 +1,4 @@
+CREATE TABLE team_members ( id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, email TEXT, code_hash TEXT NOT NULL UNIQUE, active INTEGER NOT NULL DEFAULT 1, last_login_at TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')) );
+CREATE TABLE audit_log ( id INTEGER PRIMARY KEY AUTOINCREMENT, at TEXT NOT NULL DEFAULT (datetime('now')), who TEXT NOT NULL, member_id INTEGER, action TEXT NOT NULL, method TEXT, path TEXT, ip TEXT );
+CREATE INDEX audit_log_at ON audit_log(at);
+CREATE TABLE claims ( id INTEGER PRIMARY KEY AUTOINCREMENT, exam_id INTEGER NOT NULL REFERENCES exams(id) ON DELETE CASCADE, candidate_id INTEGER NOT NULL REFERENCES candidates(id) ON DELETE CASCADE, station_id INTEGER NOT NULL REFERENCES stations(id) ON DELETE CASCADE, message TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'open', answer TEXT, answered_by TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')), answered_at TEXT, UNIQUE (candidate_id, station_id) );

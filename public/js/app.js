@@ -13,7 +13,7 @@ const HOME = { admin: '#/admin', auteur: '#/redaction', evaluateur: '#/eval', et
 function renderNav() {
   const k = state.me?.kind;
   const links = {
-    admin: [['#/admin', 'Sessions'], ['#/admin/personnes', 'Rédacteurs et relecteurs'], ['#/admin/communication', 'Communication'], ['#/admin/benevoles', 'Bénévoles'], ['#/admin/systeme', 'État du système']],
+    admin: [['#/admin', 'Sessions'], ['#/admin/personnes', 'Rédacteurs et relecteurs'], ['#/admin/communication', 'Communication'], ['#/admin/benevoles', 'Bénévoles'], ['#/admin/equipe', 'Équipe'], ['#/admin/systeme', 'État du système']],
     auteur: [['#/redaction', 'Mes stations et ateliers']],
     evaluateur: [['#/eval', 'Ma salle']],
     etudiant: [['#/resultats', 'Mon espace'], ['#/fiches', 'Fiches procédures']],
@@ -40,7 +40,7 @@ function loginView() {
     etudiant: 'Entre le code reçu avec ta convocation, pour les ECOS blancs comme pour une journée procédure.',
     evaluateur: 'Entre le code affiché sur la porte de ta salle, puis ton nom. Inscrit comme bénévole ? Ton code personnel suffit.',
     redaction: 'Entre ton code de rédacteur ou de relecteur pour retrouver tes stations.',
-    admin: 'Réservé à l\'équipe d\'organisation.',
+    admin: 'Réservé à l\'équipe d\'organisation : ton code personnel, ou le mot de passe commun.',
   };
   const params = new URLSearchParams(location.hash.split('?')[1] || '');
   let role = params.get('role') || 'etudiant';
@@ -58,12 +58,13 @@ function loginView() {
           <div class="seg" role="tablist">${roles.map(([r, l]) => `<button type="button" role="tab" aria-selected="${r === role}" data-r="${r}" class="${r === role ? 'on' : ''}">${l}</button>`).join('')}</div>
           <p class="muted small" style="min-height:3em">${esc(help[role])}</p>
           <form id="f">
-            <label for="code">${role === 'admin' ? 'Mot de passe' : role === 'evaluateur' ? 'Code de la salle' : "Code d'accès"}</label>
+            <label for="code">${role === 'admin' ? 'Code personnel ou mot de passe' : role === 'evaluateur' ? 'Code de la salle' : "Code d'accès"}</label>
             <input id="code" ${role === 'admin' ? 'type="password"' : 'type="text" class="code-input" autocapitalize="characters" autocomplete="off" spellcheck="false" maxlength="12"'}
               value="${esc(params.get('code') || '')}" placeholder="${role === 'admin' ? '' : 'A93K7XPQ'}" required>
             ${role === 'evaluateur' ? '<div id="namebox"><label for="name">Ton nom <span class="hint">(pas besoin avec un code personnel)</span></label><input id="name" type="text" autocomplete="name" placeholder="Prénom Nom"></div>' : ''}
             <button class="primary" style="width:100%;margin-top:18px">${role === 'etudiant' ? 'Accéder à mon espace' : role === 'evaluateur' ? 'Ouvrir ma salle' : role === 'redaction' ? 'Voir mes stations' : 'Entrer'}</button>
           </form>
+          <p class="small muted" style="margin:14px 0 0"><a href="#/confidentialite">Données personnelles</a></p>
         </div>
       </div>`;
     app.querySelectorAll('[data-r]').forEach((b) => b.addEventListener('click', () => { role = b.dataset.r; draw(); app.querySelector('#code').focus(); }));
@@ -114,6 +115,8 @@ const routes = [
   [/^#\/admin\/benevoles$/, 'admin', async () => (await import('./benevoles.js')).engagementView(app)],
   [/^#\/admin\/communication$/, 'admin', async () => (await import('./comms.js')).commsView(app)],
   [/^#\/admin\/systeme$/, 'admin', async () => (await import('./systeme.js')).systemView(app)],
+  [/^#\/admin\/equipe$/, 'admin', async () => (await import('./equipe.js')).teamView(app)],
+  [/^#\/confidentialite$/, [null, 'admin', 'etudiant', 'evaluateur', 'auteur', 'participant', 'benevole'], async () => (await import('./confidentialite.js')).privacyView(app)],
   [/^#\/admin\/session\/(\d+)\/candidat\/(\d+)$/, 'admin', async (m) => (await import('./student.js')).adminReport(app, m[2], m[1])],
   [/^#\/admin\/session\/(\d+)(?:\/([\w-]+))?$/, 'admin', async (m) => (await import('./admin.js')).examView(app, m[1], m[2] || 'stations')],
   [/^#\/admin\/jp\/(\d+)(?:\/(\w+))?$/, 'admin', async (m) => (await import('./jp.js')).jpView(app, m[1], m[2] || 'ateliers')],

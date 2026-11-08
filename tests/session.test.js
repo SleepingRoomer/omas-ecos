@@ -68,3 +68,14 @@ test('places libres : les occupées et les séries trop proches sont écartées'
   assert.equal(free[0].seat, 2);
   assert.equal(free.length, 8 * 10 - 11);
 });
+
+import { claimsWindow } from '../public/js/planning-shared.js';
+test('réclamations : ouvertes 7 jours après la fin de la dernière série, et seulement si le détail est visible', () => {
+  assert.equal(claimsWindow(P, 1, 10, at('2026-11-15T10:00:00Z')).open, false); // détail encore retenu
+  const w = claimsWindow(P, 1, 10, at('2026-11-22T10:00:00Z'));
+  assert.equal(w.open, true);
+  assert.equal(w.until, '2026-11-28T17:50:00.000Z');
+  assert.equal(claimsWindow(P, 1, 10, at('2026-11-29T10:00:00Z')).open, false);
+  assert.equal(claimsWindow(P, 0, 10, at('2026-11-22T10:00:00Z')).open, false); // détail fermé par l'équipe
+  assert.equal(claimsWindow({ ...P, claims_days: 0 }, 1, 10, at('2026-11-22T10:00:00Z')).enabled, false);
+});

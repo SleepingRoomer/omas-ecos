@@ -2,6 +2,7 @@
 // Sans clé Brevo, rien ne part : chaque message est noté « non envoyé » dans le journal, et le site marche comme avant.
 import { normalizePlanning } from '../public/js/planning-shared.js';
 import { examState } from './state.js';
+import { emailHash, pepper } from './rgpd.js';
 
 const FAKE = /@(exemple|example)\.(org|com|fr)$/i;
 const DEFAULTS = { auto_swap: true, auto_waitlist: true, auto_volunteer: true, auto_reminder: true, auto_writing: true, reply_to: '' };
@@ -189,10 +190,15 @@ export function registerMail(app, h) {
     const seen = new Map(); const ren = [];
     for (const n of names) { const k = n.toLowerCase().replace(/\s*\(2e saisie\)$/, ''); if (!seen.has(k)) seen.set(k, `Évaluateur ${seen.size + 1}`); ren.push([n, seen.get(k) + (/\(2e saisie\)$/i.test(n) ? ' (2e saisie)' : '')]); }
     const id = exam.id;
+    // empreinte de chaque adresse, gardée après effacement : l'étudiant retrouvera cette session dans sa progression
+    const salt = await pepper(db);
+    const withMail = await all(db, "SELECT id, email FROM candidates WHERE exam_id = ? AND COALESCE(email, '') != ''", id);
+    const hashes = await Promise.all(withMail.map(async (x) => [x.id, await emailHash(db, x.email, salt)]));
     const stmts = [
       db.prepare(`UPDATE candidates SET first_name = 'Candidat', last_name = COALESCE(number, 'n° ' || id), email = NULL, phone = NULL,
         code = lower(hex(randomblob(10))), checkin = NULL, extra = json_object('anonymized', 1, 'tarif', json_extract(extra, '$.tarif'), 'adherent', json_extract(extra, '$.adherent'))
         WHERE exam_id = ?`).bind(id),
+      ...hashes.map(([cid, hsh]) => db.prepare("UPDATE candidates SET extra = json_set(extra, '$.email_hash', ?) WHERE id = ?").bind(hsh, cid)),
       db.prepare("DELETE FROM auth_sessions WHERE kind = 'etudiant' AND subject_id IN (SELECT id FROM candidates WHERE exam_id = ?)").bind(id),
       db.prepare('UPDATE evaluations SET comment = NULL, ip = NULL WHERE exam_id = ?').bind(id),
       db.prepare('DELETE FROM swap_responses WHERE swap_id IN (SELECT id FROM swaps WHERE exam_id = ?)').bind(id),
@@ -204,6 +210,7 @@ export function registerMail(app, h) {
       db.prepare("UPDATE exams SET anonymized_at = datetime('now') WHERE id = ?").bind(id),
     ];
     await h.batch(db, stmts);
+    await run(db, 'DELETE FROM claims WHERE exam_id = ?', id).catch(() => {}); // table de la migration 0014
     const n = await one(db, 'SELECT COUNT(*) AS n FROM candidates WHERE exam_id = ?', id);
     return c.json({ ok: true, candidates: n.n, evaluators: seen.size });
   });
