@@ -20,6 +20,7 @@ import { examDataset as datasetOf } from './dataset.js';
 import { registerRgpd } from './rgpd.js';
 import { registerTeam, teamLogin, auditMiddleware, audit } from './team.js';
 import { registerClaims, windowOf, CLAIM_STATUS } from './claims.js';
+import { registerDemo } from './demo.js';
 
 const app = new Hono().basePath('/api');
 const COOKIE = 'omas_s';
@@ -1015,6 +1016,7 @@ registerSystem(app, { need, all, one });
 registerRgpd(app, { need, httpError, all, one, run });
 registerTeam(app, { need, httpError, all, one, run });
 registerClaims(app, { need, httpError, all, one, run });
+registerDemo(app, { need, httpError, all, one, run, freshCodes, multiInsert, batch });
 
 app.all('*', () => { throw httpError(404, 'Route inconnue'); });
 

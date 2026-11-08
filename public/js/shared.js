@@ -288,7 +288,7 @@ const GUESS = {
   slot_label: [/cr[ée]neau|s[ée]ance/i, /^formule/i],
   tarif: [/^tarif$/i, /^(nom du )?tarif/i, /tarif|adh[ée]rent/i, /^billet$/i],
   prepa: [/pr[ée]pa|tutorat|pr[ée]paration/i],
-  amenagement: [/am[ée]nagement|tiers.?temps|handicap|accessibilit/i],
+  amenagement: [/am[ée]nagement|besoin|mobilit|tiers.?temps|handicap|accessibilit/i],
   status: [/^statut/i, /status/i],
 };
 const SKIP = { tarif: /montant|prix|€|code promo/i, status: /paiement|commande pay/i };

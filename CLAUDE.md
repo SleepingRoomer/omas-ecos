@@ -35,6 +35,10 @@ INES (Interface numérique d'ECOS et de simulation) est la plateforme des ECOS b
 - Pour bloquer un déploiement raté : dans Cloudflare, Workers & Pages, omas-ecos, Settings, Build, mettre `npm test` en Build command.
 - Toute nouvelle règle qui dépend de l'heure va dans `planning-shared.js`, avec son test.
 
+## Répétition avec des données fictives (en production aussi)
+- Panneau en bas de l'onglet Réglages d'une session (`public/js/repetition.js`, routes dans `src/demo.js`) : stations d'exemple (contenu de `scripts/demo/stations.mjs`), export HelloAsso fictif à importer, bénévoles et évaluateurs fictifs, grilles simulées, et « Tout retirer ».
+- Règle : tout ce qui est fictif a une adresse en `@exemple.org` (aucun e-mail ne part, grilles simulées seulement pour ces candidats, nettoyage par adresse). Les stations d'exemple ont « (exemple) » à la fin du titre. Ne jamais simuler ni supprimer autre chose.
+
 ## Travailler en local
 ```bash
 npm install
