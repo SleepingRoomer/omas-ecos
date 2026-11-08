@@ -86,3 +86,14 @@ test('import HelloAsso : colonnes du participant plutôt que du payeur, tarif pl
   assert.deepEqual([g2.last_name, g2.first_name, g2.email, g2.slot_label], [0, 1, 2, 3]);
   assert.ok(isCancelled('Remboursé') && isCancelled('Annulée') && !isCancelled('Validé'));
 });
+
+import { helloassoRows } from '../public/js/repetition.js';
+test('export HelloAsso fictif : reconnu par l\'import, adresses fictives, remboursements', () => {
+  const rows = helloassoRows(65, 0, [3, 17, 42]);
+  const g = guessColumns(rows[0]);
+  assert.equal(rows[0][g.email], 'Email');
+  assert.equal(rows[0][g.amenagement], 'Besoin particulier');
+  assert.ok(rows.slice(1).every((r) => /@exemple\.org$/.test(r[g.email])));
+  assert.equal(rows.slice(1).filter((r) => isCancelled(r[g.status])).length, 3);
+  assert.equal(new Set(rows.slice(1).map((r) => r[g.email])).size, 65);
+});

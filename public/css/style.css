@@ -820,3 +820,6 @@ fieldset legend { font-weight: 700; padding: 0 6px; }
 .now-card.main { border-color: var(--a); background: var(--a-soft); }
 .now-card.done { opacity: .6; }
 .now-no { font-size: 1.9rem; font-weight: 800; letter-spacing: .02em; color: var(--a); line-height: 1.1; }
+
+/* répétition */
+.rep-steps { padding-left: 20px; display: grid; gap: 10px; margin: 10px 0 14px; } .rep-steps li { line-height: 1.6; } .rep-steps button, .rep-steps select { margin: 4px 4px 0 0; }
