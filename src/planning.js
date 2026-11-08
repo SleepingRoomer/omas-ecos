@@ -18,9 +18,18 @@ export function registerPlanning(app, h) {
 
   // ---------- équipe ----------
 
-  app.get('/exams/:id/planning', need('admin'), async (c) => {
+  app.get('/exams/:id/planning', need('admin', 'accueil'), async (c) => {
     const db = c.env.DB;
+    const s = c.get('session');
+    if (s.kind === 'accueil' && Number(s.subject_id) !== Number(c.req.param('id'))) throw httpError(403, 'Accès refusé');
     const { exam, planning, slots } = await load(db, c.req.param('id'));
+    if (s.kind === 'accueil') {
+      // l'accueil voit les horaires et la liste des candidats, sans adresse, téléphone ni vœux
+      const candidates = await all(db, `SELECT id, number, last_name, first_name, day, series, seat, status, confirmed_at, checked_in_at
+        FROM candidates WHERE exam_id = ? ORDER BY last_name, first_name`, exam.id);
+      const { accueil_code, materiel_check, materiel_common, writing_deadlines, ...pub } = planning;
+      return c.json({ exam: { id: exam.id, name: exam.name, starts_on: exam.starts_on, ends_on: exam.ends_on }, planning: pub, slots, stations: [], candidates, swaps: [] });
+    }
     const [candidates, swaps, titles] = await Promise.all([
       all(db, `SELECT c.id, c.number, c.last_name, c.first_name, c.email, c.phone, c.day, c.series, c.seat, c.status, c.confirmed_at, c.checked_in_at, c.slot_label, c.wishes, c.wishes_at, c.extra,
         (SELECT COUNT(*) FROM evaluations v WHERE v.candidate_id = c.id) AS n_evaluations
@@ -38,6 +47,10 @@ export function registerPlanning(app, h) {
     const db = c.env.DB;
     const { exam, slots } = await load(db, c.req.param('id'));
     const planning = normalizePlanning((await c.req.json()).planning, exam);
+    // réglages gérés par d'autres onglets : jamais écrasés par une copie ancienne du planning
+    const current = await one(db, 'SELECT planning FROM exams WHERE id = ?', exam.id);
+    const prev = JSON.parse(current?.planning || '{}') || {};
+    for (const k of ['accueil_code', 'materiel_check', 'materiel_common']) { if (k in prev) planning[k] = prev[k]; else delete planning[k]; }
     const ds = planning.days.map((d) => d.date);
     await run(db, 'UPDATE exams SET planning = ?, starts_on = ?, ends_on = ? WHERE id = ?', JSON.stringify(planning),
       ds[0] || exam.starts_on, ds[ds.length - 1] || exam.ends_on, exam.id);

@@ -109,12 +109,13 @@ export function rowActions(root, items, { save, remove, reload, days, weekend = 
 
 // ---------- une session ----------
 
-const TABS = [['stations', 'Stations'], ['candidats', 'Candidats'], ['planning', 'Planning'], ['benevoles', 'Bénévoles'], ['accueil', 'Accueil'], ['direct', 'En direct'], ['materiel', 'Matériel'], ['resultats', 'Résultats'], ['analyse', 'Analyse'], ['reglages', 'Réglages']];
+const TABS = [['bord', 'Tableau de bord'], ['stations', 'Stations'], ['candidats', 'Candidats'], ['planning', 'Planning'], ['benevoles', 'Bénévoles'], ['accueil', 'Accueil'], ['direct', 'En direct'], ['materiel', 'Matériel'], ['resultats', 'Résultats'], ['analyse', 'Analyse'], ['reglages', 'Réglages']];
 
 export async function examView(app, id, tab) {
   const exam = await api(`/exams/${id}`);
   if (tab === 'affiches') return signsView(app, exam);
   if (tab === 'etiquettes') return (await import('./etiquettes.js')).labelsView(app, exam);
+  if (tab === 'brief') return (await import('./accueil.js')).briefView(app, exam);
   if (tab.startsWith('imprimer-')) return (await import('./printables.js')).printView(app, exam, tab.slice(9));
   if (tab === 'attestations') return (await import('./certificates.js')).certificatesView(app, exam);
   if (tab === 'projection') return (await import('./projection.js')).projectionView(app, exam);
@@ -129,6 +130,7 @@ export async function examView(app, id, tab) {
     <nav class="tabs">${TABS.map(([k, l]) => `<a href="#/admin/session/${id}/${k}" class="${k === tab ? 'active' : ''}">${l}</a>`).join('')}</nav>
     <div id="tab"></div>`;
   const box = app.querySelector('#tab');
+  if (tab === 'bord') return (await import('./dashboard.js')).dashboardTab(box, exam);
   if (tab === 'stations') return stationsTab(box, exam);
   if (tab === 'candidats') return candidatesTab(box, exam);
   if (tab === 'resultats') return resultsTab(box, exam);

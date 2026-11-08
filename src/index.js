@@ -21,6 +21,7 @@ import { registerRgpd } from './rgpd.js';
 import { registerTeam, teamLogin, auditMiddleware, audit } from './team.js';
 import { registerClaims, windowOf, CLAIM_STATUS } from './claims.js';
 import { registerDemo } from './demo.js';
+import { registerDashboard } from './dashboard.js';
 
 const app = new Hono().basePath('/api');
 const COOKIE = 'omas_s';
@@ -171,6 +172,16 @@ app.post('/login', async (c) => {
     return c.json({ kind: 'admin' });
   }
   const upper = clean.toUpperCase().replace(/\s+/g, '');
+  if (role === 'accueil') {
+    // code d'accueil d'une session : émargement, étiquettes et brief des circuits, rien d'autre
+    const ex = await one(db, "SELECT id, name, starts_on, ends_on FROM exams WHERE json_extract(planning, '$.accueil_code') = ? AND anonymized_at IS NULL", upper).catch(() => null);
+    if (!ex) throw await failed(c, role, 'Code d\'accueil inconnu');
+    const t = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Paris' });
+    const eve = ex.starts_on ? new Date(Date.parse(`${ex.starts_on}T12:00:00Z`) - 864e5).toISOString().slice(0, 10) : null;
+    if (eve && (t < eve || t > (ex.ends_on || ex.starts_on))) throw httpError(403, 'Ce code d\'accueil ne sert que la veille et pendant les jours de la session.');
+    await createSession(c, 'accueil', ex.id, 'Accueil', 14);
+    return c.json({ kind: 'accueil' });
+  }
   if (role === 'etudiant') {
     const cand = await one(db, "SELECT * FROM candidates WHERE code = ? AND status != 'annule'", upper);
     if (cand) {
@@ -1015,6 +1026,7 @@ registerBanque(app, { need, httpError, all, one, run, parse, stationRights, STAT
 registerProgression(app, { need, httpError, all, one });
 registerMail(app, { need, httpError, all, one, run, parse, batch });
 registerSystem(app, { need, all, one });
+registerDashboard(app, { need, httpError, all, one, parse });
 registerRgpd(app, { need, httpError, all, one, run });
 registerTeam(app, { need, httpError, all, one, run });
 registerClaims(app, { need, httpError, all, one, run });

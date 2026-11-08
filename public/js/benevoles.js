@@ -123,7 +123,7 @@ export async function volunteerSpace(app) {
     ${M.assignments.length ? `<div class="vol-plan">${M.assignments.map((a) => `<div class="vol-slot ${a.now ? 'now' : ''}">
         <div class="small muted">${esc(longDate(a.day))}</div><strong>${HALF[a.half]}${a.times ? `, convocation ${esc(a.times.from)}` : ''}</strong>
         <div class="row" style="margin-top:6px">${a.slot ? plate(a.slot) : ''}<span>${esc(M.roles[a.role])}${a.slot ? `, salle ${esc(a.slot)}` : ''}</span></div>
-        ${a.title && a.role !== 'logistique' ? `<div class="small muted">${esc(a.title)}</div>` : ''}</div>`).join('')}</div>`
+        ${a.title && a.role !== 'logistique' ? `<div class="small muted">${esc(a.title)}</div>` : ''}${a.role === 'reserve' ? '<div class="small muted">Tu restes près de la table de l\'équipe : si un PS ou un PSS manque, tu prends sa place. Le script de la station t\'est donné sur place.</div>' : ''}</div>`).join('')}</div>`
     : `<p class="panel">L'équipe prépare le planning. Tu as proposé : ${M.me.halfdays.map((k) => esc(hdLabel(k))).join(', ') || 'aucune demi-journée'}.</p>`}
     ${M.calibrations.length ? `<h2>Calibration</h2>
       <p class="small muted">Avant la session, note un passage de référence avec la grille de ta station. Tu vois ensuite où tu t'écartes de la correction de l'équipe : c'est ce qui rend les notes comparables d'une salle à l'autre.</p>
@@ -217,18 +217,23 @@ export async function benevolesTab(box, exam) {
   let hd = D.halfdays[0]?.key || null;
   // affectations en cours d'édition, par demi-journée
   const plan = {};
-  for (const h of D.halfdays) plan[h.key] = { rooms: {}, logistique: [] };
+  for (const h of D.halfdays) plan[h.key] = { rooms: {}, logistique: [], reserve: [] };
   for (const a of D.assignments) {
     const p = plan[`${a.day}|${a.half}`]; if (!p) continue;
-    if (a.role === 'logistique' || !a.station_id) p.logistique.push(a.signup_id);
+    if (a.role === 'reserve') p.reserve.push(a.signup_id);
+    else if (a.role === 'logistique' || !a.station_id) p.logistique.push(a.signup_id);
     else (p.rooms[a.station_id] ||= []).push({ role: a.role, signup_id: a.signup_id });
   }
   const sById = Object.fromEntries(D.signups.map((s) => [s.id, s]));
   const avail = (k) => D.signups.filter((s) => s.halfdays.includes(k));
-  const used = (k) => { const p = plan[k]; return new Set([...Object.values(p.rooms).flat().map((x) => x.signup_id), ...p.logistique]); };
+  const used = (k) => { const p = plan[k]; return new Set([...Object.values(p.rooms).flat().map((x) => x.signup_id), ...p.logistique, ...p.reserve]); };
+  // au moins un PS ou PSS de réserve par demi-journée dès qu'une station en demande un
+  const needReserve = D.stations.some((st) => st.type === 'PS' || st.type === 'PSS');
+  const canReserve = (s) => s.roles.includes('ps') || s.roles.includes('pss');
   const coverage = (k) => {
     let need = 0; let got = 0;
     for (const st of D.stations) for (const [i, n] of needs(st, D.per_room).entries()) { need++; if (slotOf(k, st.id, n.role, i)) got++; }
+    if (needReserve) { need++; if (plan[k].reserve.length) got++; }
     return { need, got };
   };
   const slotOf = (k, stId, role, i) => (plan[k].rooms[stId] || []).filter((x) => x.role === role)[role === 'evaluateur' ? i : 0]?.signup_id || null;
@@ -259,12 +264,17 @@ export async function benevolesTab(box, exam) {
         });
       }
     }
+    if (needReserve && !p.reserve.length) {
+      const r = pool.filter(canReserve).sort((a, b) => (b.roles.includes('ps') && b.roles.includes('pss')) - (a.roles.includes('ps') && a.roles.includes('pss')))[0];
+      if (r) { p.reserve.push(r.id); pool.splice(pool.indexOf(r), 1); }
+    }
     for (const s of pool.filter((x) => x.roles.includes('logistique'))) p.logistique.push(s.id);
   };
   const itemsOf = (k) => {
     const [day, half] = k.split('|');
     return [...Object.entries(plan[k].rooms).flatMap(([stId, l]) => l.map((x) => ({ signup_id: x.signup_id, role: x.role, station_id: Number(stId), day, half }))),
-      ...plan[k].logistique.map((sid) => ({ signup_id: sid, role: 'logistique', station_id: null, day, half }))];
+      ...plan[k].logistique.map((sid) => ({ signup_id: sid, role: 'logistique', station_id: null, day, half })),
+      ...plan[k].reserve.map((sid) => ({ signup_id: sid, role: 'reserve', station_id: null, day, half }))];
   };
   const save = async (k) => {
     const [day, half] = k.split('|');
@@ -298,7 +308,7 @@ export async function benevolesTab(box, exam) {
           <td class="small">${s.roles.map((r) => esc(D.roles[r])).join('<br>')}</td>
           ${D.halfdays.map((h) => { const a = D.assignments.find((x) => x.signup_id === s.id && `${x.day}|${x.half}` === h.key);
             const st = a?.station_id && D.stations.find((x) => x.id === a.station_id);
-            return `<td class="num small">${a ? `<strong>${st ? esc(st.slot) : 'Log.'}</strong>` : s.halfdays.includes(h.key) ? '<span class="muted">dispo</span>' : ''}</td>`; }).join('')}
+            return `<td class="num small">${a ? `<strong>${st ? esc(st.slot) : a.role === 'reserve' ? 'Rés.' : 'Log.'}</strong>` : s.halfdays.includes(h.key) ? '<span class="muted">dispo</span>' : ''}</td>`; }).join('')}
           <td><div class="row" style="flex-wrap:nowrap;gap:4px"><button class="small quiet" data-copy="${esc(s.code)}" title="Copier son lien personnel">Lien</button><button class="small quiet" data-del>Retirer</button></div></td></tr>`).join('')}
       </tbody></table></div><button class="small" id="b-csv" style="margin-top:8px">Exporter en CSV</button>` : `<p class="panel">Personne pour l'instant. Ouvre les inscriptions et partage le lien.</p>`}
 
@@ -313,6 +323,9 @@ export async function benevolesTab(box, exam) {
           <td>${N.filter((n) => n.role === 'evaluateur').map((n, i) => `<select data-slot="${st.id}|evaluateur|${i}" aria-label="${esc(st.slot)} ${n.label}">${opt('evaluateur', slotOf(hd, st.id, 'evaluateur', i), st)}</select>`).join('')}</td>
           <td>${N.filter((n) => n.role !== 'evaluateur').map((n) => `<select data-slot="${st.id}|${n.role}|0" aria-label="${esc(st.slot)} ${n.label}">${opt(n.role, slotOf(hd, st.id, n.role, 0))}</select>`).join('') || '<span class="small muted">Pas besoin</span>'}</td>
           </tr>`; }).join('')}
+        ${needReserve ? `<tr><td><strong>PS / PSS de réserve</strong><div class="small muted">Au moins un par demi-journée, pour remplacer un absent</div></td><td colspan="2">${A.filter((s) => canReserve(s) && (!U.has(s.id) || plan[hd].reserve.includes(s.id)))
+          .map((s) => `<label class="check" style="display:inline-flex;margin:0 12px 0 0"><input type="checkbox" data-res="${s.id}" ${plan[hd].reserve.includes(s.id) ? 'checked' : ''}><span>${esc(s.first_name)} ${esc(s.last_name)} <span class="muted small">(${s.roles.filter((r) => r === 'ps' || r === 'pss').map((r) => r.toUpperCase()).join(', ')})</span></span></label>`).join('') || '<span class="small" style="color:var(--danger,#b42318)">Personne de disponible : il manque un PS ou PSS de réserve.</span>'}
+          ${!plan[hd].reserve.length && A.some((s) => canReserve(s) && !U.has(s.id)) ? '<div class="small" style="color:#b9770e;margin-top:4px">Coche au moins une personne.</div>' : ''}</td></tr>` : ''}
         <tr><td><strong>Accueil et logistique</strong></td><td colspan="2">${A.filter((s) => s.roles.includes('logistique') && (!U.has(s.id) || plan[hd].logistique.includes(s.id)))
           .map((s) => `<label class="check" style="display:inline-flex;margin:0 12px 0 0"><input type="checkbox" data-log="${s.id}" ${plan[hd].logistique.includes(s.id) ? 'checked' : ''}><span>${esc(s.first_name)} ${esc(s.last_name)}</span></label>`).join('') || '<span class="small muted">Personne de disponible pour ce rôle.</span>'}</td></tr>
       </tbody></table></div>
@@ -335,7 +348,7 @@ export async function benevolesTab(box, exam) {
     box.querySelector('#b-csv')?.addEventListener('click', () => {
       const rows = [['Nom', 'Prénom', 'E-mail', 'Téléphone', 'Statut', 'Spécialité', 'Inscrit par', 'Disciplines préférées', 'Attestation', 'Rôles', 'Disponibilités', 'Affectations', 'Code']];
       for (const s of D.signups) rows.push([s.last_name, s.first_name, s.email, s.phone, s.status, s.specialty, s.prefs?.track === 'evaluateur' ? 'lien évaluateurs' : 'lien bénévoles', (s.prefs?.disciplines || []).join(', '), s.prefs?.track === 'evaluateur' ? (s.prefs.attestation ? 'oui' : 'non') : '', s.roles.map((r) => D.roles[r]).join(', '), s.halfdays.map(hdLabel).join(', '),
-        D.assignments.filter((a) => a.signup_id === s.id).map((a) => `${hdLabel(`${a.day}|${a.half}`)} ${D.stations.find((x) => x.id === a.station_id)?.slot || 'logistique'}`).join(', '), s.code]);
+        D.assignments.filter((a) => a.signup_id === s.id).map((a) => `${hdLabel(`${a.day}|${a.half}`)} ${D.stations.find((x) => x.id === a.station_id)?.slot || (a.role === 'reserve' ? 'réserve PS/PSS' : 'logistique')}`).join(', '), s.code]);
       const blob = new Blob([`﻿${rows.map((r) => r.map(csvCell).join(';')).join('\n')}`], { type: 'text/csv' });
       const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `benevoles-${exam.id}.csv`; a.click();
     });
@@ -343,12 +356,16 @@ export async function benevolesTab(box, exam) {
     box.querySelectorAll('[data-slot]').forEach((sel) => sel.addEventListener('change', () => {
       const [st, role, i] = sel.dataset.slot.split('|'); setSlot(hd, Number(st), role, Number(i), Number(sel.value) || null); draw();
     }));
+    box.querySelectorAll('[data-res]').forEach((cb) => cb.addEventListener('change', () => {
+      const id = Number(cb.dataset.res); const L = plan[hd].reserve;
+      plan[hd].reserve = cb.checked ? [...L, id] : L.filter((x) => x !== id); draw();
+    }));
     box.querySelectorAll('[data-log]').forEach((cb) => cb.addEventListener('change', () => {
       const id = Number(cb.dataset.log); const L = plan[hd].logistique;
       plan[hd].logistique = cb.checked ? [...L, id] : L.filter((x) => x !== id); draw();
     }));
     box.querySelector('#b-auto')?.addEventListener('click', () => { auto(hd); draw(); toast('Postes complétés. Vérifie, puis enregistre.'); });
-    box.querySelector('#b-clear')?.addEventListener('click', () => { plan[hd] = { rooms: {}, logistique: [] }; draw(); });
+    box.querySelector('#b-clear')?.addEventListener('click', () => { plan[hd] = { rooms: {}, logistique: [], reserve: [] }; draw(); });
     box.querySelector('#b-save')?.addEventListener('click', async () => {
       try {
         await save(hd);

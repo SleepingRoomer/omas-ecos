@@ -29,10 +29,17 @@ export function registerAccueil(app, h) {
     await run(db, 'UPDATE candidates SET checked_in_at = ? WHERE id = ?', present ? new Date().toISOString() : null, cand.id);
   }
 
-  app.post('/checkin/:token', need('admin'), async (c) => {
+  // le compte « accueil » ne voit que la session de son code
+  const sameExam = (c, examId) => {
+    const s = c.get('session');
+    if (s.kind === 'accueil' && Number(s.subject_id) !== Number(examId)) throw httpError(403, 'Ce candidat est inscrit à une autre session.');
+  };
+
+  app.post('/checkin/:token', need('admin', 'accueil'), async (c) => {
     const db = c.env.DB;
     const cand = await one(db, 'SELECT * FROM candidates WHERE checkin = ?', c.req.param('token'));
     if (!cand) throw httpError(404, 'QR code inconnu');
+    sameExam(c, cand.exam_id);
     const { exam, planning } = await planningOf(db, cand.exam_id);
     const already = !!cand.checked_in_at;
     if (!already && cand.status !== 'annule') await presence(db, cand, true);
@@ -45,11 +52,23 @@ export function registerAccueil(app, h) {
     });
   });
 
-  app.post('/candidates/:id/presence', need('admin'), async (c) => {
+  app.post('/candidates/:id/presence', need('admin', 'accueil'), async (c) => {
     const cand = await one(c.env.DB, 'SELECT * FROM candidates WHERE id = ?', c.req.param('id'));
     if (!cand) throw httpError(404, 'Candidat introuvable');
+    sameExam(c, cand.exam_id);
     await presence(c.env.DB, cand, !!(await c.req.json()).present);
     return c.json({ ok: true });
+  });
+
+  // Code d'accueil : donné à l'étudiant qui tient l'accueil. Il ouvre l'émargement, les étiquettes et le brief des circuits,
+  // la veille et pendant les jours de la session. En créer un nouveau déconnecte l'ancien.
+  app.post('/exams/:id/accueil-code', need('admin'), async (c) => {
+    const db = c.env.DB;
+    const { exam, planning } = await planningOf(db, c.req.param('id'));
+    const code = genCode(8);
+    await run(db, 'UPDATE exams SET planning = ? WHERE id = ?', JSON.stringify({ ...planning, accueil_code: code }), exam.id);
+    await run(db, "DELETE FROM auth_sessions WHERE kind = 'accueil' AND subject_id = ?", exam.id);
+    return c.json({ code });
   });
 
   // ---------- désistement ----------
