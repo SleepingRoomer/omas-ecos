@@ -1,6 +1,6 @@
 // Onglet « En direct » : le jour J, la course des évaluateurs et les grilles en retard
 import { api, esc, plate, longDate, toast } from './ui.js';
-import { candidateSchedule, frTime } from './planning-shared.js';
+import { candidateSchedule, frTime, passageInRoom } from './planning-shared.js';
 import { raceHtml } from './race.js';
 
 let timer = null;
@@ -16,6 +16,7 @@ export async function liveTab(box, exam) {
       api(`/exams/${exam.id}/results`),
     ]);
     const day = R.day;
+    const checks = day ? await api(`/exams/${exam.id}/live-checks?day=${day}`).catch(() => []) : [];
     const slotId = Object.fromEntries(Res.stations.map((s) => [s.slot, s.id]));
     const rowOf = new Map(Res.rows.map((r) => [r.id, r]));
     const now = new Date();
@@ -33,6 +34,14 @@ export async function liveTab(box, exam) {
         if (rowOf.get(c.id)?.scores[slotId[st.slot]] === undefined) missing.push({ c, st });
       }
     }
+    // grilles enregistrées avant que le candidat soit passé dans la salle : sans doute le mauvais candidat
+    const candById = new Map(P.candidates.map((c) => [c.id, c]));
+    const early = checks.map((g) => {
+      const c = candById.get(g.candidate_id); if (!c) return null;
+      const p = passageInRoom(P.planning, P.slots, g.slot, c); if (!p) return null;
+      const at = Date.parse(`${g.created_at.replace(' ', 'T')}Z`);
+      return at < p.start.getTime() - 2 * 60e3 ? { g, c, p, at } : null;
+    }).filter(Boolean);
     const bySlot = {};
     missing.forEach((m) => { (bySlot[m.st.slot] ??= []).push(m); });
     box.innerHTML = `
@@ -51,6 +60,11 @@ export async function liveTab(box, exam) {
         ${Object.entries(bySlot).sort().map(([slot, list]) => `<div class="late-row">${plate(slot)}<span><strong>${list.length}</strong> grille${list.length > 1 ? 's' : ''}</span>
           <span class="small muted">${list.slice(0, 12).map((m) => `${esc(m.c.number || `${m.c.first_name} ${m.c.last_name}`)} (${frTime(m.st.start)})`).join(', ')}${list.length > 12 ? '…' : ''}</span></div>`).join('')}</div>`
         : expected ? '<p class="alert ok">Toutes les grilles attendues à cette heure sont saisies.</p>' : ''}
+      ${early.length ? `<div class="panel hl"><h3 style="margin-top:0">Grilles à vérifier</h3>
+        <p class="small muted">Ces grilles ont été enregistrées avant l'heure de passage prévue du candidat dans la salle : l'évaluateur s'est peut-être trompé de candidat. Vérifie avec lui ; si c'est une erreur, supprime la grille depuis le bulletin du candidat et fais-la ressaisir sous le bon numéro.</p>
+        ${early.map((x) => `<div class="late-row">${plate(x.g.slot)}<span><strong>${esc(x.c.number || '')}</strong> ${esc(x.c.first_name)} ${esc((x.c.last_name || '').slice(0, 1))}.</span>
+          <span class="small muted">par ${esc(x.g.evaluator_name)}, enregistrée à ${new Date(x.at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Paris' })}, passage prévu à ${frTime(x.p.startHHMM)}</span>
+          <a class="small" href="#/admin/session/${exam.id}/candidat/${x.c.id}">Bulletin</a></div>`).join('')}</div>` : ''}
       <h2>🏇 La course des évaluateurs</h2>
       <p class="small muted">Chaque grille saisie fait avancer le cheval de son évaluateur. Les évaluateurs voient la même course dans leur salle : de quoi encourager la saisie au fil de l'eau.</p>
       <div class="panel">${raceHtml(R)}</div>`;

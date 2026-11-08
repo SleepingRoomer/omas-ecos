@@ -114,6 +114,7 @@ const TABS = [['stations', 'Stations'], ['candidats', 'Candidats'], ['planning',
 export async function examView(app, id, tab) {
   const exam = await api(`/exams/${id}`);
   if (tab === 'affiches') return signsView(app, exam);
+  if (tab === 'etiquettes') return (await import('./etiquettes.js')).labelsView(app, exam);
   if (tab === 'attestations') return (await import('./certificates.js')).certificatesView(app, exam);
   if (tab === 'projection') return (await import('./projection.js')).projectionView(app, exam);
   if (tab === 'planning-imprimer') return (await import('./planning.js')).planningPrint(app, exam);

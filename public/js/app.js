@@ -129,6 +129,10 @@ const routes = [
   [/^#\/apercu\/(\d+)\/(vignette|dossier|grille|documents)$/, ['admin', 'auteur', 'evaluateur'], async (m) => (await import('./editor.js')).preview(app, m[1], m[2])],
   [/^#\/eval\/candidat\/(\d+)$/, 'evaluateur', async (m) => (await import('./evaluator.js')).gridView(app, m[1])],
   [/^#\/eval$/, 'evaluateur', async () => (await import('./evaluator.js')).roomView(app)],
+  [/^#\/q\/([A-Za-z0-9-]+)$/, ['evaluateur', 'admin', 'benevole', 'etudiant', 'auteur', 'participant'], async (m) => {
+    if (state.me.kind === 'evaluateur') return (await import('./evaluator.js')).scanLabel(app, m[1]);
+    app.innerHTML = '<div class="narrow"><p class="alert info">Cette étiquette ouvre la grille du candidat dans la salle d\'un évaluateur. Ouvre d\'abord ta salle (code de la porte, ou bouton « Ouvrir ma salle » de ton espace bénévole), puis scanne de nouveau.</p></div>';
+  }],
   [/^#\/resultats$/, 'etudiant', async () => (await import('./student.js')).studentView(app)],
 ];
 

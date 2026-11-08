@@ -21,7 +21,7 @@ INES (Interface numérique d'ECOS et de simulation) est la plateforme des ECOS b
 - Relances de rédaction (`src/writing.js`) : échéance par étape dans `planning.writing_deadlines`, e-mail à la personne qui reçoit une station, récapitulatif le lundi (tâche du soir) aux rédacteurs et relecteurs, et à l'adresse de réponse des e-mails pour l'équipe.
 - Saisie des grilles : ouverte d'après le planning (une heure avant la première convocation du jour, trois quarts d'heure après le dernier tour), ou forcée par `planning.eval_mode` ('auto', 'open', 'closed'). Détail des grilles retenu jusqu'à la fin de la dernière série (`planning.details_embargo`). Tout passe par `src/state.js` (`examState`, `loadExamState`) : ne plus lire `exams.eval_open` directement.
 - E-mails : Brevo, un appel pour 200 destinataires, journal dans `mail_log`. Sans clé, rien ne part et le site fonctionne quand même.
-- Hors connexion : `public/sw.js`. Changer le nom du cache (`ines-v10` aujourd'hui) quand les fichiers du front changent beaucoup.
+- Hors connexion : `public/sw.js`. Changer le nom du cache (`ines-v11` aujourd'hui) quand les fichiers du front changent beaucoup.
 - Sécurité : `public/_headers` (CSP stricte : pas de script ni de police externes, pas de gestionnaire `onclick` en ligne).
 
 ## Identité (charte complète dans le projet claude.ai « OMAS », document `claude/INES_charte.md`)
@@ -51,6 +51,11 @@ Pour repartir d'une base vide : arrêter le serveur, supprimer `.wrangler/state`
 - RGPD (`src/rgpd.js`) : à l'anonymisation, l'empreinte salée de l'e-mail reste dans `candidates.extra.email_hash` pour la progression. Purge chaque soir : bénévoles inactifs depuis N ans, adresses du journal des e-mails, listes d'attente passées. Durées dans `settings` (clé `rgpd`), affichées sur la page publique `#/confidentialite`. Le sel est dans `settings.hash_salt` : ne jamais l'afficher ni le changer.
 - Réclamations (`src/claims.js`, table `claims`) : une par station et par candidat, pendant `planning.claims_days` jours après la fin de la dernière série (`claimsWindow`). Une réclamation acceptée peut corriger des items dans toutes les grilles du passage ; la note est recalculée avec `computeScore`.
 - Import des inscrits : `guessColumns` (shared.js) reconnaît les exports HelloAsso (participant plutôt que payeur). Réimporter le même fichier ne crée pas de doublon (e-mail + nom) et passe en annulé les billets remboursés.
+
+## Repérer le bon candidat dans la salle
+- Étiquettes à coller sur la blouse (`public/js/etiquettes.js`, lien dans l'onglet Accueil) : numéro, prénom, circuit de départ en couleur, QR code vers `#/q/<numéro>` qui ouvre la grille chez l'évaluateur connecté à sa salle.
+- Écran de l'évaluateur : « Dans ta salle en ce moment » et « Ensuite » (`roomNow`), et confirmation avant d'enregistrer la grille d'un candidat pas encore passé dans la salle ou convoqué un autre jour (`gridCheck`).
+- Onglet En direct : « Grilles à vérifier », enregistrées avant le passage prévu du candidat (`passageInRoom`). Une grille erronée se supprime depuis le bulletin du candidat (vue de l'équipe).
 
 ## Bénévoles et évaluateurs
 - Une même table (`volunteers`, `volunteer_signups`) et deux liens publics : `#/benevole/:id` (externes : PS, PSS, logistique, évaluateur ; une demi-journée par jour) et `#/evaluateur/:id` (médecins et internes : disciplines préférées, attestation, journée entière possible). La piste est dans `volunteer_signups.prefs` (JSON, migration 0013) ; sans la colonne, l'inscription passe quand même.

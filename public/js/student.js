@@ -84,7 +84,8 @@ function render(R, opts = {}) {
             <h3>Communication et attitudes</h3>
             ${s.com.map((i) => `<div class="it ${i.value >= 0.5 ? 'ok' : 'ko'}"><span class="mark">${i.value >= 0.5 ? '✓' : '·'}</span><span class="txt">${esc(i.label)}</span><span class="pts">${esc(levelName(i.value))}, ${fmt(i.value)}</span></div>`).join('')}
             ${(s.comments || (s.comment ? [s.comment] : [])).map((t) => `<div class="evcomment"><b>${s.comments?.length > 1 ? 'Le mot d\'un évaluateur' : 'Le mot de l\'évaluateur'}</b>${nl(t)}</div>`).join('')}
-            ${s.by_rater?.length > 1 ? `<p class="small muted">Par évaluateur : ${s.by_rater.map((r) => `${esc(r.name)} ${fmt(r.score, 1)}`).join(', ')}.</p>` : ''}` : ''}
+            ${opts.back && s.by_rater?.length ? `<p class="small muted no-print">Grille${s.by_rater.length > 1 ? 's' : ''} : ${s.by_rater.map((r) => `${esc(r.name)} ${fmt(r.score, 1)} <button class="small quiet danger" data-delev="${r.id}" data-who="${esc(r.name)}">Supprimer</button>`).join(' · ')}</p>`
+              : s.by_rater?.length > 1 ? `<p class="small muted">Par évaluateur : ${s.by_rater.map((r) => `${esc(r.name)} ${fmt(r.score, 1)}`).join(', ')}.</p>` : ''}` : ''}
           ${claimBlock(R, s, opts)}
           ${s.correction ? `<h3>Correction</h3><div>${nl(s.correction.text) || '<span class="muted">Pas encore rédigée.</span>'}</div>
             ${(s.correction.images || []).length ? `<div class="corr-imgs">${s.correction.images.map((im) => `<figure><a href="/api/files/${im.id}" target="_blank" rel="noopener"><img src="/api/files/${im.id}" alt="${esc(im.nom || '')}" loading="lazy"></a><figcaption class="small muted">${esc(im.nom || '')}</figcaption></figure>`).join('')}</div>` : ''}
@@ -149,5 +150,9 @@ export async function adminReport(app, candidateId, examId) {
   const R = await api(`/candidates/${candidateId}/report`);
   setTitle(`${R.candidate.last_name} ${R.candidate.first_name}`);
   app.innerHTML = `<div class="narrow">${render(R, { back: `#/admin/session/${examId}/resultats` })}
-    <p class="small muted no-print">Vue de l'équipe : tout est visible, quels que soient les réglages de la session.</p></div>`;
+    <p class="small muted no-print">Vue de l'équipe : tout est visible, quels que soient les réglages de la session. « Supprimer » retire une grille saisie sous le mauvais candidat ; l'évaluateur la ressaisit ensuite sous le bon numéro.</p></div>`;
+  app.querySelectorAll('[data-delev]').forEach((b) => b.addEventListener('click', async () => {
+    if (!window.confirm(`Supprimer la grille de ${b.dataset.who} pour ce candidat ? Elle ne compte plus dans sa note. L'action est journalisée.`)) return;
+    try { await api(`/evaluations/${b.dataset.delev}`, { method: 'DELETE' }); toast('Grille supprimée'); adminReport(app, candidateId, examId); } catch (err) { toast(err.message, 'error'); }
+  }));
 }
