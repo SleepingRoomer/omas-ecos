@@ -283,7 +283,7 @@ export async function dailyReminders(env) {
   const vols = (await db.prepare(`SELECT a.signup_id, a.half, a.role, st.slot, s.code, s.exam_id, v.email, v.first_name, v.last_name, e.name AS exam_name, e.planning, e.starts_on, e.ends_on
     FROM assignments a JOIN volunteer_signups s ON s.id = a.signup_id JOIN volunteers v ON v.id = s.volunteer_id JOIN exams e ON e.id = a.exam_id LEFT JOIN stations st ON st.id = a.station_id
     WHERE a.day = ? AND NOT EXISTS (SELECT 1 FROM mail_log m WHERE m.kind = 'rappel_benevole' AND m.ref = a.signup_id || '|' || a.day AND m.status IN ('sent', 'skipped'))`).bind(tomorrow).all().catch(() => ({ results: [] }))).results;
-  const ROLE = { evaluateur: 'évaluateur', ps: 'patient standardisé', pss: 'professionnel de santé standardisé', logistique: 'accueil et logistique' };
+  const ROLE = { evaluateur: 'évaluateur', ps: 'patient standardisé', pss: 'professionnel de santé standardisé', logistique: 'accueil et logistique', reserve: 'PS ou PSS de réserve, prêt à remplacer un absent' };
   const msgs = [
     ...cands.map((x) => convocationMail(url, { id: x.exam_id, name: x.exam_name }, normalizePlanning(JSON.parse(x.planning || 'null'), x), x, 'rappel')),
     ...vols.map((x) => {

@@ -8,7 +8,7 @@ document.addEventListener('click', (e) => { if (e.target.closest('[data-print]')
 const nav = document.getElementById('nav');
 export const state = { me: null };
 
-const HOME = { admin: '#/admin', auteur: '#/redaction', evaluateur: '#/eval', etudiant: '#/resultats', participant: '#/journee', benevole: '#/benevole' };
+const HOME = { accueil: '#/accueil', admin: '#/admin', auteur: '#/redaction', evaluateur: '#/eval', etudiant: '#/resultats', participant: '#/journee', benevole: '#/benevole' };
 
 function renderNav() {
   const k = state.me?.kind;
@@ -19,6 +19,7 @@ function renderNav() {
     etudiant: [['#/resultats', 'Mon espace'], ['#/fiches', 'Fiches procédures']],
     participant: [['#/journee', 'Ma journée'], ['#/fiches', 'Fiches procédures']],
     benevole: [['#/benevole', 'Mon espace']],
+    accueil: [['#/accueil', 'Émargement'], ['#/brief', 'Brief des circuits'], ['#/etiquettes', 'Étiquettes']],
   }[k] || [];
   const here = location.hash || '#/';
   nav.innerHTML = links.map(([h, l]) => `<a href="${h}" class="${here === h ? 'active' : ''}">${esc(l)}</a>`).join('')
@@ -34,12 +35,13 @@ function renderNav() {
 function loginView() {
   setTitle('Connexion');
   const roles = [
-    ['etudiant', 'Étudiant'], ['evaluateur', 'Évaluateur'], ['redaction', 'Rédaction'], ['admin', 'Équipe'],
+    ['etudiant', 'Étudiant'], ['evaluateur', 'Évaluateur'], ['redaction', 'Rédaction'], ['accueil', 'Accueil'], ['admin', 'Équipe'],
   ];
   const help = {
     etudiant: 'Entre le code reçu avec ta convocation, pour les ECOS blancs comme pour une journée procédure.',
     evaluateur: 'Entre le code affiché sur la porte de ta salle, puis ton nom. Inscrit comme bénévole ? Ton code personnel suffit.',
     redaction: 'Entre ton code de rédacteur ou de relecteur pour retrouver tes stations.',
+    accueil: 'Tu tiens l\'accueil ? Entre le code d\'accueil donné par l\'équipe : émargement, étiquettes et brief des circuits.',
     admin: 'Réservé à l\'équipe d\'organisation : ton code personnel, ou le mot de passe commun.',
   };
   const params = new URLSearchParams(location.hash.split('?')[1] || '');
@@ -58,11 +60,11 @@ function loginView() {
           <div class="seg" role="tablist">${roles.map(([r, l]) => `<button type="button" role="tab" aria-selected="${r === role}" data-r="${r}" class="${r === role ? 'on' : ''}">${l}</button>`).join('')}</div>
           <p class="muted small" style="min-height:3em">${esc(help[role])}</p>
           <form id="f">
-            <label for="code">${role === 'admin' ? 'Code personnel ou mot de passe' : role === 'evaluateur' ? 'Code de la salle' : "Code d'accès"}</label>
+            <label for="code">${role === 'admin' ? 'Code personnel ou mot de passe' : role === 'evaluateur' ? 'Code de la salle' : role === 'accueil' ? "Code d'accueil" : "Code d'accès"}</label>
             <input id="code" ${role === 'admin' ? 'type="password"' : 'type="text" class="code-input" autocapitalize="characters" autocomplete="off" spellcheck="false" maxlength="12"'}
               value="${esc(params.get('code') || '')}" placeholder="${role === 'admin' ? '' : 'A93K7XPQ'}" required>
             ${role === 'evaluateur' ? '<div id="namebox"><label for="name">Ton nom <span class="hint">(pas besoin avec un code personnel)</span></label><input id="name" type="text" autocomplete="name" placeholder="Prénom Nom"></div>' : ''}
-            <button class="primary" style="width:100%;margin-top:18px">${role === 'etudiant' ? 'Accéder à mon espace' : role === 'evaluateur' ? 'Ouvrir ma salle' : role === 'redaction' ? 'Voir mes stations' : 'Entrer'}</button>
+            <button class="primary" style="width:100%;margin-top:18px">${role === 'etudiant' ? 'Accéder à mon espace' : role === 'evaluateur' ? 'Ouvrir ma salle' : role === 'redaction' ? 'Voir mes stations' : role === 'accueil' ? 'Ouvrir l\'accueil' : 'Entrer'}</button>
           </form>
           <p class="small muted" style="margin:14px 0 0"><a href="#/confidentialite">Données personnelles</a></p>
         </div>
@@ -103,7 +105,10 @@ function loginView() {
 }
 
 const routes = [
-  [/^#\/accueil\/([A-Z0-9]+)$/, 'admin', async (m) => (await import('./accueil.js')).scanView(app, m[1])],
+  [/^#\/accueil\/([A-Z0-9]+)$/, ['admin', 'accueil'], async (m) => (await import('./accueil.js')).scanView(app, m[1])],
+  [/^#\/accueil$/, 'accueil', async () => (await import('./accueil.js')).accueilSpace(app, 'liste')],
+  [/^#\/brief$/, 'accueil', async () => (await import('./accueil.js')).accueilSpace(app, 'brief')],
+  [/^#\/etiquettes$/, 'accueil', async () => (await import('./accueil.js')).accueilSpace(app, 'etiquettes')],
   [/^#\/attente\/(\d+)$/, [null, 'admin', 'etudiant', 'evaluateur', 'auteur', 'participant'], async (m) => (await import('./waitlist.js')).publicWaitlist(app, m[1])],
   [/^#\/benevole\/(\d+)$/, [null, 'admin', 'etudiant', 'evaluateur', 'auteur', 'participant', 'benevole'], async (m) => (await import('./benevoles.js')).publicSignup(app, m[1])],
   [/^#\/evaluateur\/(\d+)$/, [null, 'admin', 'etudiant', 'evaluateur', 'auteur', 'participant', 'benevole'], async (m) => (await import('./benevoles.js')).publicEvaluatorSignup(app, m[1])],
@@ -118,7 +123,7 @@ const routes = [
   [/^#\/admin\/equipe$/, 'admin', async () => (await import('./equipe.js')).teamView(app)],
   [/^#\/confidentialite$/, [null, 'admin', 'etudiant', 'evaluateur', 'auteur', 'participant', 'benevole'], async () => (await import('./confidentialite.js')).privacyView(app)],
   [/^#\/admin\/session\/(\d+)\/candidat\/(\d+)$/, 'admin', async (m) => (await import('./student.js')).adminReport(app, m[2], m[1])],
-  [/^#\/admin\/session\/(\d+)(?:\/([\w-]+))?$/, 'admin', async (m) => (await import('./admin.js')).examView(app, m[1], m[2] || 'stations')],
+  [/^#\/admin\/session\/(\d+)(?:\/([\w-]+))?$/, 'admin', async (m) => (await import('./admin.js')).examView(app, m[1], m[2] || 'bord')],
   [/^#\/admin\/jp\/(\d+)(?:\/(\w+))?$/, 'admin', async (m) => (await import('./jp.js')).jpView(app, m[1], m[2] || 'ateliers')],
   [/^#\/atelier\/(\d+)$/, ['admin', 'auteur'], async (m) => (await import('./jp.js')).atelierEditor(app, m[1])],
   [/^#\/journee$/, 'participant', async () => (await import('./jp.js')).participantView(app)],

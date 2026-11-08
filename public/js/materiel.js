@@ -13,9 +13,10 @@ export const COMMON = [
   ['Salles', 'Grilles papier de secours', '10 par salle et par demi-journée'], ['Salles', 'Stylos', '2 par salle'],
   ['Salles', 'Solution hydroalcoolique', '1 par salle'], ['Salles', 'Boîte de gants (S, M, L)', '1 par salle d\'examen ou de procédure'],
   ['Salles', 'Mouchoirs et bouteille d\'eau pour le PS', '1 par salle avec PS'], ['Salles', 'Patafix ou scotch pour les vignettes', '1'],
+  ['Salles', 'Tablette chargée (vidéo ou imagerie à montrer)', '1 par station qui en a besoin'], ['Salles', 'Boîte de gâteaux pour l\'évaluateur', '1 par salle et par demi-journée'],
   ['Équipe', 'Chronomètre ou sonnerie commune audible dans les salles', '1'], ['Équipe', 'Multiprises et chargeurs de téléphone', '3'],
   ['Équipe', 'Ordinateur avec INES ouvert (En direct)', '1'], ['Équipe', 'Trousse de premiers secours', '1'],
-  ['Équipe', 'Codes des salles de rechange et liste des téléphones des bénévoles', '1'], ['Débrief', 'Vidéoprojecteur ou écran (mode projection)', '1'],
+  ['Équipe', 'Codes des salles de rechange et liste des téléphones des bénévoles', '1'], ['Équipe', 'Écran à l\'accueil (mode projection d\'INES)', '1'], ['Débrief', 'Vidéoprojecteur', 'si besoin'],
 ];
 
 export async function materielTab(box, exam) {

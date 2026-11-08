@@ -21,7 +21,7 @@ INES (Interface numérique d'ECOS et de simulation) est la plateforme des ECOS b
 - Relances de rédaction (`src/writing.js`) : échéance par étape dans `planning.writing_deadlines`, e-mail à la personne qui reçoit une station, récapitulatif le lundi (tâche du soir) aux rédacteurs et relecteurs, et à l'adresse de réponse des e-mails pour l'équipe.
 - Saisie des grilles : ouverte d'après le planning (une heure avant la première convocation du jour, trois quarts d'heure après le dernier tour), ou forcée par `planning.eval_mode` ('auto', 'open', 'closed'). Détail des grilles retenu jusqu'à la fin de la dernière série (`planning.details_embargo`). Tout passe par `src/state.js` (`examState`, `loadExamState`) : ne plus lire `exams.eval_open` directement.
 - E-mails : Brevo, un appel pour 200 destinataires, journal dans `mail_log`. Sans clé, rien ne part et le site fonctionne quand même.
-- Hors connexion : `public/sw.js`. Changer le nom du cache (`ines-v13` aujourd'hui) quand les fichiers du front changent beaucoup.
+- Hors connexion : `public/sw.js`. Changer le nom du cache (`ines-v14` aujourd'hui) quand les fichiers du front changent beaucoup.
 - Sécurité : `public/_headers` (CSP stricte : pas de script ni de police externes, pas de gestionnaire `onclick` en ligne).
 
 ## Identité (charte complète dans le projet claude.ai « OMAS », document `claude/INES_charte.md`)
@@ -61,6 +61,13 @@ Pour repartir d'une base vide : arrêter le serveur, supprimer `.wrangler/state`
 - Étiquettes à coller sur la blouse (`public/js/etiquettes.js`, lien dans l'onglet Accueil) : numéro, prénom, circuit de départ en couleur, QR code vers `#/q/<numéro>` qui ouvre la grille chez l'évaluateur connecté à sa salle.
 - Écran de l'évaluateur : « Dans ta salle en ce moment » et « Ensuite » (`roomNow`), et confirmation avant d'enregistrer la grille d'un candidat pas encore passé dans la salle ou convoqué un autre jour (`gridCheck`).
 - Onglet En direct : « Grilles à vérifier », enregistrées avant le passage prévu du candidat (`passageInRoom`). Une grille erronée se supprime depuis le bulletin du candidat (vue de l'équipe).
+
+## Accueil, réserve et tableau de bord
+- Code d'accueil (onglet Accueil, `planning.accueil_code`) : donné à l'étudiant qui tient l'accueil, onglet « Accueil » de la page de connexion. Session `accueil` (subject_id = id de la session), valable la veille et pendant les jours de la session. Elle ne voit que l'émargement, les étiquettes et le brief des circuits de sa session (`/exams/:id/planning` sans e-mail, téléphone ni vœux ; `/checkin` et `/presence` limités à sa session). Un nouveau code déconnecte l'ancien.
+- Brief des circuits (`briefView` dans `public/js/accueil.js`, `#/brief` pour l'accueil, `#/admin/session/:id/brief` pour l'équipe) : par série, circuit et salle de départ de chacun, salle après la pause, consignes.
+- PS ou PSS de réserve : poste `reserve` dans `assignments` (`POSTS` de `src/benevoles.js`), au moins un par demi-journée dès qu'une station a un PS ou un PSS ; compté dans la couverture du planning des salles et signalé au tableau de bord.
+- Tableau de bord (`src/dashboard.js`, `public/js/dashboard.js`) : premier onglet d'une session. Liste « À faire » calculée côté serveur (stations, créneaux, numéros, convocations, postes à pourvoir, réserve, accueil, code d'accueil, impressions, salles prêtes, réclamations, anonymisation), compteurs, et l'équipe de chaque demi-journée.
+- `PUT /exams/:id/planning` ne réécrit jamais `accueil_code`, `materiel_check` ni `materiel_common` (gérés par leurs propres routes).
 
 ## Matériel et impressions
 - Onglet Matériel d'une session (`public/js/materiel.js`) : en haut « À imprimer » (étiquettes, vignettes, fiches codes, grilles papier de secours, documents, planning, signalétique, attestations, avec les quantités), puis le matériel commun (liste proposée par zone, modifiable, gardée dans `planning.materiel_common`), puis le matériel des stations. Cases à cocher dans `planning.materiel_check` (clés `print|…`, `commun|…`, `<salle>|<article>`).

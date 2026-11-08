@@ -5,6 +5,8 @@ import { normalizeContent, computeScore } from '../public/js/shared.js';
 import { examState, closedMessage } from './state.js';
 
 export const ROLES = { evaluateur: 'Évaluateur', ps: 'Patient standardisé', pss: 'Professionnel de santé standardisé', logistique: 'Accueil et logistique' };
+// Postes du planning : les rôles d'inscription, plus le PS ou PSS de réserve (prêt à remplacer un absent)
+export const POSTS = { ...ROLES, reserve: 'PS ou PSS de réserve' };
 const HALVES = { am: 'matin', pm: 'après-midi' };
 
 export function registerBenevoles(app, h) {
@@ -108,7 +110,7 @@ export function registerBenevoles(app, h) {
     const gridsBy = Object.fromEntries(grids.map((g) => [g.n, g.k]));
     return c.json({
       exam: { id: exam.id, name: exam.name }, open: !!planning.volunteers_open, evaluators_open: !!planning.evaluators_open, per_room: planning.evaluators_per_room || 2,
-      halfdays: halfdaysOf(planning), roles: ROLES, stations, assignments: assigns,
+      halfdays: halfdaysOf(planning), roles: POSTS, stations, assignments: assigns,
       calibrations: [...new Map(calib.map((k) => [k.id, { id: k.id, station_id: k.station_id }])).values()],
       signups: signups.map((s) => ({ ...s, roles: parse(s.roles, []), halfdays: parse(s.halfdays, []), prefs: parse(s.prefs, null) || { track: 'benevole' },
         grids: gridsBy[`${s.first_name} ${s.last_name}`.toLowerCase()] || 0,
@@ -135,7 +137,7 @@ export function registerBenevoles(app, h) {
     const { items = [], scope = null } = await c.req.json();
     const signups = new Set((await all(db, 'SELECT id FROM volunteer_signups WHERE exam_id = ?', examId)).map((s) => s.id));
     const stations = new Set((await all(db, 'SELECT id FROM stations WHERE exam_id = ?', examId)).map((s) => s.id));
-    const clean = items.filter((a) => signups.has(a.signup_id) && ROLES[a.role] && /^\d{4}-\d{2}-\d{2}$/.test(a.day) && HALVES[a.half])
+    const clean = items.filter((a) => signups.has(a.signup_id) && POSTS[a.role] && /^\d{4}-\d{2}-\d{2}$/.test(a.day) && HALVES[a.half])
       .map((a) => ({ exam_id: examId, signup_id: a.signup_id, day: a.day, half: a.half, role: a.role, station_id: stations.has(a.station_id) ? a.station_id : null }));
     const del = scope ? db.prepare('DELETE FROM assignments WHERE exam_id = ? AND day = ? AND half = ?').bind(examId, scope.day, scope.half)
       : db.prepare('DELETE FROM assignments WHERE exam_id = ?').bind(examId);
@@ -192,7 +194,7 @@ export function registerBenevoles(app, h) {
     return c.json({
       me: { first_name: s.first_name, last_name: s.last_name, roles: parse(s.roles, []), halfdays: parse(s.halfdays, []), code: s.code, prefs: parse(s.prefs, null) || { track: 'benevole' } },
       exam: { id: exam.id, name: exam.name, eval_open: state.eval.open, opens_at: state.eval.opens_at, place: planning.place },
-      roles: ROLES, assignments: mine,
+      roles: POSTS, assignments: mine,
       calibrations: calibs.filter((k) => !myStations.size || myStations.has(k.station_id)),
       history,
     });

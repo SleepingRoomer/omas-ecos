@@ -46,7 +46,7 @@ export async function labelsView(app, exam) {
     };
     app.innerHTML = `
       <div class="no-print" style="margin-bottom:14px">
-        <a class="back" href="#/admin/session/${exam.id}/accueil">Accueil</a>
+        <a class="back" href="${exam.back || `#/admin/session/${exam.id}/accueil`}">Accueil</a>
         <h1>Étiquettes des candidats</h1>
         <p class="lede">À remettre à l'émargement et à coller sur la blouse. Le numéro se lit de loin, la couleur dit le circuit de départ (bleu A, turquoise B), et le QR code ouvre directement la grille du candidat sur le téléphone de l'évaluateur. Pas de nom : les candidats restent anonymes pour les évaluateurs.</p>
         <div class="row" style="gap:10px;align-items:flex-end">
