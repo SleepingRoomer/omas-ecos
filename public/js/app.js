@@ -18,7 +18,7 @@ function renderNav() {
     evaluateur: [['#/eval', 'Ma salle']],
     etudiant: [['#/resultats', 'Mon espace'], ['#/fiches', 'Fiches procédures']],
     participant: [['#/journee', 'Ma journée'], ['#/fiches', 'Fiches procédures']],
-    benevole: [['#/benevole', 'Mon espace bénévole']],
+    benevole: [['#/benevole', 'Mon espace']],
   }[k] || [];
   const here = location.hash || '#/';
   nav.innerHTML = links.map(([h, l]) => `<a href="${h}" class="${here === h ? 'active' : ''}">${esc(l)}</a>`).join('')
@@ -85,6 +85,7 @@ const routes = [
   [/^#\/accueil\/([A-Z0-9]+)$/, 'admin', async (m) => (await import('./accueil.js')).scanView(app, m[1])],
   [/^#\/attente\/(\d+)$/, [null, 'admin', 'etudiant', 'evaluateur', 'auteur', 'participant'], async (m) => (await import('./waitlist.js')).publicWaitlist(app, m[1])],
   [/^#\/benevole\/(\d+)$/, [null, 'admin', 'etudiant', 'evaluateur', 'auteur', 'participant', 'benevole'], async (m) => (await import('./benevoles.js')).publicSignup(app, m[1])],
+  [/^#\/evaluateur\/(\d+)$/, [null, 'admin', 'etudiant', 'evaluateur', 'auteur', 'participant', 'benevole'], async (m) => (await import('./benevoles.js')).publicEvaluatorSignup(app, m[1])],
   [/^#\/benevole$/, 'benevole', async () => (await import('./benevoles.js')).volunteerSpace(app)],
   [/^#\/calibration\/(\d+)$/, ['admin', 'benevole'], async (m) => (await import('./benevoles.js')).calibrationView(app, m[1], state.me.kind)],
   [/^#\/fiches$/, ['etudiant', 'participant', 'admin', 'benevole', 'auteur'], async () => (await import('./fiches.js')).fichesView(app)],
