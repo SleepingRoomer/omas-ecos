@@ -74,7 +74,8 @@ p { margin: .5rem 0; }
 .brand-by b { display: block; font-weight: 800; color: var(--a); letter-spacing: .02em; }
 .brand-by b span { color: var(--b-ink); }
 #nav { margin-left: auto; display: flex; align-items: center; gap: 4px; height: 100%; }
-#nav a { height: 100%; display: flex; align-items: center; padding: 0 12px; color: var(--ink-2); text-decoration: none; border-bottom: 3px solid transparent; margin-bottom: -1px; }
+#nav a { height: 100%; display: flex; align-items: center; padding: 0 12px; color: var(--ink-2); text-decoration: none; border-bottom: 3px solid transparent; margin-bottom: -1px; white-space: nowrap; }
+#nav button { white-space: nowrap; }
 #nav a:hover { color: var(--ink); }
 #nav a.active { color: var(--ink); border-bottom-color: var(--a); font-weight: 700; }
 #nav .who { color: var(--ink-3); font-size: .85rem; padding: 0 8px 0 16px; border-left: 1px solid var(--line); margin-left: 8px; }
@@ -961,6 +962,8 @@ details.guide[open] > summary::after { content: "−"; }
 
 /* ---------- téléphone : une barre sur une ligne, moins de cadres dans les cadres, rien qui déborde ---------- */
 .l-short { display: none; }
+/* barre des organisateurs sur un écran moyen : libellés courts, pour rester sur une ligne */
+@media (max-width: 1440px) { #nav .l-long { display: none; } #nav .l-short { display: inline; } #nav .who { display: none; } }
 @media (max-width: 600px) {
   body { font-size: 16px; }
   .topbar { height: 56px; gap: 6px; padding: 0 0 0 14px; }
