@@ -37,7 +37,7 @@ INES (Interface numérique d'ECOS et de simulation) est la plateforme des ECOS b
 
 ## Répétition avec des données fictives (en production aussi)
 - Panneau en bas de l'onglet Réglages d'une session (`public/js/repetition.js`, routes dans `src/demo.js`) : stations d'exemple (contenu de `scripts/demo/stations.mjs`), export HelloAsso fictif à importer, bénévoles et évaluateurs fictifs, grilles simulées, et « Tout retirer ».
-- Règle : tout ce qui est fictif a une adresse en `@exemple.org` (aucun e-mail ne part, grilles simulées seulement pour ces candidats, nettoyage par adresse). Les stations d'exemple ont « (exemple) » à la fin du titre. Ne jamais simuler ni supprimer autre chose.
+- Règle : tout ce qui est fictif a une adresse en `@exemple.org` (aucun e-mail ne part, grilles simulées seulement pour ces candidats, nettoyage par adresse). Noms et titres sans « (fictif) » ni « (exemple) » : les stations d'exemple portent `demo: 1` dans leur contenu (les anciennes, « (exemple) » en fin de titre, sont toujours reconnues). Ne jamais simuler ni supprimer autre chose.
 
 ## Travailler en local
 ```bash

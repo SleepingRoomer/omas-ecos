@@ -187,7 +187,7 @@ export function registerPlanning(app, h) {
       }
       if (spot) taken.add(`${spot.day}|${spot.series}|${spot.seat}`);
       rows.push({
-        exam_id: exam.id, last_name: `${last} (fictif)`, first_name: first, email: `${first}.${last}.${j}@exemple.org`.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''),
+        exam_id: exam.id, last_name: last, first_name: first, email: `${first}.${last}.${j}@exemple.org`.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''),
         phone: null, faculty: ['Sorbonne Université', 'Université Paris Cité', 'Paris-Saclay', 'UPEC'][j % 4], year: 'DFASM2',
         slot_label: null, day: spot?.day || null, series: spot?.series || null, seat: spot?.seat || null,
         number: spot ? candidateNumber(planning, spot.day, spot.series, spot.seat) : null, status: 'inscrit', code: codes[i],

@@ -77,19 +77,10 @@ for (const st of stations.filter((s) => s.played)) {
     }
   }
 }
-// bénévoles et évaluateurs inscrits par les deux liens publics (fictifs), puis planning des salles du matin
+// bénévoles et évaluateurs, puis planning des salles du matin
 await admin.req('PUT', `/exams/${examId}/benevoles/settings`, { open: true, evaluators_open: true });
-const pub = (await admin.req('GET', `/public/exams/${examId}/evaluateurs`));
-const hd = pub.halfdays.map((h) => h.key);
-const VOLS = [['Lina', 'Bouzid', 'Externe', 'DFASM2', ['ps', 'logistique']], ['Adam', 'Meziane', 'Externe', 'DFASM3', ['pss', 'evaluateur']], ['Sara', 'Khelifi', 'Externe', 'DFASM1', ['ps']], ['Ilyes', 'Rahal', 'Interne', 'MG', ['evaluateur', 'pss']]];
-for (const [i, [first_name, last_name, status, specialty, roles]] of VOLS.entries()) {
-  await new Client().req('POST', `/public/exams/${examId}/benevoles`, { first_name, last_name: `${last_name} (fictif)`, email: `benevole${i}@exemple.org`, status, specialty, roles, halfdays: [hd[i % 2], hd[2 + (i % 2)]] });
-}
-const EVALS = [['Amina', 'Rahmani', 'Médecin', 'Cardiologie', ['Cardiologie'], true], ['Yanis', 'Belkacem', 'Interne', 'Médecine générale', ['Endocrinologie', 'Médecine interne'], true],
-  ['Sofia', 'Mansouri', 'Chef de clinique', 'Pneumologie', ['Pneumologie'], false], ['Nour', 'Haddad', 'Interne', 'Pédiatrie', [], true], ['Mehdi', 'Cherif', 'Docteur junior', 'Médecine d\'urgence', ['Médecine d\'urgence'], true]];
-for (const [i, [first_name, last_name, status, specialty, disciplines, attestation]] of EVALS.entries()) {
-  await new Client().req('POST', `/public/exams/${examId}/evaluateurs`, { first_name, last_name: `${last_name} (fictif)`, email: `evaluateur${i}@exemple.org`, status, specialty, disciplines, attestation, first_time: i % 2 === 1, halfdays: i < 2 ? hd : hd.slice(0, 2) });
-}
+// les inscriptions publiques sont limitées à 5 par heure et par connexion : les bénévoles passent par le panneau de répétition
+await admin.req('POST', `/exams/${examId}/demo/volunteers`, {});
 
 // émargement des séries 1 et 2 du jour
 const plan = await admin.req('GET', `/exams/${examId}/planning`);

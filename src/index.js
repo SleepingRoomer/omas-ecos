@@ -501,6 +501,8 @@ app.put('/stations/:id/content', need('admin', 'auteur'), async (c) => {
   if (!rights.editable) throw httpError(403, 'Station non modifiable à cette étape');
   const b = await c.req.json();
   const content = normalizeContent(b.content);
+  // repère des stations d'exemple de la répétition : il reste même si le navigateur ne le renvoie pas
+  try { if (JSON.parse(st.content || '{}').demo) content.demo = 1; } catch { /* contenu illisible : rien à garder */ }
   const evals = await one(db, 'SELECT COUNT(*) AS n FROM evaluations WHERE station_id = ?', st.id);
   if (evals.n > 0 && !rights.isAdmin) throw httpError(400, 'Station déjà évaluée : modification impossible.');
   // chaque item d'aptitude vaut 1 point (observé ou non) ; une station déjà évaluée garde ses points d'origine pour que ses notes ne bougent pas
