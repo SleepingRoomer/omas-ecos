@@ -891,3 +891,63 @@ fieldset legend { font-weight: 700; padding: 0 6px; }
 .msg-list { display: grid; gap: 6px; margin-top: 10px; }
 .msg-item { display: flex; gap: 10px; align-items: center; font-size: .92rem; padding: 6px 10px; border-radius: 10px; background: var(--paper-2); }
 .msg-item.off { opacity: .55; }
+
+/* émargement vu depuis la salle */
+.now-wrap { display: grid; gap: 6px; flex: 1 1 220px; }
+.now-wrap .now-card { width: 100%; }
+.presence { color: var(--ink-2); } .presence.ok { color: var(--ok, #2e7d4f); font-weight: 700; } .presence.ko { color: #b9770e; font-weight: 700; }
+.absent-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; background: #fbf1df; border-radius: 10px; padding: 8px 10px; }
+
+/* le déroulé dans l'espace de chacun : film, essentiel, questions */
+details.guide { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 0; margin: 18px 0; box-shadow: var(--shadow); }
+details.guide > summary { cursor: pointer; list-style: none; padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+details.guide > summary::-webkit-details-marker { display: none; }
+details.guide > summary > span { display: grid; gap: 2px; }
+details.guide > summary::after { content: "+"; font-size: 1.4rem; font-weight: 800; color: var(--a); }
+details.guide[open] > summary::after { content: "−"; }
+.guide-body { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 18px; padding: 0 20px 20px; }
+@media (max-width: 860px) { .guide-body { grid-template-columns: 1fr; } }
+.gd-faq { grid-column: 1 / -1; }
+.gd-film { background: var(--paper-2); border-radius: 16px; overflow: hidden; display: grid; }
+.gd-stage { padding: 10px; } .gd-stage svg { width: 100%; height: auto; display: block; } .gd-stage svg text { font-family: inherit; }
+.gd-cap { background: var(--surface); margin: 0 10px; border-radius: 12px; padding: 12px 14px; display: grid; gap: 4px; }
+.gd-when { font-size: .74rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--b-ink); }
+.gd-title { font-size: 1.05rem; } .gd-text { margin: 0; font-size: .92rem; color: var(--ink-2); }
+.gd-controls { display: flex; align-items: center; gap: 10px; padding: 10px; }
+.gd-play { width: 36px; height: 36px; min-height: 0; border-radius: 50%; border: none; background: var(--a); color: #fff; padding: 0; font-size: .8rem; flex: none; }
+.gd-chapters { display: flex; gap: 4px; flex: 1; min-width: 0; }
+.gd-chapters button { flex: 1; border: none; background: none; padding: 4px 0 0; min-height: 0; display: grid; gap: 4px; text-align: left; font-size: .7rem; color: var(--ink-3, #8c8ea6); min-width: 0; }
+.gd-chapters button i { display: block; height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; } .gd-chapters button i b { display: block; height: 100%; width: 0; background: var(--a); }
+.gd-chapters button.on { color: var(--ink); } .gd-chapters button span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 600px) { .gd-chapters button span { display: none; } }
+.gd-ess h3, .gd-faq h3 { margin: 0 0 8px; font-size: 1rem; }
+.gd-ess dl { margin: 0; display: grid; gap: 8px; } .gd-ess dt { font-weight: 800; color: var(--a); font-size: .9rem; } .gd-ess dd { margin: 0; font-size: .92rem; color: var(--ink-2); }
+.gd-faq details { border-top: 1px solid var(--line-2, #eef0f5); padding: 8px 0; } .gd-faq summary { cursor: pointer; font-weight: 600; }
+.gd-faq details p { margin: 6px 0 2px; color: var(--ink-2); font-size: .94rem; }
+/* animations du film (mêmes noms de classes que la page des étapes, préfixées par le conteneur) */
+.gd-stage .an { transform-box: fill-box; transform-origin: center; animation-duration: .55s; animation-fill-mode: both; animation-timing-function: cubic-bezier(.2, .8, .2, 1); }
+.gd-stage .fade { animation-name: gd-fade; } .gd-stage .pop { animation-name: gd-pop; } .gd-stage .fadeR { animation-name: gd-fadeR; }
+.gd-stage .grow { transform-origin: left center; animation-name: gd-growX; animation-duration: .6s; }
+.gd-stage .growy { transform-origin: center bottom; animation-name: gd-growY; animation-duration: .8s; }
+.gd-stage .draw { stroke-dasharray: 1; animation-name: gd-draw; animation-duration: .8s; }
+.gd-stage .stamp { animation-name: gd-stamp; animation-duration: .5s; } .gd-stage .drop { animation-name: gd-drop; animation-duration: .6s; }
+.gd-stage .press { animation-name: gd-press; animation-duration: .5s; } .gd-stage .slideDown { animation-name: gd-slide; }
+.gd-stage .shake { transform-origin: center top; animation-name: gd-shake; animation-duration: .9s; } .gd-stage .scan { animation-name: gd-scan; animation-duration: .9s; }
+.gd-stage .fadeOut { animation-name: gd-fadeOut; animation-duration: .3s; }
+.gd-stage .ripple { transform-box: fill-box; transform-origin: center; animation: gd-ripple 1s 4s both; }
+.gd-stage .gear { transform-box: fill-box; transform-origin: center; animation: gd-spin 1.4s 2.4s linear 2 both; }
+.gd-stage.paused .an, .gd-stage.paused .gear, .gd-stage.paused .ripple { animation-play-state: paused; }
+@keyframes gd-fade { from { opacity: 0; } to { opacity: 1; } } @keyframes gd-fadeOut { from { opacity: 1; } to { opacity: 0; } }
+@keyframes gd-fadeR { from { opacity: 0; transform: translateX(-14px); } to { opacity: 1; transform: none; } }
+@keyframes gd-pop { 0% { opacity: 0; transform: scale(.3); } 70% { opacity: 1; transform: scale(1.08); } 100% { opacity: 1; transform: scale(1); } }
+@keyframes gd-growX { from { transform: scaleX(0); } to { transform: scaleX(1); } } @keyframes gd-growY { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+@keyframes gd-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+@keyframes gd-stamp { 0% { opacity: 0; transform: scale(2.2) rotate(-12deg); } 100% { opacity: 1; transform: scale(1) rotate(-6deg); } }
+@keyframes gd-drop { 0% { opacity: 0; transform: translateY(-60px); } 70% { opacity: 1; transform: translateY(4px); } 100% { opacity: 1; transform: none; } }
+@keyframes gd-press { 0% { transform: scale(1); } 40% { transform: scale(.92); } 100% { transform: scale(1); } }
+@keyframes gd-slide { from { opacity: 0; transform: translateY(-16px); } to { opacity: 1; transform: none; } }
+@keyframes gd-shake { 0%, 100% { transform: rotate(0); } 20% { transform: rotate(14deg); } 40% { transform: rotate(-12deg); } 60% { transform: rotate(8deg); } 80% { transform: rotate(-5deg); } }
+@keyframes gd-scan { 0% { opacity: 0; transform: translateY(0); } 20% { opacity: 1; } 100% { opacity: 0; transform: translateY(30px); } }
+@keyframes gd-ripple { 0% { opacity: .8; transform: scale(.6); } 100% { opacity: 0; transform: scale(2.2); } }
+@keyframes gd-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .gd-stage .an, .gd-stage .gear, .gd-stage .ripple { animation: none !important; } }

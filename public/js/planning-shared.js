@@ -200,6 +200,17 @@ export function roomNow(planning, slots, slot, candidates, now = Date.now()) {
   return { current, next };
 }
 
+// Le candidat attendu a-t-il émargé ? Jamais d'absence automatique : on ne propose « Noter absent »
+// qu'une fois son tour commencé depuis quelques minutes, et seulement s'il n'a pas émargé à l'accueil.
+// 'here' : il a émargé ; 'waiting' : pas encore, mais son tour vient de commencer ou n'a pas commencé ;
+// 'missing' : son tour a commencé depuis plus de `graceMin` minutes et il n'a pas émargé.
+export const ABSENCE_GRACE_MIN = 3;
+export function presenceHint(passage, checkedIn, now = Date.now(), graceMin = ABSENCE_GRACE_MIN) {
+  if (checkedIn) return 'here';
+  if (!passage) return 'waiting';
+  return now >= passage.start.getTime() + graceMin * 60e3 ? 'missing' : 'waiting';
+}
+
 // Avant d'enregistrer une grille : ce candidat est-il plausible dans cette salle à cette heure ?
 // Trop tôt (son tour ici n'a pas commencé) ou un autre jour : on demande confirmation à l'évaluateur.
 export function gridCheck(planning, slots, slot, cand, now = Date.now()) {

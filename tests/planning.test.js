@@ -88,3 +88,16 @@ test('qui est dans la salle : passage, candidat du moment et suivant, contrôle 
   assert.equal(gridCheck(P, SLOTS, 'A2', c1, at('2026-11-14T07:33:00Z')).ok, false);
   assert.equal(gridCheck(P, SLOTS, 'A2', c1, at('2026-11-14T07:52:00Z')).ok, true);
 });
+
+import { presenceHint } from '../public/js/planning-shared.js';
+test('absents vus depuis la salle : jamais avant quelques minutes, jamais s\'il a émargé', () => {
+  const P = normalizePlanning({ days: [{ date: '2026-11-14' }] });
+  const c1 = { id: 1, day: '2026-11-14', series: 1, seat: 1 };
+  const p = passageInRoom(P, SLOTS, 'A2', c1); // 8 h 40 à Paris
+  const at = (s) => Date.parse(s);
+  assert.equal(presenceHint(p, false, at('2026-11-14T07:35:00Z')), 'waiting'); // avant son tour
+  assert.equal(presenceHint(p, false, at('2026-11-14T07:41:00Z')), 'waiting'); // tour commencé depuis 1 min
+  assert.equal(presenceHint(p, false, at('2026-11-14T07:44:00Z')), 'missing'); // 4 min après : on peut proposer « absent »
+  assert.equal(presenceHint(p, true, at('2026-11-14T07:44:00Z')), 'here');
+  assert.equal(presenceHint(null, false, at('2026-11-14T07:44:00Z')), 'waiting'); // pas d'horaire connu : on ne propose rien
+});

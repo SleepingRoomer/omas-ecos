@@ -126,6 +126,7 @@ export async function volunteerSpace(app) {
         ${a.title && a.role !== 'logistique' ? `<div class="small muted">${esc(a.title)}</div>` : ''}${a.role === 'reserve' ? '<div class="small muted">Tu restes près de la table de l\'équipe : si un PS ou un PSS manque, tu prends sa place. Le script de la station t\'est donné sur place.</div>' : ''}</div>`).join('')}</div>`
     : `<p class="panel">L'équipe prépare le planning. Tu as proposé : ${M.me.halfdays.map((k) => esc(hdLabel(k))).join(', ') || 'aucune demi-journée'}.</p>`}
     ${M.feedback_open ? `<div id="vol-fb"></div>` : ''}
+    <div id="vol-guide"></div>
     ${M.calibrations.length ? `<h2>Calibration</h2>
       <p class="small muted">Avant la session, note un passage de référence avec la grille de ta station. Tu vois ensuite où tu t'écartes de la correction de l'équipe : c'est ce qui rend les notes comparables d'une salle à l'autre.</p>
       <div class="vol-plan">${M.calibrations.map((k) => `<a class="vol-slot link" href="#/calibration/${k.station_id}">
@@ -140,6 +141,10 @@ export async function volunteerSpace(app) {
   });
   const fbBox = app.querySelector('#vol-fb');
   if (fbBox) teamFeedbackForm(fbBox, M.feedback, isEval);
+  // le déroulé et les questions, selon ce que la personne fait (rôles cochés et postes du planning)
+  const posts = new Set([...M.me.roles, ...M.assignments.map((a) => a.role)]);
+  const profiles = [isEval || posts.has('evaluateur') ? 'evaluateur' : null, posts.has('ps') || posts.has('pss') || posts.has('reserve') ? 'ps' : null, posts.has('logistique') ? 'benevole' : null].filter(Boolean);
+  import('./guide.js').then((G) => G.guideSection(app.querySelector('#vol-guide'), profiles.length ? profiles : ['benevole'], { open: !M.feedback_open })).catch(() => {});
 }
 
 // Avis de l'équipe de la journée : deux notes, « reviendrais-tu ? » et un mot libre. Vouvoiement pour les évaluateurs.

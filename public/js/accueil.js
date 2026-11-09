@@ -18,6 +18,7 @@ export async function scanView(app, token) {
       <p class="lede">${ok ? (R.already ? 'Déjà émargé tout à l\'heure.' : 'Présence enregistrée.') : 'Inscription annulée : ce candidat a libéré sa place.'}</p>
       ${ok ? `<p>${c.day ? `${esc(longDate(c.day))}, série ${c.series}` : 'Sans créneau'}${R.convocation ? `, convocation à ${R.convocation}` : ''}.</p>` : ''}
       ${R.wrong_day ? '<p class="alert warn">Attention : ce candidat n\'est pas convoqué aujourd\'hui.</p>' : ''}
+      ${R.absent_in?.length ? `<p class="alert warn">Déjà noté absent en ${R.absent_in.map(esc).join(', ')}. S'il passe encore dans ${R.absent_in.length > 1 ? 'ces salles' : 'cette salle'}, l'évaluateur remplit sa grille normalement ; sinon, préviens l'équipe.</p>` : ''}
       ${ok && c.number ? `<p class="alert info">Donne-lui l'étiquette <strong>${esc(c.number)}</strong>, à coller sur sa blouse.</p>` : ''}
       <p class="small muted">${esc(R.exam.name)}. Scanne le QR code suivant avec l'appareil photo.</p>
       <a class="btn" href="${isDesk() ? '#/accueil' : `#/admin/session/${R.exam.id}/accueil`}">Liste de l'accueil</a></div>`;
@@ -95,7 +96,8 @@ export async function accueilSpace(app, view) {
   if (view === 'etiquettes') return (await import('./etiquettes.js')).labelsView(app, exam);
   if (view === 'brief') return briefView(app, exam);
   setTitle(`Accueil, ${exam.name}`);
-  app.innerHTML = `<h1>Accueil</h1><p class="muted" style="margin:6px 0 14px">${esc(exam.name)}</p><div id="tab"></div>`;
+  app.innerHTML = `<h1>Accueil</h1><p class="muted" style="margin:6px 0 14px">${esc(exam.name)}</p><div id="tab"></div><div id="acc-guide" style="margin-top:24px"></div>`;
+  import('./guide.js').then((G) => G.guideSection(app.querySelector('#acc-guide'), ['accueil'], { planning: D.planning })).catch(() => {});
   return accueilTab(app.querySelector('#tab'), exam);
 }
 
