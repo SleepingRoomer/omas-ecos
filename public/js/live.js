@@ -52,6 +52,7 @@ export async function liveTab(root, exam) {
       <div class="row" style="margin-bottom:6px">
         ${R.days.length > 1 ? `<select id="live-day" style="max-width:240px" aria-label="Jour">${R.days.map((d) => `<option value="${d}" ${d === day ? 'selected' : ''}>${esc(longDate(d))}</option>`).join('')}</select>` : ''}
         <span class="small muted">Mise à jour automatique toutes les 30 secondes.</span><span class="spacer"></span>
+        <a class="btn small primary" href="#/admin/session/${exam.id}/conduite">Chrono de la série</a>
         <a class="btn small" href="#/admin/session/${exam.id}/projection">Mode projection</a>
         <button class="small" id="live-refresh">Actualiser</button></div>
       <div class="facts">

@@ -951,3 +951,20 @@ details.guide[open] > summary::after { content: "−"; }
 @keyframes gd-ripple { 0% { opacity: .8; transform: scale(.6); } 100% { opacity: 0; transform: scale(2.2); } }
 @keyframes gd-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .gd-stage .an, .gd-stage .gear, .gd-stage .ripple { animation: none !important; } }
+
+/* chrono de la série, en haut de l'écran de chacun */
+#live-clock { position: sticky; top: 0; z-index: 31; }
+#live-clock:not(.on) { display: none; }
+#live-clock .lc { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 8px max(12px, 2vw); background: #00807b; color: #fff; position: relative; }
+#live-clock.pause .lc { background: #6b4f9e; } #live-clock.debrief .lc { background: #2d2f84; }
+#live-clock.last .lc { background: #b9770e; } #live-clock.over .lc { background: #c4473a; }
+.lc-s { font-size: .8rem; opacity: .85; } .lc-w { font-size: 1rem; } .lc-t { font-size: 1.25rem; font-weight: 800; font-variant-numeric: tabular-nums; margin-left: auto; }
+.lc-bar { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: rgba(255, 255, 255, .25); } .lc-bar b { display: block; height: 100%; background: #fff; }
+.kiosk #live-clock .lc-t { font-size: 2.4rem; } .kiosk #live-clock .lc-w { font-size: 1.6rem; }
+/* écran de conduite */
+.cd-clock { display: grid; justify-items: center; gap: 6px; padding: 28px 16px; border-radius: 22px; background: var(--paper-2); text-align: center; }
+.cd-clock.tour { background: #ddf3f1; } .cd-clock.pause { background: #ede7f6; } .cd-clock.debrief { background: var(--a-soft); } .cd-clock.over { background: #fbeeec; }
+.cd-what { font-size: 1.3rem; font-weight: 800; } .cd-time { font-size: clamp(3.5rem, 14vw, 6rem); font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; color: var(--ink); }
+.cd-go { display: block; width: 100%; margin-top: 16px; min-height: 64px; font-size: 1.2rem; border-radius: 16px; }
+.cd-rooms { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.cd-room { display: flex; align-items: center; gap: 10px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 8px 10px; }

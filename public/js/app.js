@@ -19,7 +19,7 @@ function renderNav() {
     etudiant: [['#/resultats', 'Mon espace'], ['#/fiches', 'Fiches procédures']],
     participant: [['#/journee', 'Ma journée'], ['#/fiches', 'Fiches procédures']],
     benevole: [['#/benevole', 'Mon espace']],
-    accueil: [['#/accueil', 'Émargement'], ['#/brief', 'Brief des circuits'], ['#/etiquettes', 'Étiquettes']],
+    accueil: [['#/accueil', 'Émargement'], ['#/brief', 'Brief'], ['#/conduite', 'Chrono'], ['#/etiquettes', 'Étiquettes']],
   }[k] || [];
   const here = location.hash || '#/';
   nav.innerHTML = links.map(([h, l]) => `<a href="${h}" class="${here === h ? 'active' : ''}">${esc(l)}</a>`).join('')
@@ -108,6 +108,7 @@ const routes = [
   [/^#\/accueil\/([A-Z0-9]+)$/, ['admin', 'accueil'], async (m) => (await import('./accueil.js')).scanView(app, m[1])],
   [/^#\/accueil$/, 'accueil', async () => (await import('./accueil.js')).accueilSpace(app, 'liste')],
   [/^#\/brief$/, 'accueil', async () => (await import('./accueil.js')).accueilSpace(app, 'brief')],
+  [/^#\/conduite$/, 'accueil', async () => (await import('./conduite.js')).conduiteView(app, { id: state.me.subject_id, back: '#/accueil' })],
   [/^#\/etiquettes$/, 'accueil', async () => (await import('./accueil.js')).accueilSpace(app, 'etiquettes')],
   [/^#\/attente\/(\d+)$/, [null, 'admin', 'etudiant', 'evaluateur', 'auteur', 'participant'], async (m) => (await import('./waitlist.js')).publicWaitlist(app, m[1])],
   [/^#\/benevole\/(\d+)$/, [null, 'admin', 'etudiant', 'evaluateur', 'auteur', 'participant', 'benevole'], async (m) => (await import('./benevoles.js')).publicSignup(app, m[1])],
@@ -149,6 +150,7 @@ export async function route() {
   const hash = (location.hash || '#/').split('?')[0];
   renderNav();
   pollBroadcast();
+  pollLive();
   window.scrollTo(0, 0);
   for (const [re, kinds, fn] of routes) {
     const m = hash.match(re);
@@ -166,6 +168,45 @@ export async function route() {
   if (state.me.kind && !location.hash.includes('code=')) { location.hash = HOME[state.me.kind]; return; }
   loginView();
 }
+
+// Chrono de la série en cours : lancé tour par tour depuis l'accueil ou par l'équipe, relu toutes les 15 secondes,
+// affiché à la seconde près (avec l'écart d'horloge du serveur). Les autres écrans l'écoutent avec l'événement « ines-live ».
+export const live = { state: null, off: 0 };
+const clockBox = document.getElementById('live-clock');
+let lastPhaseKey = ''; let buzzed = '';
+const clockExam = () => location.hash.match(/^#\/admin\/session\/(\d+)\/(projection|direct|conduite)$/)?.[1];
+async function pollLive() {
+  const k = state.me?.kind;
+  const ex = clockExam();
+  if (!(['evaluateur', 'accueil', 'benevole'].includes(k) || (k === 'admin' && ex))) { live.state = null; drawClock(); return; }
+  if (document.visibilityState !== 'visible') return;
+  try {
+    const r = await api(`/live${k === 'admin' ? `?exam=${ex}` : ''}`);
+    live.off = r.now - Date.now(); live.state = r.live;
+    const key = r.live ? `${r.live.series}|${r.live.round}|${r.live.phase}|${r.live.started_at}` : '';
+    if (key !== lastPhaseKey) { lastPhaseKey = key; window.dispatchEvent(new CustomEvent('ines-live', { detail: r.live })); }
+  } catch { /* hors connexion : le chrono continue sur la dernière valeur */ }
+  drawClock();
+}
+export const liveRemaining = () => (live.state ? Date.parse(live.state.ends_at) - (Date.now() + live.off) : null);
+const mmss = (ms) => { const s = Math.max(0, Math.round(ms / 1000)); return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`; };
+function drawClock() {
+  if (!clockBox) return;
+  const L = live.state;
+  if (!L) { clockBox.innerHTML = ''; clockBox.className = 'no-print'; return; }
+  const rem = liveRemaining(); const over = rem <= 0;
+  const what = L.phase === 'tour' ? `Tour ${L.round}` : L.phase === 'pause' ? 'Pause' : 'Débrief';
+  const pct = Math.min(100, Math.max(0, 100 - (rem / (L.minutes * 60e3)) * 100));
+  clockBox.className = `no-print on ${L.phase} ${over ? 'over' : rem < 60e3 ? 'last' : ''}`;
+  clockBox.innerHTML = `<div class="lc"><span class="lc-s">Série ${L.series}</span><strong class="lc-w">${what}</strong>
+    <span class="lc-t">${over ? (L.phase === 'tour' ? 'Temps écoulé : on change de salle' : L.phase === 'pause' ? 'Fin de la pause' : 'Fin du débrief') : `${mmss(rem)}${L.phase === 'pause' ? ' avant la reprise' : ''}`}</span>
+    <i class="lc-bar"><b style="width:${pct}%"></b></i></div>`;
+  // fin d'un tour : le téléphone de l'évaluateur vibre une fois
+  if (over && state.me?.kind === 'evaluateur' && buzzed !== lastPhaseKey) { buzzed = lastPhaseKey; navigator.vibrate?.([200, 100, 200]); }
+}
+setInterval(drawClock, 1000);
+setInterval(pollLive, 15000);
+window.addEventListener('ines-live-refresh', pollLive);
 
 // Messages de l'équipe aux salles : bandeau en haut de l'écran, relu toutes les 30 secondes
 // (évaluateurs, accueil, bénévoles, et l'écran de projection de l'équipe)
@@ -196,7 +237,7 @@ bcBox?.addEventListener('click', (e) => {
   b.closest('.bc').remove();
 });
 setInterval(pollBroadcast, 30000);
-document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') pollBroadcast(); });
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { pollBroadcast(); pollLive(); } });
 
 window.addEventListener('hashchange', route);
 route();

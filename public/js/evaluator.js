@@ -1,6 +1,7 @@
 import { api, esc, nl, toast, fmt, frDate, setTitle, plate, dom, disc } from './ui.js';
 import { COM_LEVELS, GLOBAL_LEVELS, TYPE_LINE, missingAnswers, computeScore } from './shared.js';
-import { seriesTimes, frTime, roomNow, gridCheck, presenceHint, ABSENCE_GRACE_MIN } from './planning-shared.js';
+import { seriesTimes, frTime, roomNow, gridCheck, presenceHint, ABSENCE_GRACE_MIN, liveSeat } from './planning-shared.js';
+import { live } from './app.js';
 import { raceHtml } from './race.js';
 
 // Les candidats sont anonymes pour l'évaluateur : on ne montre que leur numéro (ou leur place s'ils ne sont pas encore numérotés)
@@ -75,7 +76,18 @@ export async function roomView(app) {
     if (!ctx.sch) return '';
     const todays = ctx.candidates.filter((c) => c.day === parisToday());
     if (!todays.length) return '';
-    const N = roomNow(ctx.sch.planning, ctx.sch.slots, ctx.sch.slot, todays);
+    let N = roomNow(ctx.sch.planning, ctx.sch.slots, ctx.sch.slot, todays);
+    // série lancée tour par tour depuis l'accueil : le candidat du moment suit le chrono, pas l'horaire prévu
+    const L = live.state;
+    if (L && L.day === parisToday() && (L.phase === 'tour' || L.phase === 'pause')) {
+      const hm = (iso) => new Date(iso).toLocaleTimeString('fr-FR', { timeZone: 'Europe/Paris', hour: '2-digit', minute: '2-digit' }).replace(':', ':');
+      const at = (round) => { const seat = liveSeat(ctx.sch.slots, ctx.sch.slot, round); return todays.find((c) => c.series === L.series && c.seat === seat) || null; };
+      const nRounds = ctx.sch.slots.length;
+      const cur = L.phase === 'tour' ? at(L.round) : null;
+      const nr = L.round + 1 <= nRounds ? L.round + 1 : null; const nx = nr ? at(nr) : null;
+      N = { current: cur ? { c: cur, p: { start: new Date(L.started_at), startHHMM: hm(L.started_at) } } : null,
+        next: nx ? { c: nx, p: { start: new Date(L.ends_at), startHHMM: hm(L.ends_at) } } : null };
+    }
     // l'émargement n'est qu'une indication : on ne propose « Noter absent » qu'au bout de quelques minutes, jamais d'office
     const card = (x, title, main) => {
       const h = x.c.eval_id ? null : presenceHint(x.p, !!x.c.here);
@@ -106,6 +118,9 @@ export async function roomView(app) {
     }
     c.eval_id = c.eval_id || -1; c.absent = 1; draw();
   };
+  window.removeEventListener('ines-live', window.__nowLive || (() => {}));
+  window.__nowLive = () => { const el = app.querySelector('#now'); if (el && location.hash.startsWith('#/eval')) { el.innerHTML = nowBox(); bindNow(el); } };
+  window.addEventListener('ines-live', window.__nowLive);
   window.__nowTimer = setInterval(async () => {
     const el = app.querySelector('#now'); if (!el || !location.hash.startsWith('#/eval')) return;
     try { const pres = await api('/eval/presence'); const m = new Map(pres.map((r) => [r.id, r.here])); ctx.candidates.forEach((c) => { if (m.has(c.id)) c.here = m.get(c.id); }); } catch { /* hors connexion */ }
