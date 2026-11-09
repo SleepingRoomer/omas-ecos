@@ -968,3 +968,46 @@ details.guide[open] > summary::after { content: "−"; }
 .cd-go { display: block; width: 100%; margin-top: 16px; min-height: 64px; font-size: 1.2rem; border-radius: 16px; }
 .cd-rooms { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
 .cd-room { display: flex; align-items: center; gap: 10px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 8px 10px; }
+
+/* ---------- téléphone : une barre sur une ligne, moins de cadres dans les cadres, rien qui déborde ---------- */
+.l-short { display: none; }
+@media (max-width: 600px) {
+  body { font-size: 16px; }
+  .topbar { height: 56px; gap: 6px; padding: 0 0 0 14px; }
+  .brand img { height: 24px; }
+  #nav { flex: 1 1 auto; min-width: 0; overflow-x: auto; scrollbar-width: none; padding-right: 10px;
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 22px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 22px), transparent); }
+  #nav::-webkit-scrollbar { display: none; }
+  #nav > :first-child { margin-left: auto; }
+  #nav a, #nav button { flex: none; white-space: nowrap; }
+  #nav a { padding: 0 10px; }
+  #nav button { padding: 6px 4px 6px 10px; }
+  .l-long { display: none; }
+  .l-short { display: inline; }
+
+  .container { padding: 20px 16px 88px; }
+  h1 { font-size: 1.65rem; }
+  h2 { font-size: 1.25rem; margin: 1.8rem 0 .75rem; }
+  .panel { padding: 18px 16px; margin: 14px 0; border-radius: 12px; }
+  /* un cadre dans un cadre : on garde le contenu, on enlève le second cadre */
+  .panel .panel:not(.hl) { border: none; box-shadow: none; padding: 0; margin: 14px 0 0; background: transparent; }
+  .facts > div { padding: 14px 16px; }
+  .tabs { margin: 18px -16px 16px; padding: 0 16px; scrollbar-width: none; }
+  .tabs::-webkit-scrollbar { display: none; }
+  .row > select, .row > input:not([type=checkbox]):not([type=radio]) { max-width: none !important; flex: 1 1 100%; }
+  button, .btn { min-height: 44px; }
+  button.small, .btn.small { min-height: 36px; }
+
+  /* connexion : le formulaire tout de suite, sans répéter le logo de la barre */
+  .login { gap: 22px; }
+  .login > * { min-width: 0; }
+  .login-logo, .login .intro .lede { display: none; }
+  .login .intro .by { margin: 0 0 10px; font-size: .95rem; }
+  .login .intro h1 { font-size: 1.9rem; }
+  .seg, .door .seg { grid-template-columns: repeat(3, 1fr); }
+
+  /* salle de l'évaluateur : la plaque à côté du titre, sans écraser le titre */
+  .room-head { gap: 14px; align-items: flex-start; }
+  .room-head .plate.xl { width: 64px; height: 64px; font-size: 1.75rem; border-radius: 12px; }
+  .room-head h1 { font-size: 1.35rem; }
+}
