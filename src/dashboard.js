@@ -73,8 +73,9 @@ export function registerDashboard(app, h) {
       }
       const reserve = here.filter((a) => a.role === 'reserve').length;
       const accueil = here.filter((a) => a.role === 'logistique').length;
+      const chrono = here.filter((a) => a.role === 'chrono').length;
       const dispo = signups.filter((s) => parse(s.halfdays, []).includes(`${day}|${half}`)).length;
-      return { day, half, label: `${shortDay(day)} ${HALF[half]}`, need, got, missing, reserve, need_reserve: needReserve, accueil, dispo };
+      return { day, half, label: `${shortDay(day)} ${HALF[half]}`, need, got, missing, reserve, need_reserve: needReserve, accueil, chrono, dispo };
     });
 
     // ---------- matériel ----------
@@ -106,6 +107,7 @@ export function registerDashboard(app, h) {
         if (b.missing.length) add(until !== null && until <= 7 ? 'urgent' : 'todo', `${b.label} : ${plural(b.need - b.got, 'poste', 'postes')} à pourvoir (${b.missing.slice(0, 5).join(', ')}${b.missing.length > 5 ? '…' : ''}).`, 'benevoles');
         if (b.need_reserve && !b.reserve) add(until !== null && until <= 7 ? 'urgent' : 'todo', `${b.label} : pas de PS ou PSS de réserve.`, 'benevoles');
         if (!b.accueil) add('todo', `${b.label} : personne à l'accueil.`, 'benevoles');
+        if (!b.chrono) add('todo', `${b.label} : personne au chrono.`, 'benevoles');
       }
       if (!P.accueil_code && until !== null && until <= 7) add(soon ? 'urgent' : 'todo', 'Code d\'accueil à créer et à donner à l\'étudiant de l\'accueil.', 'accueil');
       if (until !== null && until <= 5 && M.impressions < M.impressions_total) add(soon ? 'urgent' : 'todo', `Impressions : ${M.impressions} sur ${M.impressions_total} cochées.`, 'materiel');

@@ -43,7 +43,7 @@ export async function systemView(app) {
 
       <div class="panel"><div class="row between"><h2 style="margin:0">Sauvegarde hebdomadaire</h2>${S.backup?.configured ? pill(!!S.backup.last && (Date.now() - Date.parse(`${S.backup.last}T12:00:00Z`)) / 864e5 < 9, 'À jour', S.backup.last ? 'En retard' : 'Jamais faite') : '<span class="pill">Pas activée</span>'}</div>
         ${S.backup?.configured ? `<p class="small">Dernière sauvegarde : <strong>${S.backup.last ? esc(S.backup.last) : 'aucune'}</strong>${S.backup.last ? `, ${S.backup.files.length} fichier(s), ${Math.round(S.backup.files.reduce((a, f) => a + f.size, 0) / 1024)} Ko` : ''}. ${S.backup.weeks} semaine(s) gardée(s) sur huit.</p>
-          <p class="small muted">Chaque dimanche soir : un fichier par session en cours ou récente (réimportable depuis la liste des sessions) et l'annuaire de l'équipe, dans le bucket R2. Les images des stations n'y sont pas.</p>
+          <p class="small muted">Chaque dimanche soir : un fichier par session en cours ou récente (réimportable depuis la liste des sessions) et l'annuaire des organisateurs, dans le bucket R2. Les images des stations n'y sont pas.</p>
           <button class="small" id="backup">Sauvegarder maintenant</button>`
     : `<p class="small">Pas activée, et ce n'est pas indispensable : Cloudflare garde déjà sept jours d'historique de la base (Time Travel). Pense au bouton « Télécharger la sauvegarde » (Réglages de la session) à la fin de chaque week-end, et range le fichier dans un dossier partagé restreint.</p>`}</div>
 
@@ -51,7 +51,7 @@ export async function systemView(app) {
 
       <div class="panel"><div class="row between"><h2 style="margin:0">Connexions</h2>${pill(!S.sessions.expired, 'Propre', `${S.sessions.expired} expirée(s)`)}</div>
         <p class="small">${S.sessions.total ?? '–'} connexion(s) en base, dont ${S.sessions.expired ?? '–'} expirée(s). ${S.sessions.failures_24h ?? 0} tentative(s) de connexion ratée(s) depuis 24 h.</p>
-        <p class="small muted">Chaque connexion (étudiant, évaluateur, équipe) laisse une ligne qui expire d'elle-même : la tâche de la nuit la supprime ensuite.</p>
+        <p class="small muted">Chaque connexion (étudiant, évaluateur, organisateur) laisse une ligne qui expire d'elle-même : la tâche de la nuit la supprime ensuite.</p>
         <button class="small" id="purge">Purger maintenant</button></div>
     </div>
     <p class="small muted" style="margin-top:18px">État relevé le ${when(S.now)}.</p>`;

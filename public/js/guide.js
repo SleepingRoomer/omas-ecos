@@ -20,9 +20,9 @@ const rbox = (x, y, w, h, fill, stroke = 'none', r = 12) => `<rect x="${x}" y="$
 
 export const SCENES = [
   { id: 'redaction', p: 1, title: 'Rédaction et relecture', dur: 8,
-    text: 'Le rédacteur remplit la station dans INES, puis elle passe de main en main : relecture pair, relecture experte, validation par l\'équipe. Chacun est prévenu par e-mail quand c\'est son tour.',
+    text: 'Le rédacteur remplit la station dans INES, puis elle passe de main en main : relecture pair, relecture experte, validation par les organisateurs. Chacun est prévenu par e-mail quand c\'est son tour.',
     svg: () => {
-      let s = av(80, 150, C.a, 'Rédacteur', 0) + av(300, 150, C.a, 'Relecteur pair', .2) + av(480, 150, C.a, 'Relecteur expert', .3) + av(690, 150, C.team, 'Équipe', .4);
+      let s = av(80, 150, C.a, 'Rédacteur', 0) + av(300, 150, C.a, 'Relecteur pair', .2) + av(480, 150, C.a, 'Relecteur expert', .3) + av(690, 150, C.team, 'Organisateurs', .4);
       s += `<g ${an('fade', .5)}><rect x="112" y="92" width="52" height="64" rx="6" fill="#fff" stroke="${C.a}" stroke-width="2"/>`;
       [0, 1, 2, 3, 4].forEach((i) => { s += `<rect x="120" y="${104 + i * 10}" width="${i === 4 ? 20 : 36}" height="4" rx="2" fill="${i === 3 ? C.b : C.lav}" ${an('grow', .8 + i * .35)}/>`; });
       s += '</g>';
@@ -36,7 +36,7 @@ export const SCENES = [
       return s;
     } },
   { id: 'billetterie', p: 1, title: 'Billetterie', dur: 7,
-    text: 'Les étudiants prennent leur billet sur HelloAsso. L\'équipe importe l\'export dans INES : les inscrits arrivent, et un second import ajoute les nouveaux et annule les billets remboursés.',
+    text: 'Les étudiants prennent leur billet sur HelloAsso. Les organisateurs importent l\'export dans INES : les inscrits arrivent, et un second import ajoute les nouveaux et annule les billets remboursés.',
     svg: () => {
       let s = rbox(40, 70, 170, 170, C.soft) + T(125, 100, 'HelloAsso', { s: 15, w: 800, c: C.ink });
       [0, 1, 2].forEach((i) => { s += `<g transform="translate(${70 + i * 8} ${130 + i * 8})"><rect width="100" height="44" rx="8" fill="#fff" stroke="${C.line}" stroke-width="2"/><path d="M70 0v44" stroke="${C.line}" stroke-dasharray="3 3"/>${T(35, 27, 'Billet', { s: 11 })}</g>`; });
@@ -82,7 +82,7 @@ export const SCENES = [
       return s;
     } },
   { id: 'recrutement', p: 1, title: 'Recrutement', dur: 7,
-    text: 'Bénévoles et évaluateurs s\'inscrivent par leur lien et reçoivent un code personnel. L\'équipe les place dans le planning des salles, où une étoile signale la discipline préférée.',
+    text: 'Bénévoles et évaluateurs s\'inscrivent par leur lien et reçoivent un code personnel. Les organisateurs les placent dans le planning des salles, où une étoile signale la discipline préférée.',
     svg: () => {
       let s = `<g ${an('pop', .1)}>${rbox(40, 30, 150, 30, C.soft, 'none', 15)}${T(115, 50, 'Lien bénévoles', { s: 11.5, c: C.ink })}</g><g ${an('pop', .25)}>${rbox(40, 70, 150, 30, C.soft, 'none', 15)}${T(115, 90, 'Lien évaluateurs', { s: 11.5, c: C.ink })}</g>`;
       const rooms = ['A1', 'A2', 'A3', 'A4', 'A5', 'B1', 'B2', 'B3', 'B4', 'B5'];
@@ -100,7 +100,7 @@ export const SCENES = [
       return s;
     } },
   { id: 'convocations', p: 1, title: 'Convocations et rappels', dur: 7,
-    text: 'Un clic envoie les convocations, avec l\'heure, la série et le QR code d\'émargement. La veille à 17 h (18 h l\'été), INES envoie seul un rappel à tous ceux qui viennent.',
+    text: 'Un clic envoie les convocations, avec l\'heure, la série et le QR code d\'émargement. La veille en fin d\'après-midi, INES envoie seul un rappel à tous ceux qui viennent.',
     svg: () => {
       let s = `<g ${an('pop', .1)}>${rbox(40, 100, 140, 90, C.a)}${T(110, 140, 'INES', { s: 22, w: 800, c: '#fff' })}${T(110, 164, 'Convocations', { s: 11, c: '#cfd0ee' })}</g>`;
       [0, 1, 2].forEach((i) => {
@@ -179,7 +179,7 @@ export const SCENES = [
       return s;
     } },
   { id: 'resultats', p: 4, title: 'Après la session', dur: 8,
-    text: 'L\'étudiant voit sa note et son rang. Le détail des grilles s\'ouvre après la dernière série. Une réclamation acceptée corrige la note, et l\'équipe fait le bilan des stations.',
+    text: 'L\'étudiant voit sa note et son rang. Le détail des grilles s\'ouvre après la dernière série. Une réclamation acceptée corrige la note, et les organisateurs font le bilan des stations.',
     svg: () => {
       let s = `<g ${an('pop', .1)}>${phoneShape(60, 40, 130, 220)}</g>`;
       s += `<g ${an('fade', .5)}>${T(125, 82, 'Mes résultats', { s: 12, w: 800, c: C.ink })}</g>`;
@@ -188,7 +188,7 @@ export const SCENES = [
       s += `<g ${an('fadeOut', 2.8)}><g ${an('pop', 1.6)}><rect x="160" y="150" width="20" height="16" rx="3" fill="${C.ink3}"/><path d="M164 150 v-5 a6 6 0 0 1 12 0 v5" fill="none" stroke="${C.ink3}" stroke-width="2.5"/></g></g>`;
       s += `<g ${an('pop', 3)}>${check(170, 158, 3)}</g>`;
       s += `<g ${an('fade', 2.6)}>${T(125, 212, 'après la dernière série', { s: 9.5, c: C.ok, w: 700 })}</g>`;
-      s += av(560, 120, C.team, 'Équipe', 3.3);
+      s += av(560, 120, C.team, 'Organisateurs', 3.3);
       s += `<g opacity="0">${show(3.8)}<rect x="-40" y="-16" width="80" height="32" rx="10" fill="#fff" stroke="${C.b}" stroke-width="2"/>${T(0, 5, 'Réclamation', { s: 10.5, w: 700, c: C.bi })}${move('M190 120 C 300 40, 430 40, 520 90', 3.8, 1)}${hide(5)}</g>`;
       s += `<g opacity="0">${show(5.2)}<rect x="-46" y="-16" width="92" height="32" rx="10" fill="${C.ok}"/>${T(0, 5, 'Note corrigée', { s: 10.5, w: 800, c: '#fff' })}${move('M520 130 C 430 200, 300 200, 200 150', 5.2, 1)}${hide(6.3)}</g>`;
       s += `<g ${an('pop', 6.3)}>${T(125, 120, '13,9 / 20', { s: 22, w: 800, c: C.ok, attr: 'paint-order="stroke" stroke="#fff" stroke-width="10"' })}</g>`;
@@ -219,19 +219,20 @@ const essentials = (p, P) => {
       ['Votre salle', 'ouvrez-la avec votre code personnel (« Ouvrir ma salle ») ou avec la fiche « code de salle » remise au briefing.'],
       ['La grille', 'chaque item observé vaut 1 point, sinon 0, jamais de demi-point. Communication de 0 à 1 par quart de point. Un mot de retour utile pour le candidat.'],
       ['Le bon candidat', 'il n\'a qu\'un numéro : son étiquette, son QR code, et l\'écran « Dans ta salle en ce moment ». S\'il n\'a pas émargé, « Noter absent » apparaît après quelques minutes.'],
-      ['Imprévu', 'sans réseau, la grille attend sur le téléphone et part toute seule. Grille papier de secours dans la salle. Les messages de l\'équipe s\'affichent en haut de l\'écran.'],
+      ['Imprévu', 'sans réseau, la grille attend sur le téléphone et part toute seule. Grille papier de secours dans la salle. Les messages des organisateurs s\'affichent en haut de l\'écran.'],
     ],
     ps: [
       ['Arrivée', 'une heure avant la première série. Ta fiche de rôle t\'est donnée au briefing, avec le temps de la lire.'],
       ['Le rôle', 'tu joues pareil pour chaque candidat. Tu donnes une information seulement si on te la demande. Tu ne notes pas.'],
       ['Entre deux tours', `${r} minutes par passage ; pendant que le suivant lit la vignette, tu remets la salle en ordre.`],
-      ['En réserve', 'si tu es PS ou PSS de réserve, tu restes près de la table de l\'équipe et tu remplaces un absent, script donné sur place.'],
+      ['En réserve', 'si tu es PS ou PSS de réserve, tu restes près de la table des organisateurs et tu remplaces un absent, script donné sur place.'],
     ],
     benevole: [
       ['Arrivée', 'une heure avant la première série : café, installation, briefing.'],
       ['Accueil', 'émargement en scannant le QR code de la convocation (ou dans la liste), étiquette sur la blouse, puis salle d\'attente.'],
       ['Brief des circuits', 'avant chaque série, l\'écran « Brief des circuits » montre qui commence sur A ou B et dans quelle salle.'],
-      ['Imprévu', 'un candidat absent de la liste : on appelle l\'équipe. Les messages de l\'équipe s\'affichent en haut de l\'écran.'],
+      ['Chrono', 'un bénévole dédié, pas celui de l\'accueil, lance chaque tour depuis son espace (« Ouvrir le chrono ») : tous les écrans suivent.'],
+      ['Imprévu', 'un candidat absent de la liste : on appelle un organisateur. Les messages des organisateurs s\'affichent en haut de l\'écran.'],
     ],
   }[p === 'accueil' ? 'benevole' : p];
 };
@@ -240,26 +241,27 @@ const essentials = (p, P) => {
 const FAQ = [
   { f: ['etudiant'], q: 'Qu\'est-ce que je dois apporter ?', a: 'Ta blouse, et ce que précise ta convocation. Le QR code de ta convocation (dans ton espace) sert à l\'émargement.' },
   { f: ['etudiant'], q: 'Comment je sais par où je commence ?', a: 'Ton circuit de départ est en couleur sur ton étiquette (bleu pour A, turquoise pour B) et l\'accueil fait un brief avant chaque série. Ton parcours salle par salle est aussi dans ton espace.' },
-  { f: ['etudiant'], q: 'Je ne peux plus venir, ou je serai en retard.', a: 'Si tu ne viens pas, libère ta place depuis ton espace : elle part à la personne suivante sur la liste d\'attente. Un échange de créneau avec un autre étudiant est possible jusqu\'à quelques heures avant. En cas de retard le jour même, préviens l\'équipe.' },
+  { f: ['etudiant'], q: 'Je ne peux plus venir, ou je serai en retard.', a: 'Si tu ne viens pas, libère ta place depuis ton espace : elle part à la personne suivante sur la liste d\'attente. Un échange de créneau avec un autre étudiant est possible jusqu\'à quelques heures avant. En cas de retard le jour même, préviens les organisateurs.' },
   { f: ['etudiant'], q: 'Les évaluateurs connaissent mon nom ?', a: 'Non. Ils ne voient que ton numéro, sur ton étiquette. C\'est ce qui rend la note indépendante de qui tu es.' },
   { f: ['etudiant'], q: 'Comment est calculée ma note ?', a: 'Chaque item observé vaut 1 point, la communication se note de 0 à 1 par quart de point. Note = (items + communication) ÷ maximum × 20. Si deux évaluateurs te notent, c\'est la moyenne.' },
   { f: ['etudiant'], q: 'Quand ai-je mes résultats ?', a: 'Ta note et ton rang provisoire arrivent ici au fil des grilles. Le détail (items, mot de l\'évaluateur) s\'ouvre après la dernière série de la session, pour que rien ne circule d\'un jour à l\'autre. Les corrections suivent.' },
-  { f: ['etudiant'], q: 'Je pense qu\'un item a été mal noté.', a: 'Une fois le détail ouvert, tu peux demander une révision, une fois par station, pendant quelques jours. L\'équipe te répond par e-mail et corrige la note si besoin.' },
+  { f: ['etudiant'], q: 'Je pense qu\'un item a été mal noté.', a: 'Une fois le détail ouvert, tu peux demander une révision, une fois par station, pendant quelques jours. Les organisateurs te répondent par e-mail et corrige la note si besoin.' },
   { f: ['evaluateur'], q: 'Dois-je préparer quelque chose ?', a: 'Non. La station, sa vignette et sa grille vous sont présentées au briefing, une heure avant la première série.' },
   { f: ['evaluateur'], q: 'Comment savoir quel candidat est devant moi ?', a: 'Son numéro est sur l\'étiquette collée sur sa blouse, avec un QR code qui ouvre sa grille. L\'écran affiche aussi le numéro attendu dans votre salle. Si vous ouvrez la grille d\'un candidat qui n\'est pas prévu, INES vous demande de confirmer.' },
   { f: ['evaluateur'], q: 'Le candidat n\'est pas venu.', a: 'S\'il n\'a pas émargé à l\'accueil, « Noter absent » apparaît sur l\'écran quelques minutes après le début de son tour. Un candidat arrivé à la dernière minute peut ne pas avoir émargé : s\'il est devant vous, remplissez sa grille normalement. Une absence notée par erreur se remplace en remplissant la grille.' },
   { f: ['evaluateur'], q: 'Comment noter un item ?', a: 'Observé : 1 point. Pas observé : 0. Jamais de demi-point. La communication se note à part, de 0 à 1 par quart de point.' },
   { f: ['evaluateur'], q: 'Nous sommes deux évaluateurs dans la salle.', a: 'Chacun remplit sa grille sans se concerter pendant le passage. La note du candidat est la moyenne des deux.' },
-  { f: ['evaluateur'], q: 'Mon téléphone n\'a plus de réseau ou de batterie.', a: 'Sans réseau, la grille reste sur le téléphone (« En attente d\'envoi ») et part dès que la connexion revient. Sans batterie, prenez une grille papier de secours dans la salle et prévenez l\'équipe. Des chargeurs sont à sa table.' },
-  { f: ['evaluateur'], q: 'Je me suis trompé de candidat.', a: 'Prévenez l\'équipe : elle voit les grilles suspectes dans En direct et peut supprimer une grille erronée. Vous ressaisissez ensuite la bonne.' },
+  { f: ['evaluateur'], q: 'Mon téléphone n\'a plus de réseau ou de batterie.', a: 'Sans réseau, la grille reste sur le téléphone (« En attente d\'envoi ») et part dès que la connexion revient. Sans batterie, prenez une grille papier de secours dans la salle et prévenez les organisateurs. Des chargeurs sont à leur table.' },
+  { f: ['evaluateur'], q: 'Je me suis trompé de candidat.', a: 'Prévenez les organisateurs : ils voient les grilles suspectes dans En direct et peuvent supprimer une grille erronée. Vous ressaisissez ensuite la bonne.' },
   { f: ['evaluateur', 'ps'], q: 'Puis-je aider un candidat bloqué ?', a: 'Non, on n\'intervient pas pendant le passage. Les explications viennent au débrief, juste après la série.' },
   { f: ['ps'], q: 'Est-ce que je dois apprendre un texte ?', a: 'Pas mot à mot. Ta fiche décrit le personnage, ce qu\'il dit d\'emblée et ce qu\'il ne dit que si on le lui demande. Tu la reçois au briefing.' },
   { f: ['ps'], q: 'Est-ce que je note aussi ?', a: 'Non, c\'est l\'évaluateur qui remplit la grille. Toi, tu joues ton rôle du début à la fin du tour.' },
-  { f: ['ps', 'benevole', 'accueil'], q: 'Et si un PS ou un PSS ne vient pas ?', a: 'Chaque demi-journée a au moins un PS ou PSS de réserve, près de la table de l\'équipe. Il prend la place de l\'absent et reçoit le script sur place.' },
+  { f: ['ps', 'benevole', 'accueil'], q: 'Et si un PS ou un PSS ne vient pas ?', a: 'Chaque demi-journée a au moins un PS ou PSS de réserve, près de la table des organisateurs. Il prend la place de l\'absent et reçoit le script sur place.' },
   { f: ['benevole', 'accueil'], q: 'Que fait-on à l\'accueil ?', a: 'On émarge chaque candidat en scannant le QR code de sa convocation (ou dans la liste), on lui donne son étiquette et on l\'oriente vers la salle d\'attente. Avant chaque série, on fait le brief des circuits.' },
-  { f: ['benevole', 'accueil'], q: 'Un candidat n\'est pas sur la liste.', a: 'Ne le refuse pas toi-même : appelle l\'équipe, qui vérifie (liste d\'attente, changement de créneau, billet remboursé).' },
+  { f: ['benevole', 'accueil'], q: 'Un candidat n\'est pas sur la liste.', a: 'Ne le refuse pas toi-même : appelle un organisateur, qui vérifie (liste d\'attente, changement de créneau, billet remboursé).' },
+  { f: ['benevole'], q: 'Je tiens le chrono : comment ça marche ?', a: 'Le jour J, ton espace affiche « Ouvrir le chrono ». Un gros bouton lance le tour suivant, la pause ou le débrief, et l\'écran te dit qui est dans quelle salle et ton écart avec le planning. Lance le tour 1 quand tous les candidats sont devant leur salle de départ.' },
   { f: ['benevole', 'accueil'], q: 'Un candidat arrive en retard.', a: 'Émarge-le quand même. Si une salle l\'a déjà noté absent, l\'écran te le dit : s\'il passe encore dans cette salle, l\'évaluateur remplit sa grille normalement.' },
-  { f: ['evaluateur', 'ps', 'benevole', 'accueil'], q: 'Et après la session ?', a: 'Le lendemain, un merci arrive par e-mail avec un lien vers votre espace : trois questions sur la journée, lues par l\'équipe pour préparer la suivante.', tu: 'Le lendemain, un merci arrive par e-mail avec un lien vers ton espace : trois questions sur la journée, lues par l\'équipe pour préparer la suivante.' },
+  { f: ['evaluateur', 'ps', 'benevole', 'accueil'], q: 'Et après la session ?', a: 'Le lendemain, un merci arrive par e-mail avec un lien vers votre espace : trois questions sur la journée, lues par les organisateurs pour préparer la suivante.', tu: 'Le lendemain, un merci arrive par e-mail avec un lien vers ton espace : trois questions sur la journée, lues par les organisateurs pour préparer la suivante.' },
 ];
 
 // ---------- le lecteur du film ----------

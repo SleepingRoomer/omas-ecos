@@ -59,7 +59,7 @@ export async function convocationPanel(box, reload) {
   const first = s?.steps[0]?.slot?.[0];
   const draw = () => {
     if (!C.published) { box.innerHTML = wishesHtml(); bindWishes(); return; }
-    box.innerHTML = !C.placed ? `<div class="panel"><h2>Ta convocation</h2><p>Ton créneau de passage n'est pas encore fixé. Il apparaîtra ici dès que l'équipe aura établi le planning.</p></div>` : `
+    box.innerHTML = !C.placed ? `<div class="panel"><h2>Ta convocation</h2><p>Ton créneau de passage n'est pas encore fixé. Il apparaîtra ici dès que les organisateurs auront établi le planning.</p></div>` : `
       <section class="convoc">
         <div class="convoc-main">
           <div class="kicker">Ta convocation${(() => {
@@ -89,7 +89,7 @@ export async function convocationPanel(box, reload) {
         <button class="small quiet danger" id="release">Libérer ma place</button>
       </div>
       <h2>Ta journée</h2>
-      <p class="small muted">Un tour toutes les ${C.rotation_minutes} minutes : lecture de la vignette devant la porte, puis la station. Les sujets restent secrets jusqu'au jour J. À la fin des deux circuits, l'équipe corrige les stations avec vous.</p>
+      <p class="small muted">Un tour toutes les ${C.rotation_minutes} minutes : lecture de la vignette devant la porte, puis la station. Les sujets restent secrets jusqu'au jour J. À la fin des deux circuits, les évaluateurs corrigent les stations avec vous.</p>
       ${parcoursHtml(s, { day: C.day, welcome: C.welcome })}
       ${C.instructions ? `<div class="panel"><h3 style="margin-top:0">À savoir avant de venir</h3><div>${nl(C.instructions)}</div></div>` : ''}
       ${S.enabled || S.history.length ? `<h2 id="echanges">Échanger mon créneau</h2>${swapHtml()}` : ''}`;
@@ -104,7 +104,7 @@ export async function convocationPanel(box, reload) {
   const wishesHtml = () => {
     const until = W.until ? new Date(W.until).toLocaleString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }) : null;
     if (!W.open) {
-      return `<div class="panel"><h2 style="margin-top:0">Ton créneau</h2><p>${W.saved_at ? 'Tes vœux sont enregistrés. ' : ''}L'équipe prépare l'attribution des créneaux : ta convocation et ton parcours apparaîtront ici dès qu'ils seront publiés.</p></div>`;
+      return `<div class="panel"><h2 style="margin-top:0">Ton créneau</h2><p>${W.saved_at ? 'Tes vœux sont enregistrés. ' : ''}Les organisateurs préparent l'attribution des créneaux : ta convocation et ton parcours apparaîtront ici dès qu'ils seront publiés.</p></div>`;
     }
     const ideal = Object.values(draft).filter((v) => v === 2).length;
     const ok = Object.values(draft).filter((v) => v >= 1).length;
@@ -190,7 +190,7 @@ export async function convocationPanel(box, reload) {
       }).catch(() => { qr.remove(); });
     }
     box.querySelector('#release')?.addEventListener('click', async () => {
-      if (!window.confirm('Libérer ta place ? Elle sera proposée à un étudiant de la liste d\'attente et tu ne pourras plus la récupérer. Ton code ne fonctionnera plus. Pour un remboursement, contacte l\'équipe.')) return;
+      if (!window.confirm('Libérer ta place ? Elle sera proposée à un étudiant de la liste d\'attente et tu ne pourras plus la récupérer. Ton code ne fonctionnera plus. Pour un remboursement, contacte les organisateurs.')) return;
       try { await api('/me/release', { method: 'POST' }); alert('Ta place est libérée. Merci de l\'avoir signalé : un autre étudiant va pouvoir en profiter.'); await api('/logout', { method: 'POST' }); location.href = '/'; } catch (e) { toast(e.message, 'error'); }
     });
     box.querySelector('[data-go]')?.addEventListener('click', (e) => { e.preventDefault(); box.querySelector('#echanges')?.scrollIntoView({ behavior: 'smooth' }); });

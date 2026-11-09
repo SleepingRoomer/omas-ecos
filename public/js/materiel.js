@@ -5,7 +5,7 @@ const MARGE = 1.1; // 10 % de consommables en plus, pour les gants déchirés et
 
 // Matériel commun proposé par défaut : à adapter, il s'enregistre avec la session
 export const COMMON = [
-  ['Accueil', 'Table et chaises pour l\'émargement', '1'], ['Accueil', 'Téléphone de l\'équipe connecté à INES (scan des QR codes)', '2'],
+  ['Accueil', 'Table et chaises pour l\'émargement', '1'], ['Accueil', 'Téléphone des organisateurs connecté à INES (scan des QR codes)', '2'],
   ['Accueil', 'Étiquettes des candidats, rangées par série', '1 planche par série'], ['Accueil', 'Planning des séries imprimé (secours)', '1 par série'],
   ['Accueil', 'Stylos', '10'], ['Accueil', 'Petit déjeuner : café, thé, eau, jus, viennoiseries', 'selon les inscrits du matin'],
   ['Accueil', 'Gobelets, serviettes, sacs poubelle', ''], ['Accueil', 'Signalétique (Accueil, Salle d\'attente, Circuits, Débrief)', '1 jeu'],
@@ -14,9 +14,9 @@ export const COMMON = [
   ['Salles', 'Solution hydroalcoolique', '1 par salle'], ['Salles', 'Boîte de gants (S, M, L)', '1 par salle d\'examen ou de procédure'],
   ['Salles', 'Mouchoirs et bouteille d\'eau pour le PS', '1 par salle avec PS'], ['Salles', 'Patafix ou scotch pour les vignettes', '1'],
   ['Salles', 'Tablette chargée (vidéo ou imagerie à montrer)', '1 par station qui en a besoin'], ['Salles', 'Boîte de gâteaux pour l\'évaluateur', '1 par salle et par demi-journée'],
-  ['Équipe', 'Chronomètre ou sonnerie commune audible dans les salles', '1'], ['Équipe', 'Multiprises et chargeurs de téléphone', '3'],
-  ['Équipe', 'Ordinateur avec INES ouvert (En direct)', '1'], ['Équipe', 'Trousse de premiers secours', '1'],
-  ['Équipe', 'Codes des salles de rechange et liste des téléphones des bénévoles', '1'], ['Équipe', 'Écran à l\'accueil (mode projection d\'INES)', '1'], ['Débrief', 'Vidéoprojecteur', 'si besoin'],
+  ['Organisateurs', 'Chronomètre ou sonnerie commune audible dans les salles', '1'], ['Organisateurs', 'Multiprises et chargeurs de téléphone', '3'],
+  ['Organisateurs', 'Ordinateur avec INES ouvert (En direct)', '1'], ['Organisateurs', 'Trousse de premiers secours', '1'],
+  ['Organisateurs', 'Codes des salles de rechange et liste des téléphones des bénévoles', '1'], ['Organisateurs', 'Écran à l\'accueil (mode projection d\'INES)', '1'], ['Débrief', 'Vidéoprojecteur', 'si besoin'],
 ];
 
 export async function materielTab(box, exam) {
@@ -46,7 +46,6 @@ export async function materielTab(box, exam) {
     ['Documents des stations', 'ECG, radios, bilans remis aux candidats', 'imprimer-documents'],
     ['Planning des séries', `${M.n_series} pages, à afficher à l'accueil et dans le couloir`, 'planning-imprimer'],
     ['Signalétique', '7 panneaux A4 : accueil, salle d\'attente, circuits, débrief', 'imprimer-signaletique'],
-    ['Attestations des évaluateurs', 'Après la session', 'attestations'],
   ];
   const draw = () => {
     const zones = [...new Set(common.map((x) => x.zone))];
@@ -57,7 +56,7 @@ export async function materielTab(box, exam) {
         ${prints.map(([t, q, tab]) => `<tr><td><strong>${esc(t)}</strong></td><td class="small">${esc(q)}</td><td><a class="btn small" href="#/admin/session/${exam.id}/${tab}" target="_blank">Ouvrir</a></td>
           <td>${check(`print|${tab}`, '')}</td></tr>`).join('')}</tbody></table></div>
       <h2>Matériel commun</h2>
-      <p class="small muted">Ce qui ne dépend pas des stations : accueil, salles, équipe, débrief. Une proposition à adapter : modifie, ajoute, puis enregistre.</p>
+      <p class="small muted">Ce qui ne dépend pas des stations : accueil, salles, organisateurs, débrief. Une proposition à adapter : modifie, ajoute, puis enregistre.</p>
       <div class="mat-zones">${zones.map((z) => `<div class="panel"><strong>${esc(z)}</strong>
         ${common.map((x, i) => (x.zone === z ? `<div class="mat-common">${check(`commun|${x.article.toLowerCase()}`, '')}<input data-ci="${i}" data-f="article" value="${esc(x.article)}" aria-label="Article">
           <input data-ci="${i}" data-f="qte" value="${esc(x.qte)}" placeholder="Quantité" aria-label="Quantité"><button class="small quiet" data-crm="${i}" aria-label="Retirer">✕</button></div>` : '')).join('')}

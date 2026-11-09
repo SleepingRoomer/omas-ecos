@@ -4,6 +4,7 @@ INES (Interface numérique d'ECOS et de simulation) est la plateforme des ECOS b
 
 ## Conventions
 - Réponses en français, tutoiement, style naturel, **jamais de tirets cadratins**.
+- Dans l'interface, les membres de l'organisation sont « les organisateurs » (onglet de connexion « Organisateurs »), pas « l'équipe ». « L'équipe de la journée » désigne les bénévoles et les évaluateurs.
 - Commits avec l'auteur « OMAS » : `git -c user.name="OMAS" -c user.email="omas@users.noreply.github.com" commit`.
 - Données personnelles (noms, e-mails, notes, codes) : jamais dans le dépôt, jamais dans une capture partagée. Pour les démonstrations, utiliser `scripts/demo` (données fictives, en local seulement).
 - Pour un changement visible ou risqué : une branche, puis une pull request. La fusion dans `main` déploie. Après un push sur `main`, vérifier le déploiement : `gh api repos/SleepingRoomer/omas-ecos/commits/<sha>/check-runs` (contrôle « Workers Builds »).
@@ -21,7 +22,7 @@ INES (Interface numérique d'ECOS et de simulation) est la plateforme des ECOS b
 - Relances de rédaction (`src/writing.js`) : échéance par étape dans `planning.writing_deadlines`, e-mail à la personne qui reçoit une station, récapitulatif le lundi (tâche du soir) aux rédacteurs et relecteurs, et à l'adresse de réponse des e-mails pour l'équipe.
 - Saisie des grilles : ouverte d'après le planning (une heure avant la première convocation du jour, trois quarts d'heure après le dernier tour), ou forcée par `planning.eval_mode` ('auto', 'open', 'closed'). Détail des grilles retenu jusqu'à la fin de la dernière série (`planning.details_embargo`). Tout passe par `src/state.js` (`examState`, `loadExamState`) : ne plus lire `exams.eval_open` directement.
 - E-mails : Brevo, un appel pour 200 destinataires, journal dans `mail_log`. Sans clé, rien ne part et le site fonctionne quand même.
-- Hors connexion : `public/sw.js`. Changer le nom du cache (`ines-v18` aujourd'hui) quand les fichiers du front changent beaucoup.
+- Hors connexion : `public/sw.js`. Changer le nom du cache (`ines-v19` aujourd'hui) quand les fichiers du front changent beaucoup.
 - Sécurité : `public/_headers` (CSP stricte : pas de script ni de police externes, pas de gestionnaire `onclick` en ligne).
 
 ## Identité (charte complète dans le projet claude.ai « OMAS », document `claude/INES_charte.md`)
@@ -64,7 +65,7 @@ Pour repartir d'une base vide : arrêter le serveur, supprimer `.wrangler/state`
 - Onglet En direct : « Grilles à vérifier », enregistrées avant le passage prévu du candidat (`passageInRoom`). Une grille erronée se supprime depuis le bulletin du candidat (vue de l'équipe).
 
 ## Chrono de la série
-- L'accueil (`#/conduite`, code d'accueil) ou l'équipe (`#/admin/session/:id/conduite`, bouton dans En direct) lance chaque tour : « Lancer le tour N », « Lancer la pause », « Lancer le débrief », « Terminer la série ». État dans `planning.live` (`day`, `series`, `round`, `phase`, `started_at`), route `POST /exams/:id/live`, lecture `GET /live`. Règles `liveClock`, `nextLiveStep`, `liveSeat` dans planning-shared.js (testées).
+- Un bénévole dédié, distinct de l'accueil, tient le chrono : poste `chrono` du planning des salles (`POSTS`), bouton « Ouvrir le chrono » dans son espace (`#/chrono`), droits vérifiés par `holdsChrono` (src/benevoles.js). En secours, l'accueil (`#/conduite`, code d'accueil) ou les organisateurs (`#/admin/session/:id/conduite`, bouton dans En direct) lancent aussi chaque tour : « Lancer le tour N », « Lancer la pause », « Lancer le débrief », « Terminer la série ». État dans `planning.live` (`day`, `series`, `round`, `phase`, `started_at`), route `POST /exams/:id/live`, lecture `GET /live`. Règles `liveClock`, `nextLiveStep`, `liveSeat` dans planning-shared.js (testées).
 - Bandeau `#live-clock` en haut des écrans (évaluateurs, accueil, bénévoles, projection, En direct) : relu toutes les 15 s, décompte à la seconde avec l'écart d'horloge du serveur, vibration à la fin d'un tour chez l'évaluateur. Quand un tour est lancé, « Dans ta salle en ce moment » suit le tour lancé et non l'horaire prévu (retards absorbés). Sans chrono lancé, tout suit le planning comme avant.
 
 ## Le déroulé dans l'espace de chacun
@@ -73,7 +74,7 @@ Pour repartir d'une base vide : arrêter le serveur, supprimer `.wrangler/state`
 ## Accueil, réserve et tableau de bord
 - Code d'accueil (onglet Accueil, `planning.accueil_code`) : donné à l'étudiant qui tient l'accueil, onglet « Accueil » de la page de connexion. Session `accueil` (subject_id = id de la session), valable la veille et pendant les jours de la session. Elle ne voit que l'émargement, les étiquettes et le brief des circuits de sa session (`/exams/:id/planning` sans e-mail, téléphone ni vœux ; `/checkin` et `/presence` limités à sa session). Un nouveau code déconnecte l'ancien.
 - Brief des circuits (`briefView` dans `public/js/accueil.js`, `#/brief` pour l'accueil, `#/admin/session/:id/brief` pour l'équipe) : par série, circuit et salle de départ de chacun, salle après la pause, consignes.
-- PS ou PSS de réserve : poste `reserve` dans `assignments` (`POSTS` de `src/benevoles.js`), au moins un par demi-journée dès qu'une station a un PS ou un PSS ; compté dans la couverture du planning des salles et signalé au tableau de bord.
+- PS ou PSS de réserve : poste `reserve` dans `assignments` (`POSTS` de `src/benevoles.js`), au moins un par demi-journée dès qu'une station a un PS ou un PSS ; compté dans la couverture du planning des salles et signalé au tableau de bord. De même, un poste `chrono` par demi-journée (un bénévole logistique, pas celui de l'accueil).
 - Tableau de bord (`src/dashboard.js`, `public/js/dashboard.js`) : premier onglet d'une session. Liste « À faire » calculée côté serveur (stations, créneaux, numéros, convocations, postes à pourvoir, réserve, accueil, code d'accueil, impressions, salles prêtes, réclamations, anonymisation), compteurs, et l'équipe de chaque demi-journée.
 - `PUT /exams/:id/planning` ne réécrit jamais `accueil_code`, `materiel_check` ni `materiel_common` (gérés par leurs propres routes).
 
@@ -82,17 +83,17 @@ Pour repartir d'une base vide : arrêter le serveur, supprimer `.wrangler/state`
 - Avis de l'équipe : dans l'espace bénévole dès la fin de sa première demi-journée (deux notes, « reviendrais-tu ? », un mot libre), gardé dans `volunteer_signups.prefs.feedback`. Résumé sans nom dans Analyse (`/exams/:id/team-feedback`). Merci automatique le lendemain de sa dernière demi-journée (`teamThanks` dans `src/mail.js`, tâche du soir, `mail_log` kind `merci_benevole`), avec ses grilles saisies, sa salle et son rôle.
 
 ## Matériel et impressions
-- Onglet Matériel d'une session (`public/js/materiel.js`) : en haut « À imprimer » (étiquettes, vignettes, fiches codes, grilles papier de secours, documents, planning, signalétique, attestations, avec les quantités), puis le matériel commun (liste proposée par zone, modifiable, gardée dans `planning.materiel_common`), puis le matériel des stations. Cases à cocher dans `planning.materiel_check` (clés `print|…`, `commun|…`, `<salle>|<article>`).
+- Onglet Matériel d'une session (`public/js/materiel.js`) : en haut « À imprimer » (étiquettes, vignettes, fiches codes, grilles papier de secours, documents, planning, signalétique, avec les quantités), puis le matériel commun (liste proposée par zone, modifiable, gardée dans `planning.materiel_common`), puis le matériel des stations. Cases à cocher dans `planning.materiel_check` (clés `print|…`, `commun|…`, `<salle>|<article>`).
 - Pages d'impression : `#/admin/session/:id/imprimer-vignettes`, `-grilles`, `-documents`, `-signaletique` (`public/js/printables.js`).
 
 ## Bénévoles et évaluateurs
-- Une même table (`volunteers`, `volunteer_signups`) et deux liens publics : `#/benevole/:id` (externes : PS, PSS, logistique, évaluateur ; une demi-journée par jour) et `#/evaluateur/:id` (médecins et internes : disciplines préférées, attestation, journée entière possible). La piste est dans `volunteer_signups.prefs` (JSON, migration 0013) ; sans la colonne, l'inscription passe quand même.
+- Une même table (`volunteers`, `volunteer_signups`) et deux liens publics : `#/benevole/:id` (externes : PS, PSS, logistique, évaluateur ; une demi-journée par jour) et `#/evaluateur/:id` (médecins et internes : disciplines préférées, journée entière possible). Pas d'attestation pour l'instant (retirée du formulaire, du matériel et des réglages). La piste est dans `volunteer_signups.prefs` (JSON, migration 0013) ; sans la colonne, l'inscription passe quand même.
 - Les évaluateurs sont vouvoyés dans les e-mails et le formulaire ; les bénévoles tutoyés.
 
 ## Règles métier à ne pas casser
 - Grille : chaque item d'aptitude vaut 1 point (observé ou non, jamais de demi-point) ; la communication se note par quart de point (0, 0,25, 0,5, 0,75, 1). L'éditeur ne propose plus de choisir les points, le serveur les remet à 1 tant qu'aucune grille n'est saisie.
 - Pas de calibration par station : tout est expliqué au briefing, une heure avant la première série (textes des formulaires et e-mails). La vue de calibration reste dans le code mais n'est plus proposée.
-- Note d'une station = (points des aptitudes + communication) ÷ maximum × 20. La performance globale ne compte pas. En binôme, moyenne des grilles. Rang provisoire entre candidats complets, ex aequo au même rang.
+- Note d'une station = (points des aptitudes + communication) ÷ maximum × 20. La performance globale ne compte pas. En binôme, moyenne des grilles ; l'étudiant voit « ½ » pour un item coché par un seul des deux évaluateurs, avec la légende au-dessus des items. Rang provisoire entre candidats complets, ex aequo au même rang.
 - Rotation ECOS : places 1 à 5 sur le circuit A, 6 à 10 sur le B, changement de circuit à la pause (`rotationFor`). Tours de 10 min, pause de 10 min après 5 tours, débrief de 30 min.
 - Vœux : idéal, possible, impossible ; au moins 6 possibles, au plus 3 idéaux. Attribution par flot de coût minimal, tirage reproductible.
 - Journées procédure : créneaux à 9 h et 14 h, ateliers de 20 min et 5 min de transition, autant de groupes que d'ateliers, le groupe g commence à l'atelier g.

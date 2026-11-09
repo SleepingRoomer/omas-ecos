@@ -473,7 +473,7 @@ export async function participantView(app) {
       <div><div class="rank">${p.group ? `G${p.group}` : '…'}</div><div class="of">${p.group ? 'ton groupe' : 'groupe bientôt attribué'}</div></div>
       <div class="side"><div><div class="v">${frDate(R.slot.day)}</div><div class="l">jour de passage</div></div>
         <div><div class="v">${hm(R.slot.convocation)}</div><div class="l">convocation, début à ${hm(R.slot.start_time)}</div></div></div></div>`
-      : '<div class="panel"><p>Ton créneau n\'est pas encore fixé. Tu le verras ici dès que l\'équipe l\'aura attribué.</p></div>'}
+      : '<div class="panel"><p>Ton créneau n\'est pas encore fixé. Tu le verras ici dès que les organisateurs l\'auront attribué.</p></div>'}
     ${R.parcours ? `<h2>Ton parcours</h2>
       <p class="small muted">Chaque atelier dure ${R.jp.atelier_minutes} minutes. Entre deux ateliers, tu as quelques minutes pour changer de salle.</p>
       ${R.parcours.map((t) => `<div class="st-res" style="margin:8px 0"><div style="display:grid;grid-template-columns:90px auto minmax(0,1fr);gap:14px;align-items:center;padding:12px 14px">

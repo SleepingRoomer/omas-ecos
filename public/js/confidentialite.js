@@ -17,7 +17,7 @@ export async function privacyView(app) {
       <tr><td><strong>Étudiants</strong></td><td>Nom, prénom, e-mail, téléphone, faculté, année, tarif, préparation, créneau et vœux, présence le jour J, grilles d'évaluation et notes, réclamations</td>
         <td>Organiser la session (convocation, rappel, échanges de créneau, liste d'attente), noter les stations, te donner tes résultats, ton plan de révision et ta progression d'une session à l'autre</td></tr>
       <tr><td><strong>Évaluateurs et bénévoles</strong></td><td>Nom, prénom, e-mail, téléphone, statut, spécialité, disponibilités, disciplines préférées, affectations, calibration, grilles saisies</td>
-        <td>Construire le planning des salles, te rappeler ta venue, te remettre une attestation, te recontacter pour les sessions suivantes</td></tr>
+        <td>Construire le planning des salles, te rappeler ta venue, te recontacter pour les sessions suivantes</td></tr>
       <tr><td><strong>Rédacteurs et relecteurs</strong></td><td>Nom, e-mail, spécialité, stations suivies</td><td>Le circuit de rédaction et ses relances</td></tr>
     </tbody></table></div>
     <p class="small muted">La base légale est l'exécution de ton inscription (contrat) et, pour les recontacts et les statistiques, l'intérêt légitime de l'association. Aucune donnée n'est vendue ni utilisée pour de la publicité. Aucune donnée de santé n'est demandée, en dehors d'un éventuel besoin d'accès aux salles que tu choisis de signaler.</p>
@@ -32,7 +32,7 @@ export async function privacyView(app) {
     </ul>
 
     <h2>Où sont les données</h2>
-    <p>Chez Cloudflare (hébergement et base de données) et Brevo (envoi des e-mails, entreprise française). Seule l'équipe d'organisation a accès à l'espace d'administration, chacun avec son propre code, et les actions sensibles (exports, suppressions, anonymisations) sont journalisées.</p>
+    <p>Chez Cloudflare (hébergement et base de données) et Brevo (envoi des e-mails, entreprise française). Seuls les organisateurs ont accès à l'espace d'administration, chacun avec son propre code, et les actions sensibles (exports, suppressions, anonymisations) sont journalisées.</p>
 
     <h2>Tes droits</h2>
     <p>Tu peux demander à consulter, corriger ou effacer tes données, ou t'opposer à ce qu'on te recontacte, en écrivant à ${contact}. On te répond dans le mois. Si la réponse ne te convient pas, tu peux saisir la CNIL (cnil.fr).</p>

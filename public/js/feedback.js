@@ -16,14 +16,14 @@ export async function feedbackPanel(box) {
 
   const draw = () => {
     if (!editing) {
-      box.innerHTML = `<div class="panel fb-done"><strong>Merci pour ton avis !</strong> Il aide l'équipe à améliorer les prochaines sessions.
+      box.innerHTML = `<div class="panel fb-done"><strong>Merci pour ton avis !</strong> Il aide les organisateurs à améliorer les prochaines sessions.
         <button class="small quiet" id="fb-edit">Modifier</button></div>`;
       box.querySelector('#fb-edit').addEventListener('click', () => { editing = true; draw(); });
       return;
     }
     box.innerHTML = `<h2>Ton avis compte</h2>
       <div class="panel fb">
-        <p class="small muted" style="margin-top:0">Deux minutes, anonymes pour l'équipe : tes réponses ne sont jamais affichées avec ton nom.</p>
+        <p class="small muted" style="margin-top:0">Deux minutes, anonymes pour les organisateurs : tes réponses ne sont jamais affichées avec ton nom.</p>
         ${stars('global', draft.global, 'Dans l\'ensemble, ces ECOS blancs t\'ont été utiles')}
         ${stars('organisation', draft.organisation, 'Accueil, horaires, organisation')}
         <h3>La clarté de chaque station</h3>
@@ -33,7 +33,7 @@ export async function feedbackPanel(box) {
         <h3>Conseillerais-tu ces ECOS blancs à un ami ?</h3>
         <div class="fb-nps" role="radiogroup" aria-label="De 0 à 10">${Array.from({ length: 11 }, (_, v) => `<button type="button" class="${draft.recommend === v ? 'on' : ''}" data-r="${v}">${v}</button>`).join('')}</div>
         <div class="fb-scale small muted"><span>Pas du tout</span><span>Les yeux fermés</span></div>
-        <label for="fb-c">Un mot pour l'équipe</label>
+        <label for="fb-c">Un mot pour les organisateurs</label>
         <textarea id="fb-c" rows="3" placeholder="Ce qui t'a plu, ce qu'on peut améliorer">${esc(draft.comment || '')}</textarea>
         <button class="primary" id="fb-send" style="margin-top:12px">Envoyer mon avis</button>
       </div>`;

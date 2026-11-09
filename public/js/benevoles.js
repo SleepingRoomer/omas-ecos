@@ -30,7 +30,7 @@ export async function publicSignup(app, examId) {
       <fieldset><legend>Tes disponibilités <span class="hint">(une demi-journée par jour au plus)</span></legend>
         <div class="vol-days">${Object.entries(byDay).map(([d, hs]) => `<div class="vol-day"><strong>${esc(longDate(d))}</strong>
           <div class="seg small">${hs.map((h) => `<label class="pick"><input type="checkbox" name="halfdays" value="${h.key}" data-day="${d}"><span>${HALF[h.half]}</span></label>`).join('')}</div></div>`).join('')}</div></fieldset>
-      <label for="v-no">Un mot pour l'équipe <span class="hint">(facultatif)</span></label><input id="v-no" name="note" placeholder="Je viens avec une amie, je préfère la cardio…">
+      <label for="v-no">Un mot pour les organisateurs <span class="hint">(facultatif)</span></label><input id="v-no" name="note" placeholder="Je viens avec une amie, je préfère la cardio…">
       <p class="small muted">Tes coordonnées servent uniquement à organiser les ECOS blancs de l'OMAS et à te recontacter pour les prochaines sessions. <a href="#/confidentialite" target="_blank">En savoir plus</a>.</p>
       <button class="primary" style="margin-top:6px">Je m'inscris</button>
     </form><div id="vf-out"></div></div>`;
@@ -68,7 +68,7 @@ export async function publicEvaluatorSignup(app, examId) {
       <div class="ev-steps">
         <div><b>Avant</b><span>Rien à préparer : vous recevez votre code personnel et votre planning. La station, sa vignette et sa grille vous sont présentées au briefing.</span></div>
         <div><b>Le jour J</b><span>Briefing une heure avant la première série, puis vous notez chaque candidat sur votre téléphone : grille d'items, communication, un mot de retour. ${E.per_room > 1 ? `Vous êtes ${E.per_room} par salle.` : ''}</span></div>
-        <div><b>Après</b><span>Un débrief de trente minutes avec les candidats de la série, et une attestation de participation si vous la souhaitez.</span></div>
+        <div><b>Après</b><span>Un débrief de trente minutes avec les candidats de la série.</span></div>
       </div>
     </div>
     <form id="ef" class="panel">
@@ -85,8 +85,7 @@ export async function publicEvaluatorSignup(app, examId) {
         <div class="vol-days">${days.map((d) => `<div class="vol-day"><strong>${esc(longDate(d))}</strong>
           <div class="seg small">${byDay[d].map((h) => `<label class="pick"><input type="checkbox" name="halfdays" value="${h.key}"><span>${HALF[h.half]}</span></label>`).join('')}</div></div>`).join('')}</div></fieldset>
       <label class="check" style="margin-top:12px"><input type="checkbox" name="first_time"><span>C'est ma première fois comme évaluateur aux ECOS blancs</span></label>
-      <label class="check"><input type="checkbox" name="attestation" checked><span>Je souhaite une attestation de participation</span></label>
-      <label for="e-no">Un mot pour l'équipe <span class="hint">(facultatif)</span></label><input id="e-no" name="note" placeholder="Je viens avec un collègue, je dois partir à 17 h…">
+      <label for="e-no">Un mot pour les organisateurs <span class="hint">(facultatif)</span></label><input id="e-no" name="note" placeholder="Je viens avec un collègue, je dois partir à 17 h…">
       <p class="small muted">Vos coordonnées servent uniquement à organiser les ECOS blancs d'OMAS Externat et à vous recontacter pour les prochaines sessions. <a href="#/confidentialite" target="_blank">En savoir plus</a>.</p>
       <button class="primary" style="margin-top:6px">Je m'inscris comme évaluateur</button>
     </form><div id="ef-out"></div></div>`;
@@ -94,7 +93,7 @@ export async function publicEvaluatorSignup(app, examId) {
     e.preventDefault();
     const fd = new FormData(e.target);
     const body = Object.fromEntries(fd); body.halfdays = fd.getAll('halfdays'); body.disciplines = fd.getAll('disciplines');
-    body.first_time = fd.has('first_time'); body.attestation = fd.has('attestation');
+    body.first_time = fd.has('first_time');
     try {
       const r = await api(`/public/exams/${examId}/evaluateurs`, { method: 'POST', body });
       app.querySelector('#ef').remove();
@@ -111,6 +110,7 @@ export async function volunteerSpace(app) {
   const isEval = M.me.prefs?.track === 'evaluateur';
   setTitle(isEval ? 'Mon espace évaluateur' : 'Mon espace bénévole');
   const now = M.assignments.find((a) => a.now && a.role === 'evaluateur' && a.station_id);
+  const chrono = M.assignments.find((a) => a.role === 'chrono' && a.day === new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Paris' }));
   const todo = M.calibrations.filter((k) => k.agreement === null || k.agreement === undefined);
   app.innerHTML = `
     <h1>Bonjour ${esc(M.me.first_name)}</h1>
@@ -119,16 +119,19 @@ export async function volunteerSpace(app) {
         <div class="small muted">${esc(now.title || '')}</div></div>
       <button class="primary" id="enter" ${M.exam.eval_open ? '' : 'disabled'}>Ouvrir ma salle</button></div>
       ${M.exam.eval_open ? '' : `<p class="small muted" style="margin:8px 0 0">La saisie ouvre d'elle-même une heure avant la première convocation${M.exam.opens_at ? `, le ${esc(new Date(M.exam.opens_at).toLocaleString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Paris' }))}` : ''}.</p>`}</div>` : ''}
+    ${chrono ? `<div class="panel vol-now"><div class="row between"><div><strong>Tu tiens le chrono aujourd'hui</strong>
+        <div class="small muted">Un bouton par étape : tour, pause, débrief. Tous les écrans suivent ton chrono.</div></div>
+      <a class="btn primary" href="#/chrono">Ouvrir le chrono</a></div></div>` : ''}
     <h2>Mon planning</h2>
     ${M.assignments.length ? `<div class="vol-plan">${M.assignments.map((a) => `<div class="vol-slot ${a.now ? 'now' : ''}">
         <div class="small muted">${esc(longDate(a.day))}</div><strong>${HALF[a.half]}${a.times ? `, convocation ${esc(a.times.from)}` : ''}</strong>
         <div class="row" style="margin-top:6px">${a.slot ? plate(a.slot) : ''}<span>${esc(M.roles[a.role])}${a.slot ? `, salle ${esc(a.slot)}` : ''}</span></div>
-        ${a.title && a.role !== 'logistique' ? `<div class="small muted">${esc(a.title)}</div>` : ''}${a.role === 'reserve' ? '<div class="small muted">Tu restes près de la table de l\'équipe : si un PS ou un PSS manque, tu prends sa place. Le script de la station t\'est donné sur place.</div>' : ''}</div>`).join('')}</div>`
-    : `<p class="panel">L'équipe prépare le planning. Tu as proposé : ${M.me.halfdays.map((k) => esc(hdLabel(k))).join(', ') || 'aucune demi-journée'}.</p>`}
+        ${a.title && a.role !== 'logistique' ? `<div class="small muted">${esc(a.title)}</div>` : ''}${a.role === 'chrono' ? '<div class="small muted">Tu lances chaque tour depuis ton téléphone, le jour J (« Ouvrir le chrono »). L\'accueil s\'occupe de l\'émargement.</div>' : ''}${a.role === 'reserve' ? '<div class="small muted">Tu restes près de la table des organisateurs : si un PS ou un PSS manque, tu prends sa place. Le script de la station t\'est donné sur place.</div>' : ''}</div>`).join('')}</div>`
+    : `<p class="panel">Les organisateurs préparent le planning. Tu as proposé : ${M.me.halfdays.map((k) => esc(hdLabel(k))).join(', ') || 'aucune demi-journée'}.</p>`}
     ${M.feedback_open ? `<div id="vol-fb"></div>` : ''}
     <div id="vol-guide"></div>
     ${M.calibrations.length ? `<h2>Calibration</h2>
-      <p class="small muted">Avant la session, note un passage de référence avec la grille de ta station. Tu vois ensuite où tu t'écartes de la correction de l'équipe : c'est ce qui rend les notes comparables d'une salle à l'autre.</p>
+      <p class="small muted">Avant la session, note un passage de référence avec la grille de ta station. Tu vois ensuite où tu t'écartes de la correction des organisateurs : c'est ce qui rend les notes comparables d'une salle à l'autre.</p>
       <div class="vol-plan">${M.calibrations.map((k) => `<a class="vol-slot link" href="#/calibration/${k.station_id}">
         <div class="row">${plate(k.slot)}<strong>Salle ${esc(k.slot)}</strong></div>
         ${k.agreement === null || k.agreement === undefined ? '<span class="pill warn">À faire</span>'
@@ -143,7 +146,7 @@ export async function volunteerSpace(app) {
   if (fbBox) teamFeedbackForm(fbBox, M.feedback, isEval);
   // le déroulé et les questions, selon ce que la personne fait (rôles cochés et postes du planning)
   const posts = new Set([...M.me.roles, ...M.assignments.map((a) => a.role)]);
-  const profiles = [isEval || posts.has('evaluateur') ? 'evaluateur' : null, posts.has('ps') || posts.has('pss') || posts.has('reserve') ? 'ps' : null, posts.has('logistique') ? 'benevole' : null].filter(Boolean);
+  const profiles = [isEval || posts.has('evaluateur') ? 'evaluateur' : null, posts.has('ps') || posts.has('pss') || posts.has('reserve') ? 'ps' : null, posts.has('logistique') || posts.has('chrono') ? 'benevole' : null].filter(Boolean);
   import('./guide.js').then((G) => G.guideSection(app.querySelector('#vol-guide'), profiles.length ? profiles : ['benevole'], { open: !M.feedback_open })).catch(() => {});
 }
 
@@ -157,13 +160,13 @@ function teamFeedbackForm(box, saved, isEval) {
   const draw = () => {
     if (!editing) {
       box.innerHTML = `<div class="panel fb-done"><h2 style="margin-top:0">Merci pour ${v ? 'votre' : 'ton'} avis</h2>
-        <p class="small muted">Il est lu par l'équipe et sert à préparer la prochaine session.</p>
+        <p class="small muted">Il est lu par les organisateurs et sert à préparer la prochaine session.</p>
         <button class="small quiet" id="fb-edit">Modifier mon avis</button></div>`;
       box.querySelector('#fb-edit').addEventListener('click', () => { editing = true; draw(); });
       return;
     }
     box.innerHTML = `<div class="panel"><h2 style="margin-top:0">${v ? 'Votre avis' : 'Ton avis'} sur la journée</h2>
-      <p class="small muted">Deux minutes, lues par l'équipe pour préparer la prochaine session.</p>
+      <p class="small muted">Deux minutes, lues par les organisateurs pour préparer la prochaine session.</p>
       ${stars('orga', 'L\'organisation de la journée')}
       ${stars('briefing', v ? 'Le briefing vous a suffi pour noter' : 'Le briefing t\'a suffi pour ton rôle')}
       <div class="fb-q"><span>${v ? 'Reviendriez-vous ?' : 'Tu reviendrais ?'}</span><div class="row" style="gap:6px">${[['oui', 'Oui'], ['peut-etre', 'Peut-être'], ['non', 'Non']].map(([k, l]) =>
@@ -203,7 +206,7 @@ export async function calibrationView(app, stationId, kind) {
     app.innerHTML = `
       <a class="back" href="${back}">Retour</a>
       <div class="row">${plate(D.station.slot, 'lg')}<div><h1 style="margin:0">Calibration</h1><div class="muted">${esc(D.station.title || '')}</div></div></div>
-      ${admin ? `<p class="small muted">Décris un passage type (ou mets le lien d'une vidéo), puis coche la grille comme l'équipe la corrigerait : c'est la référence à laquelle chaque évaluateur se compare.</p>
+      ${admin ? `<p class="small muted">Décris un passage type (ou mets le lien d'une vidéo), puis coche la grille comme les organisateurs la corrigeraient : c'est la référence à laquelle chaque évaluateur se compare.</p>
         <label for="k-sc">Le passage à noter</label><textarea id="k-sc" rows="8" placeholder="Le candidat entre, se présente, ne vérifie pas l'identité…">${esc(scenario)}</textarea>
         <label for="k-vi">Vidéo <span class="hint">(lien https, facultatif)</span></label><input id="k-vi" value="${esc(video)}" placeholder="https://…">`
       : !D.calibration ? '<p class="panel">Pas encore de passage de référence pour cette station.</p>'
@@ -212,7 +215,7 @@ export async function calibrationView(app, stationId, kind) {
         <div class="panel"><h3 style="margin-top:0">Le passage</h3><p style="white-space:pre-wrap">${esc(D.calibration.scenario || '')}</p>
           ${D.calibration.video_url ? `<p><a href="${esc(D.calibration.video_url)}" target="_blank" rel="noopener noreferrer">Voir la vidéo</a></p>` : ''}</div>
         ${result ? `<div class="alert ${result.agreement >= 0.85 ? 'ok' : 'warn'}"><strong>Accord avec la référence : ${pct(result.agreement)}</strong>.
-          Ta note ${fmt(result.score, 1)}, celle de l'équipe ${fmt(result.ref_score, 1)}. Les items surlignés sont ceux où tu t'écartes : relis-les avant le jour J.</div>` : ''}`}
+          Ta note ${fmt(result.score, 1)}, celle des organisateurs ${fmt(result.ref_score, 1)}. Les items surlignés sont ceux où tu t'écartes : relis-les avant le jour J.</div>` : ''}`}
       ${admin || D.calibration ? `<h2>Aptitudes cliniques et techniques</h2>
       ${apt.map((i, k) => { const a = ans.apt[i.id] || {}; const d = diff(i.id); return `<div class="q ${d === 'off' ? 'calib-off' : ''}">
         <div class="label"><b>${k + 1}</b><span style="flex:1">${esc(i.label)}</span><span class="pts">${i.points || 1} pt</span></div>
@@ -259,16 +262,17 @@ export async function benevolesTab(box, exam) {
   let hd = D.halfdays[0]?.key || null;
   // affectations en cours d'édition, par demi-journée
   const plan = {};
-  for (const h of D.halfdays) plan[h.key] = { rooms: {}, logistique: [], reserve: [] };
+  for (const h of D.halfdays) plan[h.key] = { rooms: {}, logistique: [], reserve: [], chrono: [] };
   for (const a of D.assignments) {
     const p = plan[`${a.day}|${a.half}`]; if (!p) continue;
     if (a.role === 'reserve') p.reserve.push(a.signup_id);
+    else if (a.role === 'chrono') p.chrono.push(a.signup_id);
     else if (a.role === 'logistique' || !a.station_id) p.logistique.push(a.signup_id);
     else (p.rooms[a.station_id] ||= []).push({ role: a.role, signup_id: a.signup_id });
   }
   const sById = Object.fromEntries(D.signups.map((s) => [s.id, s]));
   const avail = (k) => D.signups.filter((s) => s.halfdays.includes(k));
-  const used = (k) => { const p = plan[k]; return new Set([...Object.values(p.rooms).flat().map((x) => x.signup_id), ...p.logistique, ...p.reserve]); };
+  const used = (k) => { const p = plan[k]; return new Set([...Object.values(p.rooms).flat().map((x) => x.signup_id), ...p.logistique, ...p.reserve, ...p.chrono]); };
   // au moins un PS ou PSS de réserve par demi-journée dès qu'une station en demande un
   const needReserve = D.stations.some((st) => st.type === 'PS' || st.type === 'PSS');
   const canReserve = (s) => s.roles.includes('ps') || s.roles.includes('pss');
@@ -276,6 +280,8 @@ export async function benevolesTab(box, exam) {
     let need = 0; let got = 0;
     for (const st of D.stations) for (const [i, n] of needs(st, D.per_room).entries()) { need++; if (slotOf(k, st.id, n.role, i)) got++; }
     if (needReserve) { need++; if (plan[k].reserve.length) got++; }
+    // un bénévole dédié au chrono, distinct de l'accueil
+    need++; if (plan[k].chrono.length) got++;
     return { need, got };
   };
   const slotOf = (k, stId, role, i) => (plan[k].rooms[stId] || []).filter((x) => x.role === role)[role === 'evaluateur' ? i : 0]?.signup_id || null;
@@ -310,13 +316,18 @@ export async function benevolesTab(box, exam) {
       const r = pool.filter(canReserve).sort((a, b) => (b.roles.includes('ps') && b.roles.includes('pss')) - (a.roles.includes('ps') && a.roles.includes('pss')))[0];
       if (r) { p.reserve.push(r.id); pool.splice(pool.indexOf(r), 1); }
     }
+    if (!p.chrono.length) {
+      const c = pool.filter((x) => x.roles.includes('logistique')).sort((a, b) => (D.assignments.some((x) => x.signup_id === b.id && x.role === 'chrono') - D.assignments.some((x) => x.signup_id === a.id && x.role === 'chrono')) || a.roles.length - b.roles.length)[0];
+      if (c) { p.chrono.push(c.id); pool.splice(pool.indexOf(c), 1); }
+    }
     for (const s of pool.filter((x) => x.roles.includes('logistique'))) p.logistique.push(s.id);
   };
   const itemsOf = (k) => {
     const [day, half] = k.split('|');
     return [...Object.entries(plan[k].rooms).flatMap(([stId, l]) => l.map((x) => ({ signup_id: x.signup_id, role: x.role, station_id: Number(stId), day, half }))),
       ...plan[k].logistique.map((sid) => ({ signup_id: sid, role: 'logistique', station_id: null, day, half })),
-      ...plan[k].reserve.map((sid) => ({ signup_id: sid, role: 'reserve', station_id: null, day, half }))];
+      ...plan[k].reserve.map((sid) => ({ signup_id: sid, role: 'reserve', station_id: null, day, half })),
+      ...plan[k].chrono.map((sid) => ({ signup_id: sid, role: 'chrono', station_id: null, day, half }))];
   };
   const save = async (k) => {
     const [day, half] = k.split('|');
@@ -345,12 +356,12 @@ export async function benevolesTab(box, exam) {
       <h2>Inscrits <span class="muted">(${D.signups.length}, dont ${D.signups.filter((s) => s.prefs?.track === 'evaluateur').length} par le lien évaluateurs)</span></h2>
       ${D.signups.length ? `<div class="table-wrap"><table><thead><tr><th>Personne</th><th>Rôles</th>${D.halfdays.map((h) => `<th class="num small">${esc(frDate(h.day))}<br>${HALF[h.half]}</th>`).join('')}<th></th></tr></thead><tbody>
         ${D.signups.map((s) => `<tr data-s="${s.id}"><td><strong>${esc(s.last_name)}</strong> ${esc(s.first_name)}${s.prefs?.track === 'evaluateur' ? ' <span class="pill ink" style="font-size:.7rem">Évaluateur</span>' : ''}${s.prefs?.first_time ? ' <span class="pill" style="font-size:.7rem">1re fois</span>' : ''}
-            <div class="small muted">${esc(s.status || '')}${s.specialty ? `, ${esc(s.specialty)}` : ''}${s.prefs?.disciplines?.length ? `<br>★ ${s.prefs.disciplines.map(esc).join(', ')}` : ''}${s.prefs?.track === 'evaluateur' && !s.prefs.attestation ? '<br>Sans attestation' : ''}</div>
+            <div class="small muted">${esc(s.status || '')}${s.specialty ? `, ${esc(s.specialty)}` : ''}${s.prefs?.disciplines?.length ? `<br>★ ${s.prefs.disciplines.map(esc).join(', ')}` : ''}</div>
             <div class="small muted">${esc(s.email)}${s.phone ? `, ${esc(s.phone)}` : ''}</div>${s.note ? `<div class="small">${esc(s.note)}</div>` : ''}</td>
           <td class="small">${s.roles.map((r) => esc(D.roles[r])).join('<br>')}</td>
           ${D.halfdays.map((h) => { const a = D.assignments.find((x) => x.signup_id === s.id && `${x.day}|${x.half}` === h.key);
             const st = a?.station_id && D.stations.find((x) => x.id === a.station_id);
-            return `<td class="num small">${a ? `<strong>${st ? esc(st.slot) : a.role === 'reserve' ? 'Rés.' : 'Log.'}</strong>` : s.halfdays.includes(h.key) ? '<span class="muted">dispo</span>' : ''}</td>`; }).join('')}
+            return `<td class="num small">${a ? `<strong>${st ? esc(st.slot) : a.role === 'reserve' ? 'Rés.' : a.role === 'chrono' ? 'Chrono' : 'Log.'}</strong>` : s.halfdays.includes(h.key) ? '<span class="muted">dispo</span>' : ''}</td>`; }).join('')}
           <td><div class="row" style="flex-wrap:nowrap;gap:4px"><button class="small quiet" data-copy="${esc(s.code)}" title="Copier son lien personnel">Lien</button><button class="small quiet" data-del>Retirer</button></div></td></tr>`).join('')}
       </tbody></table></div><button class="small" id="b-csv" style="margin-top:8px">Exporter en CSV</button>` : `<p class="panel">Personne pour l'instant. Ouvre les inscriptions et partage le lien.</p>`}
 
@@ -368,6 +379,9 @@ export async function benevolesTab(box, exam) {
         ${needReserve ? `<tr><td><strong>PS / PSS de réserve</strong><div class="small muted">Au moins un par demi-journée, pour remplacer un absent</div></td><td colspan="2">${A.filter((s) => canReserve(s) && (!U.has(s.id) || plan[hd].reserve.includes(s.id)))
           .map((s) => `<label class="check" style="display:inline-flex;margin:0 12px 0 0"><input type="checkbox" data-res="${s.id}" ${plan[hd].reserve.includes(s.id) ? 'checked' : ''}><span>${esc(s.first_name)} ${esc(s.last_name)} <span class="muted small">(${s.roles.filter((r) => r === 'ps' || r === 'pss').map((r) => r.toUpperCase()).join(', ')})</span></span></label>`).join('') || '<span class="small" style="color:var(--danger,#b42318)">Personne de disponible : il manque un PS ou PSS de réserve.</span>'}
           ${!plan[hd].reserve.length && A.some((s) => canReserve(s) && !U.has(s.id)) ? '<div class="small" style="color:#b9770e;margin-top:4px">Coche au moins une personne.</div>' : ''}</td></tr>` : ''}
+        <tr><td><strong>Chrono de la série</strong><div class="small muted">Lance chaque tour depuis son téléphone. Pas la même personne que l'accueil.</div></td><td colspan="2">
+          <select id="b-chrono" aria-label="Chrono de la série"><option value="">À choisir</option>${A.filter((s) => s.roles.includes('logistique') && (!U.has(s.id) || plan[hd].chrono.includes(s.id)))
+            .map((s) => `<option value="${s.id}" ${plan[hd].chrono.includes(s.id) ? 'selected' : ''}>${esc(s.first_name)} ${esc(s.last_name)}</option>`).join('')}</select></td></tr>
         <tr><td><strong>Accueil et logistique</strong></td><td colspan="2">${A.filter((s) => s.roles.includes('logistique') && (!U.has(s.id) || plan[hd].logistique.includes(s.id)))
           .map((s) => `<label class="check" style="display:inline-flex;margin:0 12px 0 0"><input type="checkbox" data-log="${s.id}" ${plan[hd].logistique.includes(s.id) ? 'checked' : ''}><span>${esc(s.first_name)} ${esc(s.last_name)}</span></label>`).join('') || '<span class="small muted">Personne de disponible pour ce rôle.</span>'}</td></tr>
       </tbody></table></div>
@@ -388,9 +402,9 @@ export async function benevolesTab(box, exam) {
       await api(`/signups/${s.id}`, { method: 'DELETE' }); benevolesTab(box, exam);
     }));
     box.querySelector('#b-csv')?.addEventListener('click', () => {
-      const rows = [['Nom', 'Prénom', 'E-mail', 'Téléphone', 'Statut', 'Spécialité', 'Inscrit par', 'Disciplines préférées', 'Attestation', 'Rôles', 'Disponibilités', 'Affectations', 'Code']];
-      for (const s of D.signups) rows.push([s.last_name, s.first_name, s.email, s.phone, s.status, s.specialty, s.prefs?.track === 'evaluateur' ? 'lien évaluateurs' : 'lien bénévoles', (s.prefs?.disciplines || []).join(', '), s.prefs?.track === 'evaluateur' ? (s.prefs.attestation ? 'oui' : 'non') : '', s.roles.map((r) => D.roles[r]).join(', '), s.halfdays.map(hdLabel).join(', '),
-        D.assignments.filter((a) => a.signup_id === s.id).map((a) => `${hdLabel(`${a.day}|${a.half}`)} ${D.stations.find((x) => x.id === a.station_id)?.slot || (a.role === 'reserve' ? 'réserve PS/PSS' : 'logistique')}`).join(', '), s.code]);
+      const rows = [['Nom', 'Prénom', 'E-mail', 'Téléphone', 'Statut', 'Spécialité', 'Inscrit par', 'Disciplines préférées', 'Rôles', 'Disponibilités', 'Affectations', 'Code']];
+      for (const s of D.signups) rows.push([s.last_name, s.first_name, s.email, s.phone, s.status, s.specialty, s.prefs?.track === 'evaluateur' ? 'lien évaluateurs' : 'lien bénévoles', (s.prefs?.disciplines || []).join(', '), s.roles.map((r) => D.roles[r]).join(', '), s.halfdays.map(hdLabel).join(', '),
+        D.assignments.filter((a) => a.signup_id === s.id).map((a) => `${hdLabel(`${a.day}|${a.half}`)} ${D.stations.find((x) => x.id === a.station_id)?.slot || (a.role === 'reserve' ? 'réserve PS/PSS' : a.role === 'chrono' ? 'chrono' : 'logistique')}`).join(', '), s.code]);
       const blob = new Blob([`﻿${rows.map((r) => r.map(csvCell).join(';')).join('\n')}`], { type: 'text/csv' });
       const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `benevoles-${exam.id}.csv`; a.click();
     });
@@ -402,12 +416,13 @@ export async function benevolesTab(box, exam) {
       const id = Number(cb.dataset.res); const L = plan[hd].reserve;
       plan[hd].reserve = cb.checked ? [...L, id] : L.filter((x) => x !== id); draw();
     }));
+    box.querySelector('#b-chrono')?.addEventListener('change', (e) => { plan[hd].chrono = e.target.value ? [Number(e.target.value)] : []; draw(); });
     box.querySelectorAll('[data-log]').forEach((cb) => cb.addEventListener('change', () => {
       const id = Number(cb.dataset.log); const L = plan[hd].logistique;
       plan[hd].logistique = cb.checked ? [...L, id] : L.filter((x) => x !== id); draw();
     }));
     box.querySelector('#b-auto')?.addEventListener('click', () => { auto(hd); draw(); toast('Postes complétés. Vérifie, puis enregistre.'); });
-    box.querySelector('#b-clear')?.addEventListener('click', () => { plan[hd] = { rooms: {}, logistique: [], reserve: [] }; draw(); });
+    box.querySelector('#b-clear')?.addEventListener('click', () => { plan[hd] = { rooms: {}, logistique: [], reserve: [], chrono: [] }; draw(); });
     box.querySelector('#b-save')?.addEventListener('click', async () => {
       try {
         await save(hd);

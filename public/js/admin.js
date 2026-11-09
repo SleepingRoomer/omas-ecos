@@ -118,7 +118,6 @@ export async function examView(app, id, tab) {
   if (tab === 'brief') return (await import('./accueil.js')).briefView(app, exam);
   if (tab === 'conduite') return (await import('./conduite.js')).conduiteView(app, exam);
   if (tab.startsWith('imprimer-')) return (await import('./printables.js')).printView(app, exam, tab.slice(9));
-  if (tab === 'attestations') return (await import('./certificates.js')).certificatesView(app, exam);
   if (tab === 'projection') return (await import('./projection.js')).projectionView(app, exam);
   if (tab === 'planning-imprimer') return (await import('./planning.js')).planningPrint(app, exam);
   setTitle(exam.name);
@@ -166,7 +165,7 @@ async function stationsTab(box, exam) {
     </div>
     <details class="panel" ${Object.keys(DL).length ? '' : 'open'}><summary style="cursor:pointer"><strong>Échéances du circuit de rédaction</strong>
       <span class="small muted">${Object.keys(DL).length ? `${Object.keys(DL).length} étape(s) datée(s)` : 'aucune date pour l\'instant'}</span></summary>
-      <p class="small muted">Une date limite par étape, pour toutes les stations de la session. La personne qui reçoit une station est prévenue par e-mail avec la date ; chaque lundi, chacun reçoit la liste de ce qui l'attend (en retard ou à rendre dans la semaine), et l'équipe le tableau des retards à l'adresse de réponse des e-mails.</p>
+      <p class="small muted">Une date limite par étape, pour toutes les stations de la session. La personne qui reçoit une station est prévenue par e-mail avec la date ; chaque lundi, chacun reçoit la liste de ce qui l'attend (en retard ou à rendre dans la semaine), et les organisateurs le tableau des retards à l'adresse de réponse des e-mails.</p>
       <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px">${DEADLINE_STEPS.map((k) => `<div><label for="dl-${k}" style="margin-top:0">${esc(STATUSES[k])}</label><input type="date" id="dl-${k}" data-dl="${k}" value="${esc(DL[k] || '')}"></div>`).join('')}</div>
       <div class="row" style="margin-top:12px"><button class="small primary" id="dl-save">Enregistrer les échéances</button><button class="small quiet" id="dl-recap">Envoyer le récapitulatif maintenant</button></div></details>
     ${active.length ? '' : '<p class="alert warn">Ajoute d\'abord des rédacteurs et des relecteurs dans <a href="#/admin/personnes">Rédacteurs et relecteurs</a> pour attribuer les stations.</p>'}
@@ -550,8 +549,6 @@ async function settingsTab(box, exam) {
       <div class="row" style="margin-top:10px"><select id="ann-level" style="max-width:220px" aria-label="Ton du message"><option value="info">Information</option><option value="warn">Important</option></select>
         <button class="primary" id="ann-save">Publier le message</button></div></div>
     <h2>Après la session</h2>
-    <p><a class="btn" href="#/admin/session/${exam.id}/attestations" target="_blank">Attestations des évaluateurs</a>
-      <span class="small muted">Une page par évaluateur : grilles saisies, stations, jours. À imprimer ou à enregistrer en PDF.</span></p>
     ${flag('corrections_published', 'Corrections publiées', 'Les fiches pédagogiques deviennent visibles par les étudiants. À cocher après le dernier jour.')}
     <form id="f" class="panel">
       <h2>Informations</h2>
@@ -637,7 +634,7 @@ export async function peopleView(app) {
           <button class="small quiet" data-regen>Nouveau code</button>
           <button class="small quiet" data-active>${p.active ? 'Désactiver' : 'Réactiver'}</button>
           <button class="small danger" data-pdel>Supprimer</button></div></td></tr>`).join('')}</tbody>
-    </table></div>` : '<p class="alert info">Personne pour l\'instant. Ajoute l\'équipe ci-dessous.</p>'}
+    </table></div>` : '<p class="alert info">Personne pour l\'instant. Ajoute les rédacteurs et relecteurs ci-dessous.</p>'}
     <div class="panel"><h2>Ajouter des personnes</h2>
       <p class="small muted">Une personne par ligne : nom ; e-mail ; spécialité. L'e-mail et la spécialité sont facultatifs.</p>
       <textarea id="bulk" aria-label="Personnes à ajouter" placeholder="Yasmine Benali ; yasmine@exemple.fr ; Cardiologie"></textarea>

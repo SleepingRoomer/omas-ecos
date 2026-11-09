@@ -55,7 +55,7 @@ export async function sessionMails(box, exam) {
       <ul class="small"><li>noms, prénoms, e-mails, téléphones et codes d'accès des candidats (ils ne peuvent plus se connecter) ;</li>
         <li>noms des évaluateurs, remplacés par « Évaluateur 1, 2… » (les statistiques de binômes restent justes) ;</li>
         <li>commentaires libres des évaluateurs, demandes d'échange, liste d'attente, adresses du journal des e-mails.</li></ul>
-      <p class="small muted">Restent : numéros de passage, grilles et notes, rang, faculté et année, tarif, avis anonymes. Pense à télécharger les attestations des évaluateurs avant : elles ne pourront plus être nominatives. C'est définitif.</p>
+      <p class="small muted">Restent : numéros de passage, grilles et notes, rang, faculté et année, tarif, avis anonymes. C'est définitif.</p>
       <button class="danger" id="anon" ${exam.eval_open ? 'disabled title="Ferme d\'abord la saisie"' : ''}>Anonymiser…</button></div>`;
   const send = async (path, body, label) => {
     try {

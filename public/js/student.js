@@ -17,12 +17,12 @@ function claimBlock(R, s, opts) {
   if (k) {
     return `<div class="claim ${k.status}"><b>${opts.back ? 'Réclamation de l\'étudiant' : 'Ta réclamation'}</b> <span class="pill ${k.status === 'accepted' ? 'ok' : k.status === 'rejected' ? '' : 'warn'}">${esc(k.status_label)}</span>
       <p class="small" style="white-space:pre-wrap;margin:6px 0 0">${esc(k.message)}</p>
-      ${k.answer ? `<p class="small" style="margin:8px 0 0"><b>Réponse de l'équipe :</b> ${esc(k.answer)}</p>` : ''}</div>`;
+      ${k.answer ? `<p class="small" style="margin:8px 0 0"><b>Réponse des organisateurs :</b> ${esc(k.answer)}</p>` : ''}</div>`;
   }
   const W = R.claims_window;
   if (opts.back || !W?.open) return '';
   return `<details class="claim-ask"><summary class="small">Une erreur dans cette grille ? Demander une révision${W.until ? ` (jusqu'au ${esc(longWhen(W.until))})` : ''}</summary>
-    <p class="small muted">Dis précisément quel item te semble mal coché et pourquoi. L'équipe relit la grille avec l'évaluateur et te répond par e-mail. Une seule demande par station.</p>
+    <p class="small muted">Dis précisément quel item te semble mal coché et pourquoi. Les organisateurs relisent la grille avec l'évaluateur et te répondent par e-mail. Une seule demande par station.</p>
     <textarea data-claim="${s.station_id}" rows="4" maxlength="1500" placeholder="Item 4 « Recherche les signes de gravité » : j'ai demandé la tension et la fréquence respiratoire dès le début…"></textarea>
     <button class="small primary" data-claim-send="${s.station_id}">Envoyer ma demande</button></details>`;
 }
@@ -41,8 +41,8 @@ function render(R, opts = {}) {
         <div class="muted" style="margin-top:4px">${c.number ? `Candidat <span class="cand-no">${esc(c.number)}</span>, ` : ''}${esc(R.exam.name)}</div></div>
       <span class="live">Mis à jour à ${time(R.updated_at)}</span></div>`;
 
-  if (!S) return opts.compact ? `${head}<h2>Tes résultats</h2><p class="muted">Ils s'afficheront ici après ton passage, dès que l'équipe les ouvrira.</p>`
-    : `${head}<div class="panel"><p>Tes résultats s'afficheront ici dès que l'équipe les ouvrira.</p></div>`;
+  if (!S) return opts.compact ? `${head}<h2>Tes résultats</h2><p class="muted">Ils s'afficheront ici après ton passage, dès que les organisateurs les ouvriront.</p>`
+    : `${head}<div class="panel"><p>Tes résultats s'afficheront ici dès que les organisateurs les ouvriront.</p></div>`;
   if (opts.compact && !S.evaluated) return `${head}<h2>Tes résultats</h2><p class="muted">Ils s'afficheront ici station par station, au fil des grilles saisies le jour de ton passage.</p>`;
 
   const hero = S.rank
@@ -77,9 +77,9 @@ function render(R, opts = {}) {
               ${s.mean !== null ? `<div class="mean" style="left:${Math.max(0, Math.min(100, s.mean * 5))}%"><span>moyenne ${fmt(s.mean, 1)}</span></div>` : ''}</div>
             <p class="small muted" style="margin:0">${fmt(s.points)} points sur ${fmt(s.max_points)}.</p>` : ''}
           ${s.apt ? `<h3>Aptitudes cliniques et techniques</h3>
-            ${s.raters > 1 ? `<p class="small muted" style="margin:0 0 6px">Station notée par ${s.raters} évaluateurs : ta note est la moyenne de leurs grilles. Un item coché par un seul d'entre eux compte pour moitié.</p>` : ''}
+            ${s.raters > 1 ? `<p class="small muted" style="margin:0 0 6px">Station notée par ${s.raters} évaluateurs : ta note est la moyenne de leurs grilles.${s.apt.some((i) => i.share > 0 && i.share < 1) ? ` <b>½</b> veut dire ${s.raters === 2 ? 'qu\'un évaluateur sur deux a coché l\'item : il compte pour un demi-point' : 'qu\'une partie seulement des évaluateurs a coché l\'item : il compte en proportion'}.` : ''}</p>` : ''}
             ${s.apt.map((i) => { const half = i.share > 0 && i.share < 1; const st = i.ok ? 'ok' : half ? 'half' : 'ko';
-              return `<div class="it ${st}"><span class="mark" aria-label="${i.ok ? 'observé' : half ? 'observé par un évaluateur sur deux' : 'non observé'}">${i.ok ? '✓' : half ? '½' : '✗'}</span><span class="txt">${esc(i.label)}</span><span class="pts">${fmt((i.share ?? (i.ok ? 1 : 0)) * i.points, half ? 1 : 0)} / ${i.points}</span>
+              return `<div class="it ${st}"><span class="mark" aria-label="${i.ok ? 'observé' : half ? 'observé par un évaluateur sur deux' : 'non observé'}" ${half ? 'title="Un évaluateur sur deux a coché cet item"' : ''}>${i.ok ? '✓' : half ? '½' : '✗'}</span><span class="txt">${esc(i.label)}</span><span class="pts">${fmt((i.share ?? (i.ok ? 1 : 0)) * i.points, half ? 1 : 0)} / ${i.points}</span>
               ${i.comment ? `<span class="item-comment">${esc(i.comment)}</span>` : ''}</div>`; }).join('')}
             <h3>Communication et attitudes</h3>
             ${s.com.map((i) => `<div class="it ${i.value >= 0.5 ? 'ok' : 'ko'}"><span class="mark">${i.value >= 0.5 ? '✓' : '·'}</span><span class="txt">${esc(i.label)}</span><span class="pts">${esc(levelName(i.value))}, ${fmt(i.value)}</span></div>`).join('')}
@@ -121,7 +121,7 @@ export async function studentView(app) {
       const message = resBox.querySelector(`textarea[data-claim="${id}"]`).value;
       try {
         await api('/me/claims', { method: 'POST', body: { station_id: id, message } });
-        toast('Demande envoyée : l\'équipe te répond par e-mail.');
+        toast('Demande envoyée : les organisateurs te répondent par e-mail.');
         resBox.querySelector(`textarea[data-claim="${id}"]`).value = '';
         drawRes(await api('/me/results'));
       } catch (err) { toast(err.message, 'error'); }
@@ -130,7 +130,7 @@ export async function studentView(app) {
   drawRes(R0);
   const loadConv = () => convocationPanel(convBox, loadConv).then((C) => {
     const a = C?.announcement;
-    app.querySelector('#announce').innerHTML = a?.text ? `<div class="alert ${a.level === 'warn' ? 'warn' : 'info'} announce"><strong>Message de l'équipe</strong><br>${nl(a.text)}</div>` : '';
+    app.querySelector('#announce').innerHTML = a?.text ? `<div class="alert ${a.level === 'warn' ? 'warn' : 'info'} announce"><strong>Message des organisateurs</strong><br>${nl(a.text)}</div>` : '';
   }).catch(() => { convBox.innerHTML = ''; });
   await loadConv();
   feedbackPanel(app.querySelector('#fb'));
@@ -151,7 +151,7 @@ export async function adminReport(app, candidateId, examId) {
   const R = await api(`/candidates/${candidateId}/report`);
   setTitle(`${R.candidate.last_name} ${R.candidate.first_name}`);
   app.innerHTML = `<div class="narrow">${render(R, { back: `#/admin/session/${examId}/resultats` })}
-    <p class="small muted no-print">Vue de l'équipe : tout est visible, quels que soient les réglages de la session. « Supprimer » retire une grille saisie sous le mauvais candidat ; l'évaluateur la ressaisit ensuite sous le bon numéro.</p></div>`;
+    <p class="small muted no-print">Vue des organisateurs : tout est visible, quels que soient les réglages de la session. « Supprimer » retire une grille saisie sous le mauvais candidat ; l'évaluateur la ressaisit ensuite sous le bon numéro.</p></div>`;
   app.querySelectorAll('[data-delev]').forEach((b) => b.addEventListener('click', async () => {
     if (!window.confirm(`Supprimer la grille de ${b.dataset.who} pour ce candidat ? Elle ne compte plus dans sa note. L'action est journalisée.`)) return;
     try { await api(`/evaluations/${b.dataset.delev}`, { method: 'DELETE' }); toast('Grille supprimée'); adminReport(app, candidateId, examId); } catch (err) { toast(err.message, 'error'); }

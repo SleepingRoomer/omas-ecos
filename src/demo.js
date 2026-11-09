@@ -70,7 +70,7 @@ export function registerDemo(app, h) {
     const halfdays = planning.days.flatMap((d) => [...new Set(d.series.map((s) => (toMin(s.start) < 12 * 60 ? 'am' : 'pm')))].map((x) => `${d.date}|${x}`));
     if (!halfdays.length) throw httpError(400, 'Règle d\'abord les jours de la session.');
     const people = [
-      ...EVALS.map(([f, l, st, sp], i) => ({ f, l, st, sp, roles: ['evaluateur'], prefs: { track: 'evaluateur', disciplines: [sp], attestation: i % 4 !== 0, first_time: i % 3 === 0 }, email: `evaluateur.${slug(f + l)}@exemple.org` })),
+      ...EVALS.map(([f, l, st, sp], i) => ({ f, l, st, sp, roles: ['evaluateur'], prefs: { track: 'evaluateur', disciplines: [sp], first_time: i % 3 === 0 }, email: `evaluateur.${slug(f + l)}@exemple.org` })),
       ...VOLS.map(([f, l, roles]) => ({ f, l, st: 'Externe', sp: 'DFASM2', roles, prefs: { track: 'benevole' }, email: `benevole.${slug(f + l)}@exemple.org` })),
     ];
     await batch(db, multiInsert(db, 'volunteers', ['email', 'first_name', 'last_name', 'status', 'specialty'],

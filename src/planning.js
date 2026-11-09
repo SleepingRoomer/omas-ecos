@@ -2,6 +2,7 @@
 import {
   normalizePlanning, candidateSchedule, candidateNumber, seriesStartsAt, rotationFor, DEFAULT_SERIES, checkWishes, wishesOpen, welcomeFor,
 } from '../public/js/planning-shared.js';
+import { holdsChrono } from './benevoles.js';
 
 const placeKey = (day, series) => `${day}|${series}`;
 
@@ -18,12 +19,14 @@ export function registerPlanning(app, h) {
 
   // ---------- équipe ----------
 
-  app.get('/exams/:id/planning', need('admin', 'accueil'), async (c) => {
+  app.get('/exams/:id/planning', need('admin', 'accueil', 'benevole'), async (c) => {
     const db = c.env.DB;
     const s = c.get('session');
     if (s.kind === 'accueil' && Number(s.subject_id) !== Number(c.req.param('id'))) throw httpError(403, 'Accès refusé');
+    // le bénévole du chrono voit la même chose que l'accueil, pour sa session seulement
+    if (s.kind === 'benevole' && !(await holdsChrono(db, s, c.req.param('id')))) throw httpError(403, 'Accès refusé');
     const { exam, planning, slots } = await load(db, c.req.param('id'));
-    if (s.kind === 'accueil') {
+    if (s.kind === 'accueil' || s.kind === 'benevole') {
       // l'accueil voit les horaires et la liste des candidats, sans adresse, téléphone ni vœux
       const candidates = await all(db, `SELECT id, number, last_name, first_name, day, series, seat, status, confirmed_at, checked_in_at
         FROM candidates WHERE exam_id = ? ORDER BY last_name, first_name`, exam.id);

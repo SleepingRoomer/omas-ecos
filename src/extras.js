@@ -1,4 +1,4 @@
-// Communication (OMAS, OMAS Externat, agenda), avis des étudiants, attestations des évaluateurs
+// Communication (OMAS, OMAS Externat, agenda), avis des étudiants
 import { normalizePlanning } from '../public/js/planning-shared.js';
 
 export const DEFAULT_ABOUT = {
@@ -91,22 +91,5 @@ export function registerExtras(app, h) {
   app.get('/exams/:id/feedback', need('admin'), async (c) => {
     const rows = await all(c.env.DB, 'SELECT answers, comment, updated_at FROM feedback WHERE exam_id = ? ORDER BY updated_at DESC', c.req.param('id'));
     return c.json(rows.map((r) => ({ ...parse(r.answers, {}), comment: r.comment, at: r.updated_at })));
-  });
-
-  // ---------- attestations des évaluateurs ----------
-  app.get('/exams/:id/evaluators', need('admin'), async (c) => {
-    const rows = await all(c.env.DB, `SELECT v.evaluator_name AS name, s.slot, c.day, COUNT(*) AS n FROM evaluations v
-      JOIN stations s ON s.id = v.station_id JOIN candidates c ON c.id = v.candidate_id
-      WHERE v.exam_id = ? GROUP BY v.evaluator_name, s.slot, c.day`, c.req.param('id'));
-    const by = new Map();
-    for (const r of rows) {
-      const base = r.name.replace(/\s*\(\d+e saisie\)$/, '').trim();
-      const k = base.toLowerCase();
-      const e = by.get(k) || { name: base, n: 0, slots: new Set(), days: new Set() };
-      e.n += r.n; e.slots.add(r.slot); if (r.day) e.days.add(r.day);
-      by.set(k, e);
-    }
-    return c.json([...by.values()].map((e) => ({ name: e.name, n: e.n, slots: [...e.slots].sort(), days: [...e.days].sort() }))
-      .sort((a, b) => a.name.localeCompare(b.name, 'fr')));
   });
 }

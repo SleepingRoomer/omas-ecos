@@ -630,16 +630,6 @@ button.link { background: none; border: none; padding: 0 0 0 6px; min-height: 0;
 .cm-row { margin-bottom: 6px; flex-wrap: nowrap; }
 .cm-ev { border: 1px solid var(--line-2); border-radius: 10px; padding: 10px; margin-bottom: 8px; }
 @media (max-width: 960px) { .comms { grid-template-columns: 1fr; } }
-.cert-pick { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 4px 16px; }
-.cert { display: flex; flex-direction: column; justify-content: center; min-height: 297mm; padding: 28mm 24mm !important; text-align: center; }
-.cert-brand { display: flex; align-items: center; justify-content: center; gap: 10px; font: 800 14pt/1 var(--display); margin-bottom: 18mm; }
-.cert-brand img { height: 16mm; width: auto; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-.cert h1 { font-size: 26pt !important; margin-bottom: 14mm; }
-.cert-body { font-size: 13pt; line-height: 1.6; margin: 3mm 0; }
-.cert-name { font: 800 24pt/1.2 var(--display); margin: 6mm 0; color: #2e2c80; }
-.cert-thanks { margin: 14mm auto 0; max-width: 130mm; font-style: italic; color: #444; font-size: 11.5pt; }
-.cert-sign { display: flex; justify-content: space-between; margin-top: 26mm; text-align: left; font-size: 11pt; }
-.cert-line { width: 60mm; border-bottom: 1px solid #999; height: 18mm; }
 
 /* ---------- mode projection ---------- */
 body.kiosk .topbar { display: none; }

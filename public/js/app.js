@@ -13,7 +13,7 @@ const HOME = { accueil: '#/accueil', admin: '#/admin', auteur: '#/redaction', ev
 function renderNav() {
   const k = state.me?.kind;
   const links = {
-    admin: [['#/admin', 'Sessions'], ['#/admin/personnes', 'Rédacteurs et relecteurs', 'Rédaction'], ['#/admin/communication', 'Communication'], ['#/admin/benevoles', 'Bénévoles'], ['#/admin/equipe', 'Équipe'], ['#/admin/systeme', 'État du système', 'Système']],
+    admin: [['#/admin', 'Sessions'], ['#/admin/personnes', 'Rédacteurs et relecteurs', 'Rédaction'], ['#/admin/communication', 'Communication'], ['#/admin/benevoles', 'Bénévoles'], ['#/admin/equipe', 'Organisateurs'], ['#/admin/systeme', 'État du système', 'Système']],
     auteur: [['#/redaction', 'Mes stations et ateliers']],
     evaluateur: [['#/eval', 'Ma salle']],
     etudiant: [['#/resultats', 'Mon espace'], ['#/fiches', 'Fiches procédures', 'Fiches']],
@@ -38,14 +38,14 @@ function renderNav() {
 function loginView() {
   setTitle('Connexion');
   const roles = [
-    ['etudiant', 'Étudiant'], ['evaluateur', 'Évaluateur'], ['redaction', 'Rédaction'], ['accueil', 'Accueil'], ['admin', 'Équipe'],
+    ['etudiant', 'Étudiant'], ['evaluateur', 'Évaluateur'], ['redaction', 'Rédaction'], ['accueil', 'Accueil'], ['admin', 'Organisateurs'],
   ];
   const help = {
     etudiant: 'Entre le code reçu avec ta convocation, pour les ECOS blancs comme pour une journée procédure.',
     evaluateur: 'Entre le code affiché sur la porte de ta salle, puis ton nom. Inscrit comme bénévole ? Ton code personnel suffit.',
     redaction: 'Entre ton code de rédacteur ou de relecteur pour retrouver tes stations.',
-    accueil: 'Tu tiens l\'accueil ? Entre le code d\'accueil donné par l\'équipe : émargement, étiquettes et brief des circuits.',
-    admin: 'Réservé à l\'équipe d\'organisation : ton code personnel, ou le mot de passe commun.',
+    accueil: 'Tu tiens l\'accueil ? Entre le code d\'accueil donné par les organisateurs : émargement, étiquettes et brief des circuits.',
+    admin: 'Réservé aux organisateurs : ton code personnel, ou le mot de passe commun.',
   };
   const params = new URLSearchParams(location.hash.split('?')[1] || '');
   let role = params.get('role') || 'etudiant';
@@ -113,6 +113,8 @@ const routes = [
   [/^#\/brief$/, 'accueil', async () => (await import('./accueil.js')).accueilSpace(app, 'brief')],
   [/^#\/conduite$/, 'accueil', async () => (await import('./conduite.js')).conduiteView(app, { id: state.me.subject_id, back: '#/accueil' })],
   [/^#\/etiquettes$/, 'accueil', async () => (await import('./accueil.js')).accueilSpace(app, 'etiquettes')],
+  // le bénévole qui tient le chrono : la même page, depuis son espace
+  [/^#\/chrono$/, 'benevole', async () => { const M = await api('/benevole/me'); return (await import('./conduite.js')).conduiteView(app, { id: M.exam.id, back: '#/benevole' }); }],
   [/^#\/attente\/(\d+)$/, [null, 'admin', 'etudiant', 'evaluateur', 'auteur', 'participant'], async (m) => (await import('./waitlist.js')).publicWaitlist(app, m[1])],
   [/^#\/benevole\/(\d+)$/, [null, 'admin', 'etudiant', 'evaluateur', 'auteur', 'participant', 'benevole'], async (m) => (await import('./benevoles.js')).publicSignup(app, m[1])],
   [/^#\/evaluateur\/(\d+)$/, [null, 'admin', 'etudiant', 'evaluateur', 'auteur', 'participant', 'benevole'], async (m) => (await import('./benevoles.js')).publicEvaluatorSignup(app, m[1])],
@@ -229,7 +231,7 @@ async function pollBroadcast() {
     if (list.some((m) => !bcShown.has(m.id))) navigator.vibrate?.(250);
     bcShown = new Set(list.map((m) => m.id));
     bcBox.innerHTML = list.map((m) => `<div class="bc"><span class="bc-ico" aria-hidden="true">📣</span><span class="bc-t">${esc(m.text)}
-      <span class="bc-m">Message de l'équipe${m.slot ? `, pour la salle ${esc(m.slot)}` : ''}, à ${new Date(m.at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Paris' })}</span></span>
+      <span class="bc-m">Message des organisateurs${m.slot ? `, pour la salle ${esc(m.slot)}` : ''}, à ${new Date(m.at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Paris' })}</span></span>
       <button type="button" data-bc-ok="${m.id}">Vu</button></div>`).join('');
   } catch { /* hors connexion : on réessaiera */ }
 }

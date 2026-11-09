@@ -18,7 +18,7 @@ export async function scanView(app, token) {
       <p class="lede">${ok ? (R.already ? 'Déjà émargé tout à l\'heure.' : 'Présence enregistrée.') : 'Inscription annulée : ce candidat a libéré sa place.'}</p>
       ${ok ? `<p>${c.day ? `${esc(longDate(c.day))}, série ${c.series}` : 'Sans créneau'}${R.convocation ? `, convocation à ${R.convocation}` : ''}.</p>` : ''}
       ${R.wrong_day ? '<p class="alert warn">Attention : ce candidat n\'est pas convoqué aujourd\'hui.</p>' : ''}
-      ${R.absent_in?.length ? `<p class="alert warn">Déjà noté absent en ${R.absent_in.map(esc).join(', ')}. S'il passe encore dans ${R.absent_in.length > 1 ? 'ces salles' : 'cette salle'}, l'évaluateur remplit sa grille normalement ; sinon, préviens l'équipe.</p>` : ''}
+      ${R.absent_in?.length ? `<p class="alert warn">Déjà noté absent en ${R.absent_in.map(esc).join(', ')}. S'il passe encore dans ${R.absent_in.length > 1 ? 'ces salles' : 'cette salle'}, l'évaluateur remplit sa grille normalement ; sinon, préviens un organisateur.</p>` : ''}
       ${ok && c.number ? `<p class="alert info">Donne-lui l'étiquette <strong>${esc(c.number)}</strong>, à coller sur sa blouse.</p>` : ''}
       <p class="small muted">${esc(R.exam.name)}. Scanne le QR code suivant avec l'appareil photo.</p>
       <a class="btn" href="${isDesk() ? '#/accueil' : `#/admin/session/${R.exam.id}/accueil`}">Liste de l'accueil</a></div>`;
@@ -54,7 +54,7 @@ export async function accueilTab(box, exam) {
         <div class="small muted">Une planche par série, à imprimer avant le jour J et à remettre à l'émargement : numéro, prénom, circuit de départ et QR code qui ouvre la grille chez l'évaluateur.</div></div>
         <a class="btn small" href="${isDesk() ? '#/etiquettes' : `#/admin/session/${exam.id}/etiquettes`}" ${isDesk() ? '' : 'target="_blank"'}>Imprimer les étiquettes</a></div>
       <div class="panel row between" style="margin:10px 0"><div><strong>Chrono de la série</strong>
-        <div class="small muted">Tu lances chaque tour d'un bouton : les évaluateurs, l'accueil et l'écran de projection suivent le même chrono, même avec du retard.</div></div>
+        <div class="small muted">${isDesk() ? 'C\'est le bénévole du chrono qui lance chaque tour. En secours, tu peux le faire d\'ici.' : 'Un bénévole dédié lance chaque tour depuis son espace (poste « Chrono » du planning des salles). Ouvre-le ici en secours.'} Les évaluateurs, l'accueil et l'écran de projection suivent le même chrono, même avec du retard.</div></div>
         <a class="btn small primary" href="${isDesk() ? '#/conduite' : `#/admin/session/${exam.id}/conduite`}">Ouvrir le chrono</a></div>
       <div class="panel row between" style="margin:10px 0"><div><strong>Brief des circuits</strong>
         <div class="small muted">Avant chaque série, en salle d'attente : qui commence sur quel circuit, la salle de départ de chacun, le changement à la pause. À montrer sur un écran ou un téléphone.</div></div>
