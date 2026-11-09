@@ -116,6 +116,7 @@ export async function examView(app, id, tab) {
   if (tab === 'affiches') return signsView(app, exam);
   if (tab === 'etiquettes') return (await import('./etiquettes.js')).labelsView(app, exam);
   if (tab === 'brief') return (await import('./accueil.js')).briefView(app, exam);
+  if (tab === 'conduite') return (await import('./conduite.js')).conduiteView(app, exam);
   if (tab.startsWith('imprimer-')) return (await import('./printables.js')).printView(app, exam, tab.slice(9));
   if (tab === 'attestations') return (await import('./certificates.js')).certificatesView(app, exam);
   if (tab === 'projection') return (await import('./projection.js')).projectionView(app, exam);

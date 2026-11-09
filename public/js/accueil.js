@@ -53,6 +53,9 @@ export async function accueilTab(box, exam) {
       <div class="panel row between" style="margin:10px 0"><div><strong>Étiquettes des candidats</strong>
         <div class="small muted">Une planche par série, à imprimer avant le jour J et à remettre à l'émargement : numéro, prénom, circuit de départ et QR code qui ouvre la grille chez l'évaluateur.</div></div>
         <a class="btn small" href="${isDesk() ? '#/etiquettes' : `#/admin/session/${exam.id}/etiquettes`}" ${isDesk() ? '' : 'target="_blank"'}>Imprimer les étiquettes</a></div>
+      <div class="panel row between" style="margin:10px 0"><div><strong>Chrono de la série</strong>
+        <div class="small muted">Tu lances chaque tour d'un bouton : les évaluateurs, l'accueil et l'écran de projection suivent le même chrono, même avec du retard.</div></div>
+        <a class="btn small primary" href="${isDesk() ? '#/conduite' : `#/admin/session/${exam.id}/conduite`}">Ouvrir le chrono</a></div>
       <div class="panel row between" style="margin:10px 0"><div><strong>Brief des circuits</strong>
         <div class="small muted">Avant chaque série, en salle d'attente : qui commence sur quel circuit, la salle de départ de chacun, le changement à la pause. À montrer sur un écran ou un téléphone.</div></div>
         <a class="btn small" href="${isDesk() ? '#/brief' : `#/admin/session/${exam.id}/brief`}">Ouvrir le brief</a></div>

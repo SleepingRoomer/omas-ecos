@@ -21,7 +21,7 @@ INES (Interface numérique d'ECOS et de simulation) est la plateforme des ECOS b
 - Relances de rédaction (`src/writing.js`) : échéance par étape dans `planning.writing_deadlines`, e-mail à la personne qui reçoit une station, récapitulatif le lundi (tâche du soir) aux rédacteurs et relecteurs, et à l'adresse de réponse des e-mails pour l'équipe.
 - Saisie des grilles : ouverte d'après le planning (une heure avant la première convocation du jour, trois quarts d'heure après le dernier tour), ou forcée par `planning.eval_mode` ('auto', 'open', 'closed'). Détail des grilles retenu jusqu'à la fin de la dernière série (`planning.details_embargo`). Tout passe par `src/state.js` (`examState`, `loadExamState`) : ne plus lire `exams.eval_open` directement.
 - E-mails : Brevo, un appel pour 200 destinataires, journal dans `mail_log`. Sans clé, rien ne part et le site fonctionne quand même.
-- Hors connexion : `public/sw.js`. Changer le nom du cache (`ines-v16` aujourd'hui) quand les fichiers du front changent beaucoup.
+- Hors connexion : `public/sw.js`. Changer le nom du cache (`ines-v17` aujourd'hui) quand les fichiers du front changent beaucoup.
 - Sécurité : `public/_headers` (CSP stricte : pas de script ni de police externes, pas de gestionnaire `onclick` en ligne).
 
 ## Identité (charte complète dans le projet claude.ai « OMAS », document `claude/INES_charte.md`)
@@ -62,6 +62,10 @@ Pour repartir d'une base vide : arrêter le serveur, supprimer `.wrangler/state`
 - Écran de l'évaluateur : « Dans ta salle en ce moment » et « Ensuite » (`roomNow`), et confirmation avant d'enregistrer la grille d'un candidat pas encore passé dans la salle ou convoqué un autre jour (`gridCheck`).
 - Émargement vu depuis la salle : `/eval/context` et `/eval/presence` (relu toutes les 30 s) donnent seulement « a émargé » ou non. `presenceHint` (planning-shared.js) ne propose « Noter absent » qu'après `ABSENCE_GRACE_MIN` minutes de tour, avec confirmation ; jamais d'absence automatique. Une vraie grille enregistrée pour un candidat non émargé le marque présent (arrivé à la dernière minute). Noté absent puis émargé : signalé dans la salle et au scan de l'accueil (`absent_in`).
 - Onglet En direct : « Grilles à vérifier », enregistrées avant le passage prévu du candidat (`passageInRoom`). Une grille erronée se supprime depuis le bulletin du candidat (vue de l'équipe).
+
+## Chrono de la série
+- L'accueil (`#/conduite`, code d'accueil) ou l'équipe (`#/admin/session/:id/conduite`, bouton dans En direct) lance chaque tour : « Lancer le tour N », « Lancer la pause », « Lancer le débrief », « Terminer la série ». État dans `planning.live` (`day`, `series`, `round`, `phase`, `started_at`), route `POST /exams/:id/live`, lecture `GET /live`. Règles `liveClock`, `nextLiveStep`, `liveSeat` dans planning-shared.js (testées).
+- Bandeau `#live-clock` en haut des écrans (évaluateurs, accueil, bénévoles, projection, En direct) : relu toutes les 15 s, décompte à la seconde avec l'écart d'horloge du serveur, vibration à la fin d'un tour chez l'évaluateur. Quand un tour est lancé, « Dans ta salle en ce moment » suit le tour lancé et non l'horaire prévu (retards absorbés). Sans chrono lancé, tout suit le planning comme avant.
 
 ## Le déroulé dans l'espace de chacun
 - `public/js/guide.js` : `guideSection(box, profils, { planning, open })`, un bloc repliable avec le film (mêmes scènes que la page « Une session étape par étape » du dépôt ines-presentation), l'essentiel et la FAQ du profil. Profils : `etudiant` (espace étudiant), `evaluateur` (vouvoiement ; salle et espace bénévole), `ps`, `benevole` et `accueil`. Animations en CSS préfixées `.gd-stage`.

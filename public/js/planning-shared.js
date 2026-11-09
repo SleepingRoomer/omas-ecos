@@ -200,6 +200,35 @@ export function roomNow(planning, slots, slot, candidates, now = Date.now()) {
   return { current, next };
 }
 
+// ---------- conduite de la série en direct ----------
+// L'accueil (ou l'équipe) lance chaque tour d'un bouton : tout le monde suit le même chrono, même avec du retard.
+// planning.live = { day, series, round, phase: 'tour' | 'pause' | 'debrief', started_at }
+export function liveClock(live, planning, now = Date.now()) {
+  if (!live || !live.started_at || !['tour', 'pause', 'debrief'].includes(live.phase)) return null;
+  const min = live.phase === 'tour' ? planning.rotation_minutes : live.phase === 'pause' ? planning.pause_minutes : planning.debrief_minutes;
+  const end = Date.parse(live.started_at) + min * 60e3;
+  const remaining = end - now;
+  return { ...live, minutes: min, ends_at: new Date(end).toISOString(), remaining, over: remaining <= 0 };
+}
+// Le bouton suivant pour celui qui conduit la série
+export function nextLiveStep(live, planning, nRounds, series = null) {
+  const pauseAfter = planning.pause_after;
+  if (!live || (series && live.series !== series) || !live.phase) return { phase: 'tour', round: 1 };
+  if (live.phase === 'tour') {
+    if (pauseAfter && live.round === pauseAfter && live.round < nRounds) return { phase: 'pause', round: live.round };
+    if (live.round < nRounds) return { phase: 'tour', round: live.round + 1 };
+    return { phase: 'debrief', round: live.round };
+  }
+  if (live.phase === 'pause') return { phase: 'tour', round: live.round + 1 };
+  return { phase: 'fin', round: live.round };
+}
+// Qui est dans une salle pendant le tour lancé : la place dont la rotation mène à cette salle à ce tour
+export function liveSeat(slots, slot, round) {
+  const rot = rotationFor(slots);
+  for (let seat = 1; seat <= rot.seats; seat++) if (rot.at(seat, round) === slot) return seat;
+  return null;
+}
+
 // Le candidat attendu a-t-il émargé ? Jamais d'absence automatique : on ne propose « Noter absent »
 // qu'une fois son tour commencé depuis quelques minutes, et seulement s'il n'a pas émargé à l'accueil.
 // 'here' : il a émargé ; 'waiting' : pas encore, mais son tour vient de commencer ou n'a pas commencé ;

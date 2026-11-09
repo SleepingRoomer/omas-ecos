@@ -101,3 +101,27 @@ test('absents vus depuis la salle : jamais avant quelques minutes, jamais s\'il 
   assert.equal(presenceHint(p, true, at('2026-11-14T07:44:00Z')), 'here');
   assert.equal(presenceHint(null, false, at('2026-11-14T07:44:00Z')), 'waiting'); // pas d'horaire connu : on ne propose rien
 });
+
+import { liveClock, nextLiveStep, liveSeat } from '../public/js/planning-shared.js';
+test('conduite en direct : chrono, bouton suivant, salle de chacun', () => {
+  const P = normalizePlanning({ days: [{ date: '2026-11-14' }] });
+  const t0 = Date.parse('2026-11-14T08:00:00Z');
+  const L = { day: '2026-11-14', series: 1, round: 3, phase: 'tour', started_at: new Date(t0).toISOString() };
+  assert.equal(liveClock(L, P, t0 + 4 * 60e3).remaining, 6 * 60e3);
+  assert.equal(liveClock(L, P, t0 + 11 * 60e3).over, true);
+  assert.equal(liveClock({ ...L, phase: 'pause' }, P, t0).minutes, 10);
+  assert.equal(liveClock(null, P, t0), null);
+  // dix tours, pause après le cinquième, puis débrief
+  assert.deepEqual(nextLiveStep(null, P, 10), { phase: 'tour', round: 1 });
+  assert.deepEqual(nextLiveStep({ ...L, round: 4 }, P, 10), { phase: 'tour', round: 5 });
+  assert.deepEqual(nextLiveStep({ ...L, round: 5 }, P, 10), { phase: 'pause', round: 5 });
+  assert.deepEqual(nextLiveStep({ ...L, round: 5, phase: 'pause' }, P, 10), { phase: 'tour', round: 6 });
+  assert.deepEqual(nextLiveStep({ ...L, round: 10 }, P, 10), { phase: 'debrief', round: 10 });
+  assert.deepEqual(nextLiveStep({ ...L, phase: 'debrief' }, P, 10), { phase: 'fin', round: 3 });
+  assert.deepEqual(nextLiveStep(L, P, 10, 2), { phase: 'tour', round: 1 }); // autre série : on repart du tour 1
+  // place 1 en A1 au tour 1, en A2 au tour 2, en B1 au tour 6
+  assert.equal(liveSeat(SLOTS, 'A1', 1), 1);
+  assert.equal(liveSeat(SLOTS, 'A2', 2), 1);
+  assert.equal(liveSeat(SLOTS, 'B1', 6), 1);
+  assert.equal(liveSeat(SLOTS, 'A1', 2), 5);
+});

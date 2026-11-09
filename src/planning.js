@@ -50,7 +50,7 @@ export function registerPlanning(app, h) {
     // réglages gérés par d'autres onglets : jamais écrasés par une copie ancienne du planning
     const current = await one(db, 'SELECT planning FROM exams WHERE id = ?', exam.id);
     const prev = JSON.parse(current?.planning || '{}') || {};
-    for (const k of ['accueil_code', 'materiel_check', 'materiel_common', 'broadcasts']) { if (k in prev) planning[k] = prev[k]; else delete planning[k]; }
+    for (const k of ['accueil_code', 'materiel_check', 'materiel_common', 'broadcasts', 'live']) { if (k in prev) planning[k] = prev[k]; else delete planning[k]; }
     const ds = planning.days.map((d) => d.date);
     await run(db, 'UPDATE exams SET planning = ?, starts_on = ?, ends_on = ? WHERE id = ?', JSON.stringify(planning),
       ds[0] || exam.starts_on, ds[ds.length - 1] || exam.ends_on, exam.id);
