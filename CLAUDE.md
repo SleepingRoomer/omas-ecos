@@ -21,7 +21,7 @@ INES (Interface numérique d'ECOS et de simulation) est la plateforme des ECOS b
 - Relances de rédaction (`src/writing.js`) : échéance par étape dans `planning.writing_deadlines`, e-mail à la personne qui reçoit une station, récapitulatif le lundi (tâche du soir) aux rédacteurs et relecteurs, et à l'adresse de réponse des e-mails pour l'équipe.
 - Saisie des grilles : ouverte d'après le planning (une heure avant la première convocation du jour, trois quarts d'heure après le dernier tour), ou forcée par `planning.eval_mode` ('auto', 'open', 'closed'). Détail des grilles retenu jusqu'à la fin de la dernière série (`planning.details_embargo`). Tout passe par `src/state.js` (`examState`, `loadExamState`) : ne plus lire `exams.eval_open` directement.
 - E-mails : Brevo, un appel pour 200 destinataires, journal dans `mail_log`. Sans clé, rien ne part et le site fonctionne quand même.
-- Hors connexion : `public/sw.js`. Changer le nom du cache (`ines-v15` aujourd'hui) quand les fichiers du front changent beaucoup.
+- Hors connexion : `public/sw.js`. Changer le nom du cache (`ines-v16` aujourd'hui) quand les fichiers du front changent beaucoup.
 - Sécurité : `public/_headers` (CSP stricte : pas de script ni de police externes, pas de gestionnaire `onclick` en ligne).
 
 ## Identité (charte complète dans le projet claude.ai « OMAS », document `claude/INES_charte.md`)
@@ -60,7 +60,11 @@ Pour repartir d'une base vide : arrêter le serveur, supprimer `.wrangler/state`
 - Les candidats sont anonymes pour les évaluateurs : `/eval/context` ne renvoie ni nom ni prénom, l'écran de salle et les étiquettes n'affichent que le numéro (ou « Série x, place y » s'il n'est pas encore numéroté). Ne pas réintroduire de nom côté évaluateur.
 - Étiquettes à coller sur la blouse (`public/js/etiquettes.js`, lien dans l'onglet Accueil) : numéro, prénom, circuit de départ en couleur, QR code vers `#/q/<numéro>` qui ouvre la grille chez l'évaluateur connecté à sa salle.
 - Écran de l'évaluateur : « Dans ta salle en ce moment » et « Ensuite » (`roomNow`), et confirmation avant d'enregistrer la grille d'un candidat pas encore passé dans la salle ou convoqué un autre jour (`gridCheck`).
+- Émargement vu depuis la salle : `/eval/context` et `/eval/presence` (relu toutes les 30 s) donnent seulement « a émargé » ou non. `presenceHint` (planning-shared.js) ne propose « Noter absent » qu'après `ABSENCE_GRACE_MIN` minutes de tour, avec confirmation ; jamais d'absence automatique. Une vraie grille enregistrée pour un candidat non émargé le marque présent (arrivé à la dernière minute). Noté absent puis émargé : signalé dans la salle et au scan de l'accueil (`absent_in`).
 - Onglet En direct : « Grilles à vérifier », enregistrées avant le passage prévu du candidat (`passageInRoom`). Une grille erronée se supprime depuis le bulletin du candidat (vue de l'équipe).
+
+## Le déroulé dans l'espace de chacun
+- `public/js/guide.js` : `guideSection(box, profils, { planning, open })`, un bloc repliable avec le film (mêmes scènes que la page « Une session étape par étape » du dépôt ines-presentation), l'essentiel et la FAQ du profil. Profils : `etudiant` (espace étudiant), `evaluateur` (vouvoiement ; salle et espace bénévole), `ps`, `benevole` et `accueil`. Animations en CSS préfixées `.gd-stage`.
 
 ## Accueil, réserve et tableau de bord
 - Code d'accueil (onglet Accueil, `planning.accueil_code`) : donné à l'étudiant qui tient l'accueil, onglet « Accueil » de la page de connexion. Session `accueil` (subject_id = id de la session), valable la veille et pendant les jours de la session. Elle ne voit que l'émargement, les étiquettes et le brief des circuits de sa session (`/exams/:id/planning` sans e-mail, téléphone ni vœux ; `/checkin` et `/presence` limités à sa session). Un nouveau code déconnecte l'ancien.

@@ -106,7 +106,7 @@ export async function studentView(app) {
       <span class="live" id="upd"></span></div>
     <div id="announce"></div>
     ${passed ? '<div id="fb"></div><div id="res"></div><div id="plan"></div><div id="prog"></div><div id="conv"></div>' : '<div id="conv"></div><div id="res"></div><div id="fb"></div>'}
-    <div id="about"></div></div>`;
+    <div id="guide"></div><div id="about"></div></div>`;
   const resBox = app.querySelector('#res');
   const convBox = app.querySelector('#conv');
   const drawRes = (R) => {
@@ -139,6 +139,7 @@ export async function studentView(app) {
     rev.revisionPlan(app.querySelector('#plan'), R0);
     rev.progression(app.querySelector('#prog'));
   }
+  import('./guide.js').then((G) => G.guideSection(app.querySelector('#guide'), ['etudiant'], { open: !passed })).catch(() => {});
   aboutSection(app.querySelector('#about'));
   clearInterval(timer);
   timer = setInterval(() => {

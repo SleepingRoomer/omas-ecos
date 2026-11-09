@@ -1,6 +1,6 @@
 import { api, esc, nl, toast, fmt, frDate, setTitle, plate, dom, disc } from './ui.js';
 import { COM_LEVELS, GLOBAL_LEVELS, TYPE_LINE, missingAnswers, computeScore } from './shared.js';
-import { seriesTimes, frTime, roomNow, gridCheck } from './planning-shared.js';
+import { seriesTimes, frTime, roomNow, gridCheck, presenceHint, ABSENCE_GRACE_MIN } from './planning-shared.js';
 import { raceHtml } from './race.js';
 
 // Les candidats sont anonymes pour l'évaluateur : on ne montre que leur numéro (ou leur place s'ils ne sont pas encore numérotés)
@@ -76,18 +76,47 @@ export async function roomView(app) {
     const todays = ctx.candidates.filter((c) => c.day === parisToday());
     if (!todays.length) return '';
     const N = roomNow(ctx.sch.planning, ctx.sch.slots, ctx.sch.slot, todays);
-    const card = (x, title, main) => `<button class="now-card ${main ? 'main' : ''} ${x.c.eval_id ? 'done' : ''}" data-id="${x.c.id}">
+    // l'émargement n'est qu'une indication : on ne propose « Noter absent » qu'au bout de quelques minutes, jamais d'office
+    const card = (x, title, main) => {
+      const h = x.c.eval_id ? null : presenceHint(x.p, !!x.c.here);
+      return `<div class="now-wrap ${main ? 'main' : ''}"><button class="now-card ${main ? 'main' : ''} ${x.c.eval_id ? 'done' : ''}" data-id="${x.c.id}">
       <span class="small">${title}, ${frTime(x.p.startHHMM)}</span><span class="now-no">${esc(candLabel(x.c))}</span>
-      ${x.c.eval_id ? '<span class="small">grille saisie</span>' : ''}</button>`;
+      ${x.c.eval_id ? `<span class="small">${x.c.absent ? 'noté absent' : 'grille saisie'}</span>` : h === 'here' ? '<span class="small presence ok">✓ a émargé à l\'accueil</span>'
+        : h === 'missing' ? '<span class="small presence ko">n\'a pas émargé à l\'accueil</span>' : '<span class="small presence">pas encore émargé</span>'}</button>
+      ${main && h === 'missing' ? `<div class="absent-row"><span class="small">Il est devant toi ? Remplis sa grille normalement. Sinon :</span><button class="small" data-absent="${x.c.id}">Noter absent</button></div>` : ''}</div>`;
+    };
     if (!N.current && !N.next) return '';
     return `<div class="now-box">${N.current ? card(N.current, 'Dans ta salle en ce moment', true) : ''}${N.next ? card(N.next, 'Ensuite', !N.current) : ''}
       <p class="small muted" style="margin:0;flex-basis:100%">Vérifie le numéro sur l'étiquette du candidat avant de remplir sa grille. Tu peux aussi scanner son étiquette avec l'appareil photo : sa grille s'ouvre directement.</p></div>`;
   };
   clearInterval(window.__nowTimer);
-  window.__nowTimer = setInterval(() => {
+  const bindNow = (el) => {
+    el.querySelectorAll('[data-id]').forEach((b) => b.addEventListener('click', () => { location.hash = `#/eval/candidat/${b.dataset.id}`; }));
+    el.querySelectorAll('[data-absent]').forEach((b) => b.addEventListener('click', () => markAbsent(Number(b.dataset.absent))));
+  };
+  const markAbsent = async (id) => {
+    const c = ctx.candidates.find((x) => x.id === id); if (!c) return;
+    if (!window.confirm(`${candLabel(c)} n'a pas émargé à l'accueil et son tour a commencé il y a plus de ${ABSENCE_GRACE_MIN} minutes.\n\nIl n'est pas dans ta salle ? Le noter absent ici.\n\nS'il arrive en retard, ouvre sa grille et remplis-la normalement : elle remplacera l'absence.`)) return;
+    const body = { candidate_id: id, absent: true, answers: { apt: {}, com: {} }, global: null, comment: '' };
+    try { await api('/eval/evaluations', { method: 'PUT', body }); toast(`${candLabel(c)} noté absent`); }
+    catch (err) {
+      if (err.status !== undefined && err.status < 500) { toast(err.message, 'error'); return; }
+      const q = queued(); q[`${ctx.station.id}|${id}`] = { body, at: Date.now() }; writeStore(QKEY, q);
+      toast('Pas de réseau : l\'absence partira toute seule.', 'error');
+    }
+    c.eval_id = c.eval_id || -1; c.absent = 1; draw();
+  };
+  window.__nowTimer = setInterval(async () => {
     const el = app.querySelector('#now'); if (!el || !location.hash.startsWith('#/eval')) return;
-    el.innerHTML = nowBox(); el.querySelectorAll('[data-id]').forEach((b) => b.addEventListener('click', () => { location.hash = `#/eval/candidat/${b.dataset.id}`; }));
+    try { const pres = await api('/eval/presence'); const m = new Map(pres.map((r) => [r.id, r.here])); ctx.candidates.forEach((c) => { if (m.has(c.id)) c.here = m.get(c.id); }); } catch { /* hors connexion */ }
+    el.innerHTML = nowBox(); bindNow(el); lateBox();
   }, 30000);
+  // noté absent ici, mais il a émargé depuis : peut-être arrivé en retard
+  const lateBox = () => {
+    const el = app.querySelector('#late'); if (!el) return;
+    const late = ctx.candidates.filter((c) => c.day === parisToday() && c.absent && c.here);
+    el.innerHTML = late.length ? `<p class="alert info small">Noté absent ici, mais arrivé depuis à l'accueil : <strong>${late.map((c) => esc(candLabel(c))).join(', ')}</strong>. S'il passe dans ta salle, ouvre sa grille et remplis-la.</p>` : '';
+  };
 
   const draw = () => {
     const shown = ctx.candidates.filter((c) => (!filters.day || c.day === filters.day)
@@ -101,7 +130,7 @@ export async function roomView(app) {
           <div class="tags" style="margin-top:6px">${dom(s.domain)}${s.discipline ? `<span>${disc(s.discipline)}</span>` : ''}</div>
           <div class="muted small" style="margin-top:4px">${esc(ctx.evaluator)}, ${esc(ctx.exam.name)}</div></div></div>
       ${ctx.exam.eval_open ? '' : '<p class="alert warn">La saisie n\'est pas encore ouverte : elle suit les horaires du planning.</p>'}
-      <div id="now">${nowBox()}</div>
+      <div id="now">${nowBox()}</div><div id="late"></div>
       <p class="alert warn row between" data-queue ${Object.keys(queued()).length ? '' : 'hidden'}><span><b>${Object.keys(queued()).length}</b> grille(s) gardée(s) sur ce téléphone, en attente de réseau. Elles partiront toutes seules.<span class="err small"></span></span>
         <button class="small" data-flush>Envoyer maintenant</button></p>
       <details class="panel" style="padding:14px 18px"><summary style="cursor:pointer"><strong>Relire la vignette et les consignes</strong></summary>
@@ -128,13 +157,16 @@ export async function roomView(app) {
       <p class="muted small" style="margin:12px 0 0">${done} grille${done > 1 ? 's' : ''} saisie${done > 1 ? 's' : ''} sur ${shown.length}. <button class="small quiet" id="reload">Actualiser</button></p>
       <div class="cand-list">${shown.map((c) => `<button class="cand ${c.eval_id || queued()[`${s.id}|${c.id}`] ? 'done' : ''} ${c === next ? 'next' : ''}" data-id="${c.id}">${c === next ? '<span class="next-tag">À suivre</span>' : ''}
           <span class="cand-no">${esc(candLabel(c))}</span>${c.time ? `<span class="small muted">${frTime(c.time)}</span>` : ''}
-          <span class="st">${queued()[`${s.id}|${c.id}`] ? 'En attente d\'envoi' : c.eval_id ? (c.absent ? 'Absent' : `${fmt(c.score, 1)} sur 20`) : 'À évaluer'}${c.n_others ? `<small class="faint" style="display:block">${c.eval_id ? 'ton binôme aussi' : 'déjà notée par ton binôme'}</small>` : ''}</span></button>`).join('') || '<p class="muted">Aucun candidat avec ces filtres.</p>'}</div>`;
+          <span class="st">${queued()[`${s.id}|${c.id}`] ? 'En attente d\'envoi' : c.eval_id ? (c.absent ? 'Absent' : `${fmt(c.score, 1)} sur 20`) : 'À évaluer'}${c.n_others ? `<small class="faint" style="display:block">${c.eval_id ? 'ton binôme aussi' : 'déjà notée par ton binôme'}</small>` : ''}</span></button>`).join('') || '<p class="muted">Aucun candidat avec ces filtres.</p>'}</div>
+      <div id="room-guide" style="margin-top:22px"></div>`;
     app.querySelector('#day')?.addEventListener('change', (e) => { filters.day = e.target.value; filters.series = ''; roomView(app); });
     app.querySelectorAll('[data-s]').forEach((b) => b.addEventListener('click', () => { filters.series = b.dataset.s; draw(); }));
     app.querySelector('#q').addEventListener('input', (e) => { filters.q = e.target.value; const pos = e.target.selectionStart; draw(); const q = app.querySelector('#q'); q.focus(); q.setSelectionRange(pos, pos); });
     app.querySelector('#reload').addEventListener('click', () => roomView(app));
     app.querySelector('[data-flush]')?.addEventListener('click', () => flushQueue());
-    app.querySelectorAll('.cand, #now [data-id]').forEach((b) => b.addEventListener('click', () => { location.hash = `#/eval/candidat/${b.dataset.id}`; }));
+    app.querySelectorAll('.cand').forEach((b) => b.addEventListener('click', () => { location.hash = `#/eval/candidat/${b.dataset.id}`; }));
+    bindNow(app.querySelector('#now')); lateBox();
+    import('./guide.js').then((G) => G.guideSection(app.querySelector('#room-guide'), ['evaluateur'], { planning: ctx.sch?.planning || {} })).catch(() => {});
     const rp = app.querySelector('.race-panel');
     rp.addEventListener('toggle', () => { raceOpen = rp.open; });
     api('/eval/race').then((R) => {

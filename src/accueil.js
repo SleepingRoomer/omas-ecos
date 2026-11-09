@@ -45,7 +45,9 @@ export function registerAccueil(app, h) {
     if (!already && cand.status !== 'annule') await presence(db, cand, true);
     const ser = planning.days.find((d) => d.date === cand.day)?.series[cand.series - 1];
     const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Paris' });
-    return c.json({
+    // arrivé en retard : des salles l'ont peut-être déjà noté absent
+    const absentIn = (await all(db, 'SELECT DISTINCT s.slot FROM evaluations v JOIN stations s ON s.id = v.station_id WHERE v.candidate_id = ? AND v.absent = 1 ORDER BY s.slot', cand.id).catch(() => [])).map((r) => r.slot);
+    return c.json({ absent_in: absentIn,
       exam: { id: exam.id, name: exam.name }, already, at: cand.checked_in_at,
       candidate: { id: cand.id, number: cand.number, first_name: cand.first_name, last_name: cand.last_name, status: cand.status, day: cand.day, series: cand.series },
       convocation: ser ? frTime(ser.convocation) : null, wrong_day: cand.day && cand.day !== today,

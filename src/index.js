@@ -965,7 +965,7 @@ app.get('/eval/context', need('evaluateur'), async (c) => {
   const exam = { id: E.exam.id, name: E.exam.name, eval_open: E.eval.open, closes_at: E.eval.closes_at };
   const content = normalizeContent(parse(st.content, {}));
   // les évaluateurs ne voient jamais le nom des candidats : seulement leur numéro (anonymat de l'évaluation)
-  const candidates = await all(db, `SELECT c.id, c.number, c.day, c.series, c.seat,
+  const candidates = await all(db, `SELECT c.id, c.number, c.day, c.series, c.seat, CASE WHEN c.checked_in_at IS NULL THEN 0 ELSE 1 END AS here,
     v.id AS eval_id, v.absent, v.score, v.evaluator_name,
     (SELECT COUNT(*) FROM evaluations o WHERE o.candidate_id = c.id AND o.station_id = ? AND o.evaluator_name != ?) AS n_others
     FROM candidates c LEFT JOIN evaluations v ON v.candidate_id = c.id AND v.station_id = ? AND v.evaluator_name = ?
@@ -979,6 +979,14 @@ app.get('/eval/context', need('evaluateur'), async (c) => {
     documents: content.documents.filter((d) => d.nom || d.file_id).map((d) => ({ nom: d.nom, remis_par: d.remis_par, description: d.description, file_id: d.file_id || null, file_mime: d.file_mime || null })),
     candidates,
   });
+});
+
+// Qui a émargé aujourd'hui : relu toutes les 30 secondes par l'écran de la salle (numéros seulement, jamais de nom)
+app.get('/eval/presence', need('evaluateur'), async (c) => {
+  const st = await openRoom(c);
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Paris' });
+  const rows = await all(c.env.DB, "SELECT id, CASE WHEN checked_in_at IS NULL THEN 0 ELSE 1 END AS here FROM candidates WHERE exam_id = ? AND day = ? AND status != 'annule'", st.exam_id, today);
+  return c.json(rows);
 });
 
 app.get('/eval/evaluations/:candidateId', need('evaluateur'), async (c) => {
@@ -1010,6 +1018,8 @@ app.put('/eval/evaluations', need('evaluateur'), async (c) => {
       max_points = excluded.max_points, score = excluded.score, ip = excluded.ip, updated_at = datetime('now')`,
   st.exam_id, st.id, cand.id, evalName(s), absent ? 1 : 0, JSON.stringify(answers), absent ? null : global,
   absent ? null : (String(b.comment || '').trim() || null), points, max, score, clientIp(c));
+  // une vraie grille prouve que le candidat est là : arrivé à la dernière minute sans passer par l'accueil, il compte comme présent
+  if (!absent && !cand.checked_in_at) await run(db, 'UPDATE candidates SET checked_in_at = ? WHERE id = ? AND checked_in_at IS NULL', new Date().toISOString(), cand.id);
   return c.json({ ok: true, score });
 });
 
