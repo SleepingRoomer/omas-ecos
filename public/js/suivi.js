@@ -34,7 +34,7 @@ const stats = (L) => {
 };
 
 const bar = (v, max) => `<span class="cov-bar" role="img" aria-label="${v} sur ${max}"><i style="width:${max ? Math.round((v / max) * 100) : 0}%"></i></span>`;
-const lastTag = (d) => (!d ? '<span class="faint">jamais</span>' : `${esc(frDate(d))} <span class="faint">(${months(d)} mois)</span>`);
+const lastTag = (d) => (!d ? '<span class="faint">jamais</span>' : `<span style="white-space:nowrap">${esc(new Date(d).toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' }))}</span>`);
 
 export async function suiviView(app, base = '#/admin') {
   setTitle('Suivi des stations');
@@ -75,13 +75,13 @@ export async function suiviView(app, base = '#/admin') {
       <div class="suivi-grid">
       <section class="panel"><h2>Domaines ECOS</h2>
         <div class="table-wrap" style="box-shadow:none"><table><thead><tr><th>Domaine</th><th>Stations</th><th class="num">Validées</th><th class="num">Jouées</th><th>Dernière fois</th><th class="num">Moyenne</th></tr></thead><tbody>
-        ${byDomain.map(([d, s]) => `<tr${s.total ? '' : ' class="cov-zero"'}><td>${domainIcon(d)} ${esc(d)}</td><td><div class="row" style="flex-wrap:nowrap;gap:8px">${bar(s.total, maxD)}<b class="num">${s.total}</b></div></td>
+        ${byDomain.map(([d, s]) => `<tr${s.total ? '' : ' class="cov-zero"'}><td>${domainIcon(d)}&nbsp;${esc(d)}</td><td><div class="row" style="flex-wrap:nowrap;gap:8px">${bar(s.total, maxD)}<b class="num">${s.total}</b></div></td>
           <td class="num">${s.valid}</td><td class="num">${s.played}</td><td class="small">${lastTag(s.last)}</td><td class="num">${s.mean === null ? '' : fmt(s.mean, 1)}</td></tr>`).join('')}
         </tbody></table></div></section>
 
       <section class="panel"><h2>Disciplines</h2><p class="small muted" style="margin-top:-6px">Les moins représentées d'abord.</p>
         <div class="table-wrap cov-scroll" style="box-shadow:none"><table><thead><tr><th>Discipline</th><th>Stations</th><th class="num">Jouées</th><th>Dernière fois</th></tr></thead><tbody>
-        ${byDisc.map(([d, s]) => `<tr${s.total ? '' : ' class="cov-zero"'}><td>${disciplineIcon(d)} ${esc(d)}</td><td><div class="row" style="flex-wrap:nowrap;gap:8px">${bar(s.total, maxC)}<b class="num">${s.total}</b></div></td>
+        ${byDisc.map(([d, s]) => `<tr${s.total ? '' : ' class="cov-zero"'}><td style="white-space:nowrap">${disciplineIcon(d)} ${esc(d)}</td><td><div class="row" style="flex-wrap:nowrap;gap:8px">${bar(s.total, maxC)}<b class="num">${s.total}</b></div></td>
           <td class="num">${s.played}</td><td class="small">${lastTag(s.last)}</td></tr>`).join('')}
         </tbody></table></div></section>
       </div>

@@ -159,7 +159,8 @@ export async function stationsTab(box, exam, o = {}) {
     : `<span class="small muted">avant le ${esc(frDate(s.deadline.date))}</span>`);
   box.innerHTML = `
     <div class="facts">
-      <div><div class="v">${ready}<span class="faint"> / ${played.length}</span></div><div class="l">stations jouées validées</div></div>
+      ${o.reserve ? `<div><div class="v">${stations.filter((s) => s.status === 'validee').length}<span class="faint"> / ${stations.length}</span></div><div class="l">stations validées</div></div>`
+        : `<div><div class="v">${ready}<span class="faint"> / ${played.length}</span></div><div class="l">stations jouées validées</div></div>`}
       <div><div class="v">${stations.filter((s) => ['relecture_pair', 'relecture_expert', 'test', 'validation'].includes(s.status)).length}</div><div class="l">en relecture ou en test</div></div>
       <div><div class="v">${late}</div><div class="l">sans rédacteur</div></div>
       <div><div class="v" style="${overdue ? 'color:var(--ko)' : ''}">${overdue}</div><div class="l">en retard sur l'échéance</div></div>
@@ -647,7 +648,7 @@ export async function peopleView(app, o = {}) {
           <button class="small" data-pedit>Modifier</button>
           <button class="small quiet" data-regen>Nouveau code</button>
           <button class="small quiet" data-active>${p.active ? 'Désactiver' : 'Réactiver'}</button>
-          ${o.lead ? '' : `<button class="small quiet" data-lead>${p.lead ? 'Retirer « responsable »' : 'Responsable de rédaction'}</button>
+          ${o.lead ? '' : `<button class="small quiet" data-lead title="Responsable de rédaction : gère toutes les stations">${p.lead ? 'Retirer responsable' : 'Responsable'}</button>
           <button class="small danger" data-pdel>Supprimer</button>`}</div></td></tr>`).join('')}</tbody>
     </table></div>` : '<p class="alert info">Personne pour l\'instant. Ajoute les rédacteurs et relecteurs ci-dessous.</p>'}
     <div class="panel"><h2>Ajouter des personnes</h2>
