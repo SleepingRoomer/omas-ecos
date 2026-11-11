@@ -172,7 +172,7 @@ export async function stationsTab(box, exam, o = {}) {
       <div class="row" style="margin-top:12px"><button class="small primary" id="dl-save">Enregistrer les échéances</button>${o.lead ? '' : '<button class="small quiet" id="dl-recap">Envoyer le récapitulatif maintenant</button>'}</div></details>`}
     ${active.length ? '' : `<p class="alert warn">Ajoute d'abord des rédacteurs et des relecteurs dans <a href="${o.lead ? '#/redaction/personnes' : '#/admin/personnes'}">Rédacteurs et relecteurs</a> pour attribuer les stations.</p>`}
     <div class="row" style="margin:6px 0 12px"><span class="spacer"></span>
-      ${o.lead ? '' : '<a class="btn small" href="#/admin/suivi">Suivi des stations</a><a class="btn small" href="#/admin/reserve">Réserve</a>'}
+      ${o.lead ? '' : `<a class="btn small" href="#/admin/suivi">Suivi des stations</a>${o.reserve ? '' : '<a class="btn small" href="#/admin/reserve">Réserve</a>'}`}
       <a class="btn small" href="${o.lead ? '#/redaction/banque' : '#/admin/banque'}">Banque de stations</a>
       ${o.lead || o.reserve ? '' : '<button id="codes" class="small">Codes des salles</button>'}
       <button id="add" class="small ${o.reserve ? 'primary' : ''}">${o.reserve ? 'Nouvelle station' : 'Ajouter une station'}</button></div>
@@ -191,7 +191,8 @@ export async function stationsTab(box, exam, o = {}) {
           <div>${dlTag(s)}</div>
           <div class="small faint">${s.n_evaluations ? `${s.n_evaluations} grille(s) saisie(s)` : s.n_comments ? `${s.n_comments} commentaire(s)` : ''}</div></td>
         <td><div class="row" style="flex-wrap:nowrap;gap:4px"><a class="btn small" href="#/station/${s.id}">Ouvrir</a>
-          ${s.n_evaluations || o.reserve ? '' : `<a class="btn small quiet" href="${o.lead ? '#/redaction/banque' : '#/admin/banque'}/${s.id}" title="Reprendre une station déjà écrite">Banque</a>`}</div></td></tr>`).join('') || `<tr><td colspan="7" class="muted">${o.reserve ? 'La réserve est vide. « Nouvelle station » en crée une, qu\'on reprendra ensuite dans une salle avec la banque.' : 'Aucune station.'}</td></tr>`}</tbody>
+          ${s.n_evaluations || o.reserve ? '' : `<a class="btn small quiet" href="${o.lead ? '#/redaction/banque' : '#/admin/banque'}/${s.id}" title="Reprendre une station déjà écrite">Banque</a>`}
+          ${s.n_evaluations ? '' : '<button class="small quiet danger" data-del title="Supprimer cette station">Supprimer</button>'}</div></td></tr>`).join('') || `<tr><td colspan="7" class="muted">${o.reserve ? 'La réserve est vide. « Nouvelle station » en crée une, qu\'on reprendra ensuite dans une salle avec la banque.' : 'Aucune station.'}</td></tr>`}</tbody>
     </table></div>
     <p class="small muted">${o.reserve ? 'Les stations de la réserve ne sont rattachées à aucune session. Une fois validées, on les reprend dans une salle depuis l\'onglet Stations d\'une session (bouton « Banque »). ' : ''}Attribuer un rédacteur passe la station en rédaction. Ensuite, elle avance d'elle-même à chaque étape du circuit de relecture ; l'étape ne se change ici qu'en cas de besoin.</p>`;
 
@@ -204,6 +205,12 @@ export async function stationsTab(box, exam, o = {}) {
       toast('Modification enregistrée');
       if (f === 'author_id' || f === 'status' || f === 'played') stationsTab(box, exam, o);
     } catch (err) { toast(err.message, 'error'); }
+  }));
+  box.querySelectorAll('[data-del]').forEach((btn) => btn.addEventListener('click', async () => {
+    const s = stations.find((x) => String(x.id) === btn.closest('tr').dataset.id);
+    const what = `${s.slot}${s.title ? `, « ${s.title} »` : ''}`;
+    if (!window.confirm(`Supprimer la station ${what} ? Son contenu, ses relectures et ses fichiers sont effacés, et ce n'est pas réversible.${s.played && !o.reserve ? ' La salle disparaît aussi de la session.' : ''}`)) return;
+    try { await api(`/stations/${s.id}`, { method: 'DELETE' }); toast(`Station ${s.slot} supprimée`); stationsTab(box, exam, o); } catch (err) { toast(err.message, 'error'); }
   }));
   box.querySelector('#dl-save')?.addEventListener('click', async () => {
     const deadlines = Object.fromEntries([...box.querySelectorAll('[data-dl]')].filter((i) => i.value).map((i) => [i.dataset.dl, i.value]));

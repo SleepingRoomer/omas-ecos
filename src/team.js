@@ -54,6 +54,8 @@ const ACTIONS = [
   [/^DELETE \/evaluations\/\d+$/, 'Suppression d\'une grille'],
   [/^POST \/import\//, 'Restauration d\'une sauvegarde'],
   [/^DELETE \/people\/\d+$/, 'Suppression d\'un rédacteur'],
+  [/^PUT \/people\/\d+\/lead$/, 'Responsable de rédaction désigné ou retiré'],
+  [/^DELETE \/stations\/\d+$/, 'Suppression d\'une station'],
   [/^DELETE \/signups\/\d+$/, 'Retrait d\'un bénévole'],
   [/^POST \/volunteers\/\d+\/erase$/, 'Effacement d\'un bénévole (RGPD)'],
   [/^(POST|PATCH|DELETE) \/team/, 'Comptes des organisateurs'],
@@ -78,7 +80,8 @@ export async function audit(c, s, method, path, label) {
 export const auditMiddleware = async (c, next) => {
   await next();
   const s = c.get('session');
-  if (s?.kind !== 'admin' || c.res.status >= 400) return;
+  // les organisateurs, et le responsable de rédaction (ses actions sur les stations)
+  if (!(s?.kind === 'admin' || (s?.kind === 'auteur' && s.lead)) || c.res.status >= 400) return;
   const path = new URL(c.req.url).pathname.replace(/^\/api/, '');
   const label = auditLabel(c.req.method, path);
   if (!label || path === '/login') return;
