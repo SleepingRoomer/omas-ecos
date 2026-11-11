@@ -144,7 +144,8 @@ export async function examView(app, id, tab) {
   box.innerHTML = '<p>Onglet inconnu.</p>';
 }
 
-async function stationsTab(box, exam) {
+// Stations d'une session. Aussi utilisé par le responsable de rédaction (o.lead) et pour la réserve hors session (o.reserve).
+export async function stationsTab(box, exam, o = {}) {
   const [stations, people] = await Promise.all([api(`/exams/${exam.id}/stations`), api('/people')]);
   const active = people.filter((p) => p.active);
   const sel = (name, value, label) => `<select data-f="${name}" aria-label="${label}"><option value="">Personne</option>${active.map((p) =>
@@ -163,22 +164,23 @@ async function stationsTab(box, exam) {
       <div><div class="v">${late}</div><div class="l">sans rédacteur</div></div>
       <div><div class="v" style="${overdue ? 'color:var(--ko)' : ''}">${overdue}</div><div class="l">en retard sur l'échéance</div></div>
     </div>
-    <details class="panel" ${Object.keys(DL).length ? '' : 'open'}><summary style="cursor:pointer"><strong>Échéances du circuit de rédaction</strong>
+    ${o.reserve ? '' : `<details class="panel" ${Object.keys(DL).length ? '' : 'open'}><summary style="cursor:pointer"><strong>Échéances du circuit de rédaction</strong>
       <span class="small muted">${Object.keys(DL).length ? `${Object.keys(DL).length} étape(s) datée(s)` : 'aucune date pour l\'instant'}</span></summary>
       <p class="small muted">Une date limite par étape, pour toutes les stations de la session. La personne qui reçoit une station est prévenue par e-mail avec la date ; chaque lundi, chacun reçoit la liste de ce qui l'attend (en retard ou à rendre dans la semaine), et les organisateurs le tableau des retards à l'adresse de réponse des e-mails.</p>
       <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px">${DEADLINE_STEPS.map((k) => `<div><label for="dl-${k}" style="margin-top:0">${esc(STATUSES[k])}</label><input type="date" id="dl-${k}" data-dl="${k}" value="${esc(DL[k] || '')}"></div>`).join('')}</div>
-      <div class="row" style="margin-top:12px"><button class="small primary" id="dl-save">Enregistrer les échéances</button><button class="small quiet" id="dl-recap">Envoyer le récapitulatif maintenant</button></div></details>
-    ${active.length ? '' : '<p class="alert warn">Ajoute d\'abord des rédacteurs et des relecteurs dans <a href="#/admin/personnes">Rédacteurs et relecteurs</a> pour attribuer les stations.</p>'}
+      <div class="row" style="margin-top:12px"><button class="small primary" id="dl-save">Enregistrer les échéances</button>${o.lead ? '' : '<button class="small quiet" id="dl-recap">Envoyer le récapitulatif maintenant</button>'}</div></details>`}
+    ${active.length ? '' : `<p class="alert warn">Ajoute d'abord des rédacteurs et des relecteurs dans <a href="${o.lead ? '#/redaction/personnes' : '#/admin/personnes'}">Rédacteurs et relecteurs</a> pour attribuer les stations.</p>`}
     <div class="row" style="margin:6px 0 12px"><span class="spacer"></span>
-      <a class="btn small" href="#/admin/banque">Banque de stations</a>
-      <button id="codes" class="small">Codes des salles</button>
-      <button id="add" class="small">Ajouter une station</button></div>
+      ${o.lead ? '' : '<a class="btn small" href="#/admin/suivi">Suivi des stations</a><a class="btn small" href="#/admin/reserve">Réserve</a>'}
+      <a class="btn small" href="${o.lead ? '#/redaction/banque' : '#/admin/banque'}">Banque de stations</a>
+      ${o.lead || o.reserve ? '' : '<button id="codes" class="small">Codes des salles</button>'}
+      <button id="add" class="small ${o.reserve ? 'primary' : ''}">${o.reserve ? 'Nouvelle station' : 'Ajouter une station'}</button></div>
     <div class="table-wrap"><table>
       <thead><tr><th>Station</th><th>Contenu</th><th>Rédaction</th><th>Relecture pair</th><th>Relecture expert</th><th>Étape</th><th></th></tr></thead>
       <tbody>${stations.map((s) => `<tr data-id="${s.id}">
         <td><div class="row" style="flex-wrap:nowrap">${plate(s.slot, 'lg')}
-          <label class="check small" style="margin:0;font-weight:400"><input type="checkbox" data-f="played" ${s.played ? 'checked' : ''}> jouée</label></div></td>
-        <td style="min-width:240px"><strong>${esc(s.title || 'Sans titre')}</strong>${s.discipline ? `<div class="small muted">${disc(s.discipline)}</div>` : ''}
+          ${o.reserve ? '' : `<label class="check small" style="margin:0;font-weight:400"><input type="checkbox" data-f="played" ${s.played ? 'checked' : ''}> jouée</label>`}</div></td>
+        <td style="min-width:240px"><strong>${esc(s.title || 'Sans titre')}</strong>${s.discipline ? `<div class="small muted">${disc(s.discipline)}</div>` : ''}${s.sdd ? `<div class="small muted">SDD ${esc(s.sdd)}</div>` : ''}
           <div class="grid" style="grid-template-columns:1fr 1fr;gap:6px;margin-top:6px">
           <select data-f="domain" aria-label="Domaine"><option value="">Domaine</option>${DOMAINS.map((d) => `<option value="${esc(d)}" ${d === s.domain ? 'selected' : ''}>${domainIcon(d)} ${esc(d)}</option>`).join('')}</select>
           <select data-f="type" aria-label="Type">${Object.entries(TYPES).map(([k, l]) => `<option value="${k}" ${k === s.type ? 'selected' : ''}>${l}</option>`).join('')}</select></div></td>
@@ -188,9 +190,9 @@ async function stationsTab(box, exam) {
           <div>${dlTag(s)}</div>
           <div class="small faint">${s.n_evaluations ? `${s.n_evaluations} grille(s) saisie(s)` : s.n_comments ? `${s.n_comments} commentaire(s)` : ''}</div></td>
         <td><div class="row" style="flex-wrap:nowrap;gap:4px"><a class="btn small" href="#/station/${s.id}">Ouvrir</a>
-          ${s.n_evaluations ? '' : `<a class="btn small quiet" href="#/admin/banque/${s.id}" title="Reprendre une station déjà écrite">Banque</a>`}</div></td></tr>`).join('')}</tbody>
+          ${s.n_evaluations || o.reserve ? '' : `<a class="btn small quiet" href="${o.lead ? '#/redaction/banque' : '#/admin/banque'}/${s.id}" title="Reprendre une station déjà écrite">Banque</a>`}</div></td></tr>`).join('') || `<tr><td colspan="7" class="muted">${o.reserve ? 'La réserve est vide. « Nouvelle station » en crée une, qu\'on reprendra ensuite dans une salle avec la banque.' : 'Aucune station.'}</td></tr>`}</tbody>
     </table></div>
-    <p class="small muted">Attribuer un rédacteur passe la station en rédaction. Ensuite, elle avance d'elle-même à chaque étape du circuit de relecture ; l'étape ne se change ici qu'en cas de besoin.</p>`;
+    <p class="small muted">${o.reserve ? 'Les stations de la réserve ne sont rattachées à aucune session. Une fois validées, on les reprend dans une salle depuis l\'onglet Stations d\'une session (bouton « Banque »). ' : ''}Attribuer un rédacteur passe la station en rédaction. Ensuite, elle avance d'elle-même à chaque étape du circuit de relecture ; l'étape ne se change ici qu'en cas de besoin.</p>`;
 
   box.querySelectorAll('tr[data-id] [data-f]').forEach((input) => input.addEventListener('change', async () => {
     const id = input.closest('tr').dataset.id;
@@ -199,23 +201,33 @@ async function stationsTab(box, exam) {
     try {
       await api(`/stations/${id}`, { method: 'PATCH', body: { [f]: f.endsWith('_id') ? (v ? Number(v) : null) : v } });
       toast('Modification enregistrée');
-      if (f === 'author_id' || f === 'status' || f === 'played') stationsTab(box, exam);
+      if (f === 'author_id' || f === 'status' || f === 'played') stationsTab(box, exam, o);
     } catch (err) { toast(err.message, 'error'); }
   }));
-  box.querySelector('#dl-save').addEventListener('click', async () => {
+  box.querySelector('#dl-save')?.addEventListener('click', async () => {
     const deadlines = Object.fromEntries([...box.querySelectorAll('[data-dl]')].filter((i) => i.value).map((i) => [i.dataset.dl, i.value]));
-    try { await api(`/exams/${exam.id}/writing`, { method: 'PUT', body: { deadlines } }); toast('Échéances enregistrées'); stationsTab(box, await api(`/exams/${exam.id}`)); } catch (err) { toast(err.message, 'error'); }
+    try {
+      await api(`/exams/${exam.id}/writing`, { method: 'PUT', body: { deadlines } }); toast('Échéances enregistrées');
+      let P = {}; try { P = JSON.parse(exam.planning || '{}') || {}; } catch { /* pas de planning */ }
+      stationsTab(box, { ...exam, planning: JSON.stringify({ ...P, writing_deadlines: deadlines }) }, o);
+    } catch (err) { toast(err.message, 'error'); }
   });
-  box.querySelector('#dl-recap').addEventListener('click', async () => {
+  box.querySelector('#dl-recap')?.addEventListener('click', async () => {
     if (!window.confirm('Envoyer dès maintenant à chaque rédacteur et relecteur la liste de ce qui l\'attend ? (Il part sinon tout seul le lundi.)')) return;
     try { const r = await api('/system/writing-recap', { method: 'POST' }); toast(r.ready === false ? 'Les e-mails ne sont pas configurés (voir État du système)' : `${r.sent || 0} récapitulatif(s) envoyé(s)`, r.ready === false ? 'error' : 'ok'); } catch (err) { toast(err.message, 'error'); }
   });
   box.querySelector('#add').addEventListener('click', async () => {
+    if (o.reserve) {
+      const title = prompt('Titre de la nouvelle station (interne, modifiable ensuite) :', '');
+      if (title === null) return;
+      try { const r = await api('/reserve/stations', { method: 'POST', body: { title } }); toast(`Station ${r.slot} créée`); stationsTab(box, exam, o); } catch (err) { toast(err.message, 'error'); }
+      return;
+    }
     const slot = prompt('Nom de la nouvelle station (par exemple R3) :');
     if (!slot) return;
-    try { await api(`/exams/${exam.id}/stations`, { method: 'POST', body: { slot } }); stationsTab(box, exam); } catch (err) { toast(err.message, 'error'); }
+    try { await api(`/exams/${exam.id}/stations`, { method: 'POST', body: { slot } }); stationsTab(box, exam, o); } catch (err) { toast(err.message, 'error'); }
   });
-  box.querySelector('#codes').addEventListener('click', () => window.open(`#/admin/session/${exam.id}/affiches`, '_blank'));
+  box.querySelector('#codes')?.addEventListener('click', () => window.open(`#/admin/session/${exam.id}/affiches`, '_blank'));
 }
 
 async function signsView(app, exam) {
@@ -617,23 +629,26 @@ async function settingsTab(box, exam) {
 
 // ---------- rédacteurs et relecteurs ----------
 
-export async function peopleView(app) {
+// o.lead : vue du responsable de rédaction (pas de suppression, pas de désignation de responsable)
+export async function peopleView(app, o = {}) {
   setTitle('Rédacteurs et relecteurs');
   const people = await api('/people');
   app.innerHTML = `
     <h1>Rédacteurs et relecteurs</h1>
-    <p class="lede">Chacun reçoit un code personnel et ne voit que les stations qu'il rédige ou relit.</p>
-    <div class="row" style="margin:18px 0 12px"><button id="exp">Exporter codes et liens</button></div>
+    <p class="lede">Chacun reçoit un code personnel et ne voit que les stations qu'il rédige ou relit. Un responsable de rédaction voit et gère toutes les stations, la réserve et le suivi, sans accès aux candidats ni aux notes.</p>
+    <div class="row" style="margin:18px 0 12px"><button id="exp">Exporter codes et liens</button>
+      ${o.lead ? '' : '<a class="btn" href="#/admin/reserve">Réserve de stations</a><a class="btn" href="#/admin/suivi">Suivi des stations</a>'}</div>
     ${people.length ? `<div class="table-wrap"><table>
       <thead><tr><th>Nom</th><th>Spécialité</th><th>Code</th><th class="num">Rédige</th><th class="num">Relit</th><th></th></tr></thead>
       <tbody>${people.map((p) => `<tr data-id="${p.id}" ${p.active ? '' : 'style="opacity:.5"'}>
-        <td><strong>${esc(p.name)}</strong><div class="small muted">${esc(p.email || '')}</div></td><td>${esc(p.specialty || '')}</td>
+        <td><strong>${esc(p.name)}</strong>${p.lead ? ' <span class="pill ink" style="font-size:.7rem">Responsable de rédaction</span>' : ''}<div class="small muted">${esc(p.email || '')}</div></td><td>${esc(p.specialty || '')}</td>
         <td><span class="code">${esc(p.code)}</span></td><td class="num">${p.n_author}</td><td class="num">${p.n_review}</td>
         <td><div class="row" style="flex-wrap:nowrap;gap:4px"><button class="small" data-copy>Copier le lien</button>
           <button class="small" data-pedit>Modifier</button>
           <button class="small quiet" data-regen>Nouveau code</button>
           <button class="small quiet" data-active>${p.active ? 'Désactiver' : 'Réactiver'}</button>
-          <button class="small danger" data-pdel>Supprimer</button></div></td></tr>`).join('')}</tbody>
+          ${o.lead ? '' : `<button class="small quiet" data-lead>${p.lead ? 'Retirer « responsable »' : 'Responsable de rédaction'}</button>
+          <button class="small danger" data-pdel>Supprimer</button>`}</div></td></tr>`).join('')}</tbody>
     </table></div>` : '<p class="alert info">Personne pour l\'instant. Ajoute les rédacteurs et relecteurs ci-dessous.</p>'}
     <div class="panel"><h2>Ajouter des personnes</h2>
       <p class="small muted">Une personne par ligne : nom ; e-mail ; spécialité. L'e-mail et la spécialité sont facultatifs.</p>
@@ -645,7 +660,7 @@ export async function peopleView(app) {
     if (!list.length) return;
     await api('/people', { method: 'POST', body: list });
     toast(`${list.length} personne(s) ajoutée(s)`);
-    peopleView(app);
+    peopleView(app, o);
   });
   app.querySelector('#exp').addEventListener('click', () => downloadCsv('redacteurs.csv', [['Nom', 'E-mail', 'Spécialité', 'Code', 'Lien'],
     ...people.filter((p) => p.active).map((p) => [p.name, p.email, p.specialty, p.code, link('redaction', p.code)])]));
@@ -655,11 +670,11 @@ export async function peopleView(app) {
   }));
   app.querySelectorAll('[data-regen]').forEach((b) => b.addEventListener('click', async () => {
     if (!confirmBox('Générer un nouveau code ? L\'ancien ne fonctionnera plus.')) return;
-    await api(`/people/${byRow(b).id}`, { method: 'PATCH', body: { regen_code: true } }); peopleView(app);
+    await api(`/people/${byRow(b).id}`, { method: 'PATCH', body: { regen_code: true } }); peopleView(app, o);
   }));
   app.querySelectorAll('[data-active]').forEach((b) => b.addEventListener('click', async () => {
     const p = byRow(b);
-    await api(`/people/${p.id}`, { method: 'PATCH', body: { active: p.active ? 0 : 1 } }); peopleView(app);
+    await api(`/people/${p.id}`, { method: 'PATCH', body: { active: p.active ? 0 : 1 } }); peopleView(app, o);
   }));
   app.querySelectorAll('[data-pedit]').forEach((b) => b.addEventListener('click', () => {
     const p = byRow(b);
@@ -677,9 +692,14 @@ export async function peopleView(app) {
       const f = new FormData(ev.target);
       try {
         await api(`/people/${p.id}`, { method: 'PATCH', body: { name: f.get('name').trim(), email: f.get('email').trim() || null, phone: f.get('phone').trim() || null, specialty: f.get('specialty').trim() || null } });
-        toast('Modifications enregistrées'); peopleView(app);
+        toast('Modifications enregistrées'); peopleView(app, o);
       } catch (err) { toast(err.message, 'error'); }
     });
+  }));
+  app.querySelectorAll('[data-lead]').forEach((b) => b.addEventListener('click', async () => {
+    const p = byRow(b);
+    if (!p.lead && !confirmBox(`Faire de ${p.name} un responsable de rédaction ? Avec son code, il ou elle pourra créer, modifier, attribuer et valider toutes les stations, sans voir les candidats ni les notes.`)) return;
+    try { await api(`/people/${p.id}/lead`, { method: 'PUT', body: { lead: !p.lead } }); toast(p.lead ? 'Ce n\'est plus un responsable de rédaction' : 'Responsable de rédaction désigné'); peopleView(app, o); } catch (err) { toast(err.message, 'error'); }
   }));
   app.querySelectorAll('[data-pdel]').forEach((b) => b.addEventListener('click', async () => {
     const p = byRow(b);
@@ -687,6 +707,6 @@ export async function peopleView(app) {
     const msg = n ? `Supprimer ${p.name} ? Il ou elle suit ${n} station(s) ou atelier(s), qui repasseront « à attribuer » pour son rôle. Son code ne fonctionnera plus.`
       : `Supprimer ${p.name} ? Son code ne fonctionnera plus.`;
     if (!confirmBox(msg)) return;
-    try { await api(`/people/${p.id}`, { method: 'DELETE' }); toast(`${p.name} supprimé(e)`); peopleView(app); } catch (err) { toast(err.message, 'error'); }
+    try { await api(`/people/${p.id}`, { method: 'DELETE' }); toast(`${p.name} supprimé(e)`); peopleView(app, o); } catch (err) { toast(err.message, 'error'); }
   }));
 }

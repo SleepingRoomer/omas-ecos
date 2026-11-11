@@ -23,6 +23,7 @@ import { registerClaims, windowOf, CLAIM_STATUS } from './claims.js';
 import { registerDemo } from './demo.js';
 import { registerDashboard } from './dashboard.js';
 import { registerMessages } from './messages.js';
+import { registerRedaction, leadIds } from './redaction.js';
 
 const app = new Hono().basePath('/api');
 const COOKIE = 'omas_s';
@@ -122,6 +123,8 @@ app.use('*', async (c, next) => {
   const token = getCookie(c, COOKIE);
   if (token) {
     const s = await one(c.env.DB, 'SELECT * FROM auth_sessions WHERE token = ? AND expires_at > ?', token, new Date().toISOString());
+    // un rédacteur peut être responsable de rédaction : mêmes droits que les organisateurs sur les stations, rien d'autre
+    if (s?.kind === 'auteur') s.lead = (await leadIds(c.env.DB)).includes(Number(s.subject_id));
     if (s) c.set('session', s);
   }
   await next();
@@ -130,10 +133,11 @@ app.use('*', async (c, next) => {
 // journal des actions sensibles de l'équipe (src/team.js)
 app.use('*', auditMiddleware);
 
+// « lead » : le responsable de rédaction (un rédacteur désigné par les organisateurs)
 const need = (...kinds) => async (c, next) => {
   const s = c.get('session');
   if (!s) throw httpError(401, 'Connexion requise');
-  if (!kinds.includes(s.kind)) throw httpError(403, 'Accès refusé');
+  if (!kinds.includes(s.kind) && !(kinds.includes('lead') && s.kind === 'auteur' && s.lead)) throw httpError(403, 'Accès refusé');
   await next();
 };
 
@@ -255,7 +259,7 @@ app.post('/logout', async (c) => {
 app.get('/me', (c) => {
   const s = c.get('session');
   if (!s) return c.json({ kind: null });
-  return c.json({ kind: s.kind, name: s.name, subject_id: s.subject_id });
+  return c.json({ kind: s.kind, name: s.name, subject_id: s.subject_id, lead: !!s.lead });
 });
 
 // ---------- sessions d'ECOS (examens) ----------
@@ -266,7 +270,7 @@ app.get('/exams', need('admin'), async (c) => {
     (SELECT COUNT(*) FROM stations WHERE exam_id = e.id) AS n_stations,
     (SELECT COUNT(*) FROM evaluations WHERE exam_id = e.id) AS n_evaluations,
     (SELECT COUNT(*) FROM stations WHERE exam_id = e.id AND played = 1) AS n_played
-    FROM exams e ORDER BY e.id DESC`);
+    FROM exams e WHERE e.id != COALESCE((SELECT CAST(value AS INTEGER) FROM settings WHERE key = 'reserve_exam'), 0) ORDER BY e.id DESC`);
   return c.json(rows.map(withState));
 });
 
@@ -330,15 +334,16 @@ app.delete('/exams/:id', need('admin'), async (c) => {
 
 // ---------- personnes (rédaction) ----------
 
-app.get('/people', need('admin'), async (c) => {
+app.get('/people', need('admin', 'lead'), async (c) => {
+  const leads = await leadIds(c.env.DB);
   const rows = await all(c.env.DB, `SELECT p.*,
     (SELECT COUNT(*) FROM stations WHERE author_id = p.id) + (SELECT COUNT(*) FROM jp_ateliers WHERE author_id = p.id) AS n_author,
     (SELECT COUNT(*) FROM stations WHERE peer_id = p.id OR expert_id = p.id) + (SELECT COUNT(*) FROM jp_ateliers WHERE reviewer_id = p.id) AS n_review
     FROM people p ORDER BY p.active DESC, p.name`);
-  return c.json(rows);
+  return c.json(rows.map((p) => ({ ...p, lead: leads.includes(p.id) })));
 });
 
-app.post('/people', need('admin'), async (c) => {
+app.post('/people', need('admin', 'lead'), async (c) => {
   const b = await c.req.json();
   const list = Array.isArray(b) ? b : [b];
   const rows = list.filter((p) => String(p.name || '').trim());
@@ -348,7 +353,7 @@ app.post('/people', need('admin'), async (c) => {
   return c.json({ added: rows.length });
 });
 
-app.patch('/people/:id', need('admin'), async (c) => {
+app.patch('/people/:id', need('admin', 'lead'), async (c) => {
   const b = await c.req.json();
   const sets = []; const vals = [];
   for (const f of ['name', 'email', 'phone', 'specialty', 'active']) if (f in b) { sets.push(`${f} = ?`); vals.push(b[f]); }
@@ -378,6 +383,7 @@ app.delete('/people/:id', need('admin'), async (c) => {
 const STATION_LIST_SQL = `SELECT s.id, s.exam_id, s.slot, s.played, s.domain, s.type, s.discipline, s.title, s.status,
   s.author_id, s.peer_id, s.expert_id, s.eval_code, s.updated_at,
   a.name AS author_name, p.name AS peer_name, x.name AS expert_name, e.name AS exam_name, e.planning AS exam_planning,
+  json_extract(s.content, '$.identite.sdd') AS sdd, json_extract(s.content, '$.identite.item') AS item,
   (SELECT COUNT(*) FROM evaluations v WHERE v.station_id = s.id) AS n_evaluations,
   (SELECT COUNT(*) FROM reviews r WHERE r.station_id = s.id AND r.action = 'comment') AS n_comments
   FROM stations s
@@ -386,12 +392,12 @@ const STATION_LIST_SQL = `SELECT s.id, s.exam_id, s.slot, s.played, s.domain, s.
   LEFT JOIN people p ON p.id = s.peer_id
   LEFT JOIN people x ON x.id = s.expert_id`;
 
-app.get('/exams/:id/stations', need('admin'), async (c) => {
+app.get('/exams/:id/stations', need('admin', 'lead'), async (c) => {
   const rows = await all(c.env.DB, `${STATION_LIST_SQL} WHERE s.exam_id = ? ORDER BY s.played DESC, s.slot`, c.req.param('id'));
   return c.json(withDeadlines(rows));
 });
 
-app.post('/exams/:id/stations', need('admin'), async (c) => {
+app.post('/exams/:id/stations', need('admin', 'lead'), async (c) => {
   const b = await c.req.json();
   const slot = String(b.slot || '').trim().toUpperCase();
   if (!slot) throw httpError(400, 'Emplacement requis (ex. R3)');
@@ -400,7 +406,7 @@ app.post('/exams/:id/stations', need('admin'), async (c) => {
   return c.json({ id: r.meta.last_row_id });
 });
 
-app.patch('/stations/:id', need('admin'), async (c) => {
+app.patch('/stations/:id', need('admin', 'lead'), async (c) => {
   const b = await c.req.json();
   const db = c.env.DB;
   const st = await one(db, 'SELECT * FROM stations WHERE id = ?', c.req.param('id'));
@@ -419,7 +425,7 @@ app.patch('/stations/:id', need('admin'), async (c) => {
   }
   if (b.status && b.status !== st.status) {
     await run(db, 'INSERT INTO reviews (station_id, author_name, stage, action, comment) VALUES (?,?,?,?,?)',
-      st.id, 'Administrateur', st.status, 'status', `Statut changé : ${STATUSES[st.status]} → ${STATUSES[b.status]}`);
+      st.id, c.get('session').kind === 'admin' ? 'Administrateur' : c.get('session').name, st.status, 'status', `Statut changé : ${STATUSES[st.status]} → ${STATUSES[b.status]}`);
   }
   // la station arrive chez quelqu'un (nouvelle étape ou nouvelle personne sur l'étape en cours) : on le prévient
   if ((b.status && b.status !== st.status) || ['author_id', 'peer_id', 'expert_id'].some((f) => f in b && b[f] && b[f] !== st[f])) notifyStepLater(c, st.id);
@@ -427,7 +433,7 @@ app.patch('/stations/:id', need('admin'), async (c) => {
 });
 
 // Échéances du circuit de rédaction, une date par étape (dans le planning de la session)
-app.put('/exams/:id/writing', need('admin'), async (c) => {
+app.put('/exams/:id/writing', need('admin', 'lead'), async (c) => {
   const E = await loadExamState(c.env.DB, c.req.param('id'));
   if (!E) throw httpError(404, 'Session introuvable');
   const b = (await c.req.json()).deadlines || {};
@@ -449,7 +455,7 @@ app.post('/exams/:id/regen-room-codes', need('admin'), async (c) => {
   return c.json({ ok: true, n: st.length });
 });
 
-app.delete('/stations/:id', need('admin'), async (c) => {
+app.delete('/stations/:id', need('admin', 'lead'), async (c) => {
   const n = await one(c.env.DB, 'SELECT COUNT(*) AS n FROM evaluations WHERE station_id = ?', c.req.param('id'));
   if (n.n > 0) throw httpError(400, 'Cette station a déjà des évaluations.');
   await run(c.env.DB, 'DELETE FROM stations WHERE id = ?', c.req.param('id'));
@@ -458,7 +464,8 @@ app.delete('/stations/:id', need('admin'), async (c) => {
 
 // Droits d'une session sur une station
 function stationRights(s, st) {
-  const isAdmin = s.kind === 'admin';
+  // le responsable de rédaction agit comme les organisateurs sur toutes les stations
+  const isAdmin = s.kind === 'admin' || (s.kind === 'auteur' && !!s.lead);
   const isAuthor = s.kind === 'auteur' && st.author_id === s.subject_id;
   const isPeer = s.kind === 'auteur' && st.peer_id === s.subject_id;
   const isExpert = s.kind === 'auteur' && st.expert_id === s.subject_id;
@@ -1043,6 +1050,7 @@ registerRgpd(app, { need, httpError, all, one, run });
 registerTeam(app, { need, httpError, all, one, run });
 registerClaims(app, { need, httpError, all, one, run });
 registerDemo(app, { need, httpError, all, one, run, freshCodes, multiInsert, batch });
+registerRedaction(app, { need, httpError, all, one, run, uniqueCode });
 
 app.all('*', () => { throw httpError(404, 'Route inconnue'); });
 
