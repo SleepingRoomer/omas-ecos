@@ -1,6 +1,7 @@
 import { api, esc, nl, toast, setTitle, frDate, plate, atelierPlate, rail, FLOW_ORDER, FLOW_SHORT, dom, disc, uploadStationFile, fileThumb } from './ui.js';
 import { state } from './app.js';
 import { TYPES, TYPES_SHORT, TYPE_LINE, STATUSES, COM_ATTENDUS, GLOBAL_LEVELS, COM_LEVELS, DISCIPLINES, uid } from './shared.js';
+import { SDD, sddLabel } from './sdd.js';
 
 // Qui doit agir à chaque étape
 const NEXT = {
@@ -45,7 +46,9 @@ export async function myStations(app) {
         <div class="tags small" style="margin-top:2px">${a.discipline ? `<span>${disc(a.discipline)}</span>` : ''}<span class="faint">${esc(a.jp_name)}</span></div></div>
       <div style="text-align:right"><span class="pill ${a.status === 'validee' ? 'ok' : a.status === 'relecture' ? 'warn' : 's-redaction'}">${{ redaction: 'Rédaction', relecture: 'Relecture', validee: 'Validée' }[a.status]}</span>
         <div class="small muted" style="margin-top:4px">${a.author_id === me ? 'Référent' : 'Relecture'}</div></div></a>`; }).join('')}` : ''}
-    ${rows.length || ats.length ? '' : '<p class="alert info">Rien ne t\'est encore attribué. Les organisateurs s\'en occupent.</p>'}</div>`;
+    ${state.me?.lead ? `<div class="panel"><strong>Responsable de rédaction</strong><p class="small muted" style="margin:4px 0 10px">Tu peux créer, attribuer, relire et valider toutes les stations, sans accès aux candidats ni aux notes.</p>
+      <div class="row"><a class="btn small" href="#/redaction/stations">Toutes les stations</a><a class="btn small" href="#/redaction/reserve">Réserve</a><a class="btn small" href="#/redaction/suivi">Suivi des disciplines, domaines et SDD</a></div></div>`
+      : rows.length || ats.length ? '' : '<p class="alert info">Rien ne t\'est encore attribué. Les organisateurs s\'en occupent.</p>'}</div>`;
 }
 
 // ---------- éditeur ----------
@@ -75,7 +78,8 @@ export async function stationEditor(app, id) {
   setTitle(`${st.slot}, ${st.title || 'station'}`);
 
   const myRoles = [rights.isAdmin && 'admin', rights.isAuthor && 'author', rights.isPeer && 'peer', rights.isExpert && 'expert'].filter(Boolean);
-  const back = rights.isAdmin ? `#/admin/session/${st.exam_id}/stations` : '#/redaction';
+  // le responsable de rédaction a les droits des organisateurs, mais revient dans son espace
+  const back = state.me?.lead ? `#/redaction/stations/${st.exam_id}` : rights.isAdmin ? `#/admin/session/${st.exam_id}/stations` : '#/redaction';
   const dis = ro ? 'disabled' : '';
 
   const field = (path, label, opts = {}) => {
@@ -84,7 +88,7 @@ export async function stationEditor(app, id) {
     const hint = opts.hint ? ` <span class="hint">${esc(opts.hint)}</span>` : '';
     return `<label for="${fid}">${esc(label)}${hint}</label>${opts.area
       ? `<textarea id="${fid}" data-path="${path}" ${dis} rows="${opts.rows || 3}" placeholder="${esc(opts.ph || '')}">${esc(v)}</textarea>`
-      : `<input id="${fid}" type="text" data-path="${path}" ${dis} value="${esc(v)}" placeholder="${esc(opts.ph || '')}">`}`;
+      : `<input id="${fid}" type="text" data-path="${path}" ${dis} value="${esc(v)}" placeholder="${esc(opts.ph || '')}" ${opts.list ? `list="${opts.list}" autocomplete="off"` : ''}>`}`;
   };
   const strList = (path, label, ph, addLabel) => {
     const arr = get(content, path) || [];
@@ -112,7 +116,8 @@ export async function stationEditor(app, id) {
           ${otherDisc ? `<input id="m-disc" type="text" data-meta="discipline" value="${esc(meta.discipline)}" ${dis} placeholder="Nom de la discipline" style="margin-top:6px" aria-label="Autre discipline">` : ''}</div>
       </div>
       <div class="grid cols-2">
-        <div>${field('identite.sdd', 'Situation de départ', { ph: '178. Hémoptysie' })}</div>
+        <div>${field('identite.sdd', 'Situation de départ', { ph: '161. Douleur thoracique', list: 'sdd-list', hint: '(liste nationale ; plusieurs : 161, 162)' })}
+          <datalist id="sdd-list">${SDD.map((l, i) => `<option value="${esc(sddLabel(i + 1))}">`).join('')}</datalist></div>
         <div>${field('identite.item', 'Item de connaissance', { ph: '204' })}</div>
       </div>
       ${isPS ? field('identite.age', 'Tranche d\'âge du personnage', { ph: '50 à 65 ans' }) : ''}

@@ -8,11 +8,12 @@ export function registerBanque(app, h) {
 
   // ---------- banque ----------
   // Chaque station reprise garde la trace de son origine : une « lignée » regroupe toutes ses versions jouées.
-  app.get('/bank', need('admin'), async (c) => {
+  app.get('/bank', need('admin', 'lead'), async (c) => {
     const db = c.env.DB;
     const target = Number(c.req.query('target')) || null;
     const rows = await all(db, `SELECT s.id, s.exam_id, s.slot, s.played, s.domain, s.type, s.discipline, s.title, s.status, s.origin_id,
         COALESCE(s.origin_id, s.id) AS lineage, e.name AS exam_name, e.starts_on,
+        (e.id = COALESCE((SELECT CAST(value AS INTEGER) FROM settings WHERE key = 'reserve_exam'), 0)) AS is_reserve,
         json_extract(s.content, '$.identite.item') AS item, json_extract(s.content, '$.identite.sdd') AS sdd,
         json_array_length(json_extract(s.content, '$.grille.apt')) AS n_apt,
         (SELECT COUNT(*) FROM station_files f WHERE f.station_id = s.id) AS n_files,
@@ -36,7 +37,7 @@ export function registerBanque(app, h) {
   });
 
   // Reprendre une station de la banque dans un emplacement d'une session : contenu, grille et fichiers sont copiés.
-  app.post('/stations/:id/copy-from', need('admin'), async (c) => {
+  app.post('/stations/:id/copy-from', need('admin', 'lead'), async (c) => {
     const db = c.env.DB;
     const target = await one(db, 'SELECT * FROM stations WHERE id = ?', c.req.param('id'));
     const { source_id } = await c.req.json();

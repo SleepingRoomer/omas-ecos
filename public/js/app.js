@@ -14,7 +14,8 @@ function renderNav() {
   const k = state.me?.kind;
   const links = {
     admin: [['#/admin', 'Sessions'], ['#/admin/personnes', 'Rédacteurs et relecteurs', 'Rédaction'], ['#/admin/communication', 'Communication'], ['#/admin/benevoles', 'Bénévoles'], ['#/admin/equipe', 'Organisateurs'], ['#/admin/systeme', 'État du système', 'Système']],
-    auteur: [['#/redaction', 'Mes stations et ateliers']],
+    auteur: state.me?.lead ? [['#/redaction', 'Mes stations', 'Mes stations'], ['#/redaction/stations', 'Toutes les stations', 'Toutes'], ['#/redaction/reserve', 'Réserve'], ['#/redaction/suivi', 'Suivi'], ['#/redaction/personnes', 'Rédacteurs']]
+      : [['#/redaction', 'Mes stations et ateliers']],
     evaluateur: [['#/eval', 'Ma salle']],
     etudiant: [['#/resultats', 'Mon espace'], ['#/fiches', 'Fiches procédures', 'Fiches']],
     participant: [['#/journee', 'Ma journée'], ['#/fiches', 'Fiches procédures', 'Fiches']],
@@ -136,6 +137,14 @@ const routes = [
   [/^#\/admin\/personnes$/, 'admin', async () => (await import('./admin.js')).peopleView(app)],
   [/^#\/admin$/, 'admin', async () => (await import('./admin.js')).examsView(app)],
   [/^#\/redaction$/, 'auteur', async () => (await import('./editor.js')).myStations(app)],
+  // responsable de rédaction (le serveur vérifie ses droits à chaque appel)
+  [/^#\/redaction\/stations(?:\/(\d+))?$/, 'auteur', async (m) => (await import('./redaction.js')).leadStations(app, m[1])],
+  [/^#\/redaction\/reserve$/, 'auteur', async () => (await import('./redaction.js')).reserveView(app, '#/redaction')],
+  [/^#\/redaction\/suivi$/, 'auteur', async () => (await import('./suivi.js')).suiviView(app, '#/redaction')],
+  [/^#\/redaction\/banque(?:\/(\d+))?$/, 'auteur', async (m) => (await import('./bank.js')).bankView(app, m[1], '#/redaction')],
+  [/^#\/redaction\/personnes$/, 'auteur', async () => (await import('./admin.js')).peopleView(app, { lead: true })],
+  [/^#\/admin\/reserve$/, 'admin', async () => (await import('./redaction.js')).reserveView(app, '#/admin')],
+  [/^#\/admin\/suivi$/, 'admin', async () => (await import('./suivi.js')).suiviView(app, '#/admin')],
   [/^#\/station\/(\d+)$/, ['admin', 'auteur'], async (m) => (await import('./editor.js')).stationEditor(app, m[1])],
   [/^#\/apercu\/(\d+)\/(vignette|dossier|grille|documents)$/, ['admin', 'auteur', 'evaluateur'], async (m) => (await import('./editor.js')).preview(app, m[1], m[2])],
   [/^#\/eval\/candidat\/(\d+)$/, 'evaluateur', async (m) => (await import('./evaluator.js')).gridView(app, m[1])],

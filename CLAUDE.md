@@ -22,7 +22,7 @@ INES (Interface numérique d'ECOS et de simulation) est la plateforme des ECOS b
 - Relances de rédaction (`src/writing.js`) : échéance par étape dans `planning.writing_deadlines`, e-mail à la personne qui reçoit une station, récapitulatif le lundi (tâche du soir) aux rédacteurs et relecteurs, et à l'adresse de réponse des e-mails pour l'équipe.
 - Saisie des grilles : ouverte d'après le planning (une heure avant la première convocation du jour, trois quarts d'heure après le dernier tour), ou forcée par `planning.eval_mode` ('auto', 'open', 'closed'). Détail des grilles retenu jusqu'à la fin de la dernière série (`planning.details_embargo`). Tout passe par `src/state.js` (`examState`, `loadExamState`) : ne plus lire `exams.eval_open` directement.
 - E-mails : Brevo, un appel pour 200 destinataires, journal dans `mail_log`. Sans clé, rien ne part et le site fonctionne quand même.
-- Hors connexion : `public/sw.js`. Changer le nom du cache (`ines-v19` aujourd'hui) quand les fichiers du front changent beaucoup.
+- Hors connexion : `public/sw.js`. Changer le nom du cache (`ines-v20` aujourd'hui) quand les fichiers du front changent beaucoup.
 - Sécurité : `public/_headers` (CSP stricte : pas de script ni de police externes, pas de gestionnaire `onclick` en ligne).
 
 ## Identité (charte complète dans le projet claude.ai « OMAS », document `claude/INES_charte.md`)
@@ -50,6 +50,11 @@ node scripts/demo/seed.mjs       # données fictives : session du jour, 80 candi
 python3 scripts/demo/shots.py    # captures dans scripts/demo/shots/
 ```
 Pour repartir d'une base vide : arrêter le serveur, supprimer `.wrangler/state`, relancer la migration locale.
+
+## Responsable de rédaction, réserve et suivi des stations
+- Responsable de rédaction : un rédacteur (table `people`) désigné par les organisateurs (page Rédacteurs et relecteurs, `PUT /people/:id/lead`, liste dans `settings.redaction_leads`). Sa session reste `auteur` avec `lead: true` (calculé à chaque requête) ; `need('admin', 'lead')` lui ouvre les routes des stations, de la banque et de l'annuaire des rédacteurs, et `stationRights` le traite comme un organisateur. Jamais les candidats, les notes, les bénévoles ni les réglages. Espace : `#/redaction/stations`, `/reserve`, `/suivi`, `/banque`, `/personnes` (`public/js/redaction.js`).
+- Réserve de stations (`src/redaction.js`) : une session cachée (`settings.reserve_exam`, créée au premier besoin) où l'on écrit des stations hors session (emplacements R1, R2…, `played = 0`). Exclue de `GET /exams`. On la reprend dans une salle avec la banque (`copy-from`). `#/admin/reserve` pour les organisateurs.
+- Suivi (`public/js/suivi.js`, `#/admin/suivi`, `#/redaction/suivi`) : à partir de `/bank`, par lignée de station : domaines ECOS, disciplines, croisement des deux, les 356 situations de départ (`public/js/sdd.js`, liste nationale en cinq familles) et l'équilibre d'une session. La SDD d'une station reste un champ libre (`identite.sdd`), lu par `sddNumbers` (« 161. Douleur thoracique », « 161, 162 » ou un libellé).
 
 ## Équipe, journal, RGPD, réclamations
 - Comptes nominatifs (`src/team.js`, table `team_members`, migration 0014) : un code par membre, gardé sous forme d'empreinte. La session admin porte `subject_id` = id du membre (NULL avec le mot de passe commun, qui reste un accès de secours qu'on peut refuser). Journal des actions sensibles dans `audit_log` (middleware `auditMiddleware`, libellés dans `ACTIONS`) : jamais le contenu des requêtes.
