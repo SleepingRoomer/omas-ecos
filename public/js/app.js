@@ -13,17 +13,20 @@ const HOME = { accueil: '#/accueil', admin: '#/admin', auteur: '#/redaction', ev
 function renderNav() {
   const k = state.me?.kind;
   const links = {
-    admin: [['#/admin', 'Sessions'], ['#/admin/personnes', 'Rédacteurs et relecteurs'], ['#/admin/communication', 'Communication'], ['#/admin/benevoles', 'Bénévoles'], ['#/admin/equipe', 'Équipe'], ['#/admin/systeme', 'État du système']],
+    admin: [['#/admin', 'Sessions'], ['#/admin/personnes', 'Rédacteurs et relecteurs', 'Rédaction'], ['#/admin/communication', 'Communication'], ['#/admin/benevoles', 'Bénévoles'], ['#/admin/equipe', 'Équipe'], ['#/admin/systeme', 'État du système', 'Système']],
     auteur: [['#/redaction', 'Mes stations et ateliers']],
     evaluateur: [['#/eval', 'Ma salle']],
-    etudiant: [['#/resultats', 'Mon espace'], ['#/fiches', 'Fiches procédures']],
-    participant: [['#/journee', 'Ma journée'], ['#/fiches', 'Fiches procédures']],
+    etudiant: [['#/resultats', 'Mon espace'], ['#/fiches', 'Fiches procédures', 'Fiches']],
+    participant: [['#/journee', 'Ma journée'], ['#/fiches', 'Fiches procédures', 'Fiches']],
     benevole: [['#/benevole', 'Mon espace']],
     accueil: [['#/accueil', 'Émargement'], ['#/brief', 'Brief'], ['#/conduite', 'Chrono'], ['#/etiquettes', 'Étiquettes']],
   }[k] || [];
   const here = location.hash || '#/';
-  nav.innerHTML = links.map(([h, l]) => `<a href="${h}" class="${here === h ? 'active' : ''}">${esc(l)}</a>`).join('')
-    + (k ? `<span class="who">${esc(state.me.name || '')}</span><button id="logout">Se déconnecter</button>` : '');
+  // sur téléphone, un libellé court quand il y en a un, et toute la barre sur une ligne qui défile
+  const label = (l, short) => short ? `<span class="l-long">${esc(l)}</span><span class="l-short">${esc(short)}</span>` : esc(l);
+  nav.innerHTML = links.map(([h, l, short]) => `<a href="${h}" class="${here === h ? 'active' : ''}">${label(l, short)}</a>`).join('')
+    + (k ? `<span class="who">${esc(state.me.name || '')}</span><button id="logout" aria-label="Se déconnecter">${label('Se déconnecter', 'Déconnexion')}</button>` : '');
+  nav.querySelector('a.active')?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
   document.getElementById('logout')?.addEventListener('click', async () => {
     await api('/logout', { method: 'POST' });
     state.me = { kind: null };
