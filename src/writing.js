@@ -9,7 +9,7 @@ const parse = (s, d) => { try { return JSON.parse(s); } catch { return d; } };
 const redactionLink = (url, code) => `${url}/#/?role=redaction&code=${encodeURIComponent(code)}`;
 const WHAT = {
   redaction: 'la rédiger', relecture_pair: 'la relire (relecture par un pair)', relecture_expert: 'la relire (relecture experte)',
-  test: 'la tester au chronomètre avec un PS et un testeur', corrections: 'intégrer les retours',
+  test: 'la faire tester au chronomètre par un externe, avec un PS', corrections: 'intégrer les retours',
 };
 
 export const deadlinesOf = (exam) => normalizePlanning(parse(exam.planning, null), exam).writing_deadlines || {};

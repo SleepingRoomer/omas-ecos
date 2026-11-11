@@ -515,9 +515,10 @@ app.put('/stations/:id/content', need('admin', 'auteur'), async (c) => {
 const FLOW = {
   redaction: { submit: { who: ['author', 'admin'], to: 'relecture_pair' } },
   relecture_pair: { approve: { who: ['peer', 'admin'], to: 'relecture_expert' }, revise: { who: ['peer', 'admin'], to: 'redaction' } },
-  relecture_expert: { approve: { who: ['expert', 'admin'], to: 'test' }, revise: { who: ['expert', 'admin'], to: 'redaction' } },
+  // Le test au chronomètre par un externe est facultatif : on y passe seulement si quelqu'un le demande
+  relecture_expert: { approve: { who: ['expert', 'admin'], to: 'corrections' }, test: { who: ['expert', 'admin'], to: 'test' }, revise: { who: ['expert', 'admin'], to: 'redaction' } },
   test: { approve: { who: ['author', 'admin'], to: 'corrections' }, revise: { who: ['author', 'admin'], to: 'redaction' } },
-  corrections: { submit: { who: ['author', 'admin'], to: 'validation' } },
+  corrections: { submit: { who: ['author', 'admin'], to: 'validation' }, test: { who: ['author', 'admin'], to: 'test' } },
   validation: {
     approve: { who: ['admin'], to: 'validee' },
     revise: { who: ['admin'], to: 'corrections' },

@@ -8,7 +8,7 @@ const NEXT = {
   redaction: { who: 'author', what: 'Rédaction en cours' },
   relecture_pair: { who: 'peer', what: 'Relecture par un pair' },
   relecture_expert: { who: 'expert', what: 'Relecture experte' },
-  test: { who: 'author', what: 'Test au chronomètre avec un PS et un testeur' },
+  test: { who: 'author', what: 'Test au chronomètre par un externe, avec un PS (étape facultative)' },
   corrections: { who: 'author', what: 'Intégration des retours' },
   validation: { who: 'admin', what: 'Validation finale par le comité' },
   validee: { who: null, what: 'Station prête à être jouée' },
@@ -216,9 +216,9 @@ export async function stationEditor(app, id) {
     const can = (who) => myRoles.includes(who) || myRoles.includes('admin');
     if (st.status === 'redaction' && can('author')) acts.push(['submit', 'Envoyer en relecture', 'primary']);
     if (st.status === 'relecture_pair' && can('peer')) acts.push(['approve', 'Valider ma relecture', 'primary'], ['revise', 'Renvoyer au rédacteur', 'danger']);
-    if (st.status === 'relecture_expert' && can('expert')) acts.push(['approve', 'Valider ma relecture', 'primary'], ['revise', 'Renvoyer au rédacteur', 'danger']);
+    if (st.status === 'relecture_expert' && can('expert')) acts.push(['approve', 'Valider ma relecture', 'primary'], ['test', 'Valider et faire tester par un externe', ''], ['revise', 'Renvoyer au rédacteur', 'danger']);
     if (st.status === 'test' && can('author')) acts.push(['approve', 'Le test est concluant', 'primary'], ['revise', 'Revoir la station', 'danger']);
-    if (st.status === 'corrections' && can('author')) acts.push(['submit', 'Envoyer en validation finale', 'primary']);
+    if (st.status === 'corrections' && can('author')) acts.push(['submit', 'Envoyer en validation finale', 'primary'], ['test', 'Faire tester par un externe d\'abord', '']);
     if (st.status === 'validation' && myRoles.includes('admin')) acts.push(['approve', 'Valider la station', 'primary'], ['revise', 'Renvoyer en corrections', ''], ['refuse', 'Remplacer par une réserve', 'danger']);
     return acts;
   };
@@ -249,7 +249,7 @@ export async function stationEditor(app, id) {
     <textarea id="new-comment" rows="2"></textarea>
     <button class="small" id="send-comment" style="margin-top:8px">Publier le message</button>
     <ul class="timeline">${data.reviews.map((r) => `<li class="${r.action}"><div><span class="who">${esc(r.author_name)}</span>
-      <span class="muted">${esc({ comment: 'a écrit', submit: 'a envoyé la station', approve: 'a validé', revise: 'demande des corrections', refuse: 'a remplacé la station', status: 'a changé l\'étape' }[r.action] || r.action)}</span>
+      <span class="muted">${esc({ comment: 'a écrit', submit: 'a envoyé la station', approve: 'a validé', test: 'demande un test par un externe', revise: 'demande des corrections', refuse: 'a remplacé la station', status: 'a changé l\'étape' }[r.action] || r.action)}</span>
       <span class="when">le ${new Date(`${r.created_at}Z`).toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span></div>
       ${r.comment ? `<div style="margin-top:2px">${nl(r.comment)}</div>` : ''}</li>`).join('') || '<li class="muted small">Pas encore d\'échange.</li>'}</ul></section>`;
 
