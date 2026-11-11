@@ -455,10 +455,17 @@ app.post('/exams/:id/regen-room-codes', need('admin'), async (c) => {
   return c.json({ ok: true, n: st.length });
 });
 
+// Supprimer une station (salle d'une session ou réserve) : seulement si aucune grille n'a été saisie.
+// Ses relectures, fichiers et calibrations partent avec elle ; les affectations de bénévoles à cette salle aussi.
 app.delete('/stations/:id', need('admin', 'lead'), async (c) => {
-  const n = await one(c.env.DB, 'SELECT COUNT(*) AS n FROM evaluations WHERE station_id = ?', c.req.param('id'));
-  if (n.n > 0) throw httpError(400, 'Cette station a déjà des évaluations.');
-  await run(c.env.DB, 'DELETE FROM stations WHERE id = ?', c.req.param('id'));
+  const db = c.env.DB; const id = c.req.param('id');
+  const n = await one(db, 'SELECT COUNT(*) AS n FROM evaluations WHERE station_id = ?', id);
+  if (n.n > 0) throw httpError(400, 'Des grilles ont déjà été saisies pour cette station : on la garde pour les résultats. Décoche « jouée » pour la retirer de la session.');
+  await db.batch([
+    db.prepare('DELETE FROM assignments WHERE station_id = ?').bind(id),
+    db.prepare("DELETE FROM auth_sessions WHERE kind = 'evaluateur' AND subject_id = ?").bind(id),
+    db.prepare('DELETE FROM stations WHERE id = ?').bind(id),
+  ]).catch(() => run(db, 'DELETE FROM stations WHERE id = ?', id));
   return c.json({ ok: true });
 });
 
