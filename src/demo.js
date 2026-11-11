@@ -1,11 +1,14 @@
 // Répétition de A à Z avec des données fictives, dans une vraie session d'INES (en production comme en local).
 // Tout ce qui est créé ici porte une adresse en @exemple.org : aucun e-mail ne part vers ces adresses,
 // les grilles ne sont simulées que pour ces candidats-là, et tout se supprime d'un clic.
+// Les noms et les titres restent naturels (pas de « (fictif) ») : on reconnaît les personnes à leur adresse
+// et les stations d'exemple au repère demo de leur contenu (ou, pour les anciennes, à « (exemple) » en fin de titre).
 import { STATIONS, contentFor } from '../scripts/demo/stations.mjs';
 import { normalizePlanning, toMin } from '../public/js/planning-shared.js';
 import { normalizeContent, computeScore } from '../public/js/shared.js';
 
 const FAKE = '%@exemple.org';
+const DEMO_STATION = "(json_extract(content, '$.demo') = 1 OR title LIKE '%(exemple)')";
 const parse = (s, d) => { try { return JSON.parse(s); } catch { return d; } };
 const slug = (t) => t.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z]+/g, '.');
 // pseudo-hasard reproductible : la même répétition donne les mêmes notes
@@ -37,7 +40,7 @@ export function registerDemo(app, h) {
       one(db, 'SELECT COUNT(*) AS n FROM volunteer_signups s JOIN volunteers v ON v.id = s.volunteer_id WHERE s.exam_id = ? AND v.email LIKE ?', id, FAKE).catch(() => ({ n: 0 })),
       one(db, 'SELECT COUNT(*) AS n FROM people WHERE email LIKE ?', FAKE),
       one(db, 'SELECT COUNT(*) AS n FROM evaluations v JOIN candidates c ON c.id = v.candidate_id WHERE v.exam_id = ? AND c.email LIKE ?', id, FAKE),
-      one(db, "SELECT COUNT(*) AS n FROM stations WHERE exam_id = ? AND title LIKE '%(exemple)'", id),
+      one(db, `SELECT COUNT(*) AS n FROM stations WHERE exam_id = ? AND ${DEMO_STATION}`, id),
     ]);
     return c.json({ candidates: cands.n, volunteers: vols.n, people: people.n, grids: grids.n, stations: stations.n });
   });
@@ -50,7 +53,7 @@ export function registerDemo(app, h) {
     if (people.length < WRITERS.length) {
       const codes = await freshCodes(db, WRITERS.length);
       await batch(db, multiInsert(db, 'people', ['name', 'email', 'specialty', 'code'],
-        WRITERS.map(([n, sp], i) => ({ name: `Dr ${n} (fictif)`, email: `redaction.${slug(n)}@exemple.org`, specialty: sp, code: codes[i] }))));
+        WRITERS.map(([n, sp], i) => ({ name: `Dr ${n}`, email: `redaction.${slug(n)}@exemple.org`, specialty: sp, code: codes[i] }))));
       people = await all(db, 'SELECT id FROM people WHERE email LIKE ? ORDER BY id', FAKE);
     }
     const stations = await all(db, 'SELECT id, slot, title, content FROM stations WHERE exam_id = ?', exam.id);
@@ -58,7 +61,7 @@ export function registerDemo(app, h) {
     const pid = (k) => people[k % people.length].id;
     // les stations jouées sont prêtes ; les deux réserves restent dans le circuit de relecture, pour essayer les relances
     await batch(db, empty.map((s, k) => db.prepare(`UPDATE stations SET title = ?, discipline = ?, content = ?, status = ?, author_id = ?, peer_id = ?, expert_id = ?, updated_at = datetime('now') WHERE id = ?`)
-      .bind(`${STATIONS[s.slot].title} (exemple)`, STATIONS[s.slot].discipline, JSON.stringify(normalizeContent(contentFor(s.slot))),
+      .bind(STATIONS[s.slot].title, STATIONS[s.slot].discipline, JSON.stringify({ ...normalizeContent(contentFor(s.slot)), demo: 1 }),
         s.slot === 'R1' ? 'relecture_pair' : s.slot === 'R2' ? 'redaction' : 'validee', pid(k), pid(k + 2), pid(k + 4), s.id)));
     return c.json({ filled: empty.length, skipped: stations.length - empty.length });
   });
@@ -74,7 +77,7 @@ export function registerDemo(app, h) {
       ...VOLS.map(([f, l, roles]) => ({ f, l, st: 'Externe', sp: 'DFASM2', roles, prefs: { track: 'benevole' }, email: `benevole.${slug(f + l)}@exemple.org` })),
     ];
     await batch(db, multiInsert(db, 'volunteers', ['email', 'first_name', 'last_name', 'status', 'specialty'],
-      people.map((p) => ({ email: p.email, first_name: p.f, last_name: `${p.l} (fictif)`, status: p.st, specialty: p.sp })), 'ON CONFLICT(email) DO NOTHING'));
+      people.map((p) => ({ email: p.email, first_name: p.f, last_name: p.l, status: p.st, specialty: p.sp })), 'ON CONFLICT(email) DO NOTHING'));
     const ids = Object.fromEntries((await all(db, 'SELECT id, email FROM volunteers WHERE email LIKE ?', FAKE)).map((v) => [v.email, v.id]));
     const already = new Set((await all(db, 'SELECT volunteer_id FROM volunteer_signups WHERE exam_id = ?', exam.id)).map((r) => r.volunteer_id));
     const todo = people.filter((p) => ids[p.email] && !already.has(ids[p.email]));
@@ -82,7 +85,7 @@ export function registerDemo(app, h) {
     const rows = todo.map((p, i) => ({ exam_id: exam.id, volunteer_id: ids[p.email], roles: JSON.stringify(p.roles),
       // les évaluateurs peuvent venir toute la session ; les bénévoles une demi-journée par jour, en alternant
       halfdays: JSON.stringify(p.prefs.track === 'evaluateur' ? halfdays : planning.days.map((d, k) => `${d.date}|${(i + k) % 2 ? 'pm' : 'am'}`).filter((x) => halfdays.includes(x))),
-      note: 'Bénévole fictif (répétition)', code: codes[i], prefs: JSON.stringify(p.prefs) }));
+      note: '', code: codes[i], prefs: JSON.stringify(p.prefs) }));
     await batch(db, multiInsert(db, 'volunteer_signups', ['exam_id', 'volunteer_id', 'roles', 'halfdays', 'note', 'code', 'prefs'], rows))
       .catch(() => batch(db, multiInsert(db, 'volunteer_signups', ['exam_id', 'volunteer_id', 'roles', 'halfdays', 'note', 'code'], rows.map(({ prefs, ...r }) => r))));
     return c.json({ added: rows.length });
@@ -109,7 +112,7 @@ export function registerDemo(app, h) {
       for (const st of grilles) {
         const half = cand.series <= 2 ? 'am' : 'pm';
         const names = assigns.filter((a) => a.station_id === st.id && a.half === half).map((a) => a.name);
-        const raters = names.length ? names : [`Évaluateur fictif ${st.slot}`];
+        const raters = names.length ? names : [`Évaluateur de la salle ${st.slot}`];
         const absent = hash(`abs${cand.id}`) < 0.03;
         for (const name of raters) {
           const answers = { apt: {}, com: {} };
@@ -135,8 +138,9 @@ export function registerDemo(app, h) {
       db.prepare('DELETE FROM swaps WHERE exam_id = ? AND (candidate_id IN (SELECT id FROM candidates WHERE email LIKE ?) OR partner_id IN (SELECT id FROM candidates WHERE email LIKE ?))').bind(id, FAKE, FAKE),
       db.prepare('DELETE FROM waitlist WHERE exam_id = ? AND email LIKE ?').bind(id, FAKE),
       db.prepare('DELETE FROM candidates WHERE exam_id = ? AND email LIKE ?').bind(id, FAKE),
+      db.prepare("DELETE FROM evaluations WHERE exam_id = ? AND candidate_id IN (SELECT id FROM candidates WHERE exam_id = ? AND email LIKE ?)").bind(id, id, FAKE),
       db.prepare("DELETE FROM evaluations WHERE exam_id = ? AND evaluator_name LIKE 'Évaluateur fictif %'").bind(id),
-      db.prepare("UPDATE stations SET title = NULL, discipline = NULL, content = '{}', status = 'a_attribuer', author_id = NULL, peer_id = NULL, expert_id = NULL WHERE exam_id = ? AND title LIKE '%(exemple)' AND NOT EXISTS (SELECT 1 FROM evaluations v WHERE v.station_id = stations.id)").bind(id),
+      db.prepare(`UPDATE stations SET title = NULL, discipline = NULL, content = '{}', status = 'a_attribuer', author_id = NULL, peer_id = NULL, expert_id = NULL WHERE exam_id = ? AND ${DEMO_STATION} AND NOT EXISTS (SELECT 1 FROM evaluations v WHERE v.station_id = stations.id)`).bind(id),
     ];
     await db.batch(stmts);
     // bénévoles et rédacteurs fictifs : partout, puisqu'ils ne servent qu'aux répétitions

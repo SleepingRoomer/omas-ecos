@@ -19,10 +19,10 @@ export function helloassoRows(n = 60, from = 0, refunds = []) {
     const adh = k % 4 !== 3;
     rows.push([`HA-${String(100000 + k * 37)}`, `0${1 + (k % 9)}/10/2026 ${10 + (k % 12)}:${String((k * 13) % 60).padStart(2, '0')}`,
       refunds.includes(k) ? 'Remboursé' : 'Validé',
-      payerIsOther ? `${LAST[(k + 3) % LAST.length]} (fictif)` : `${l} (fictif)`, payerIsOther ? 'Karima' : f,
+      payerIsOther ? LAST[(k + 3) % LAST.length] : l, payerIsOther ? 'Karima' : f,
       payerIsOther ? `parent.${k}@exemple.org` : `${strip(f)}.${strip(l)}.${k}@exemple.org`,
       adh ? 'Adhérent OMAS' : 'Non adhérent', adh ? '15,00' : '25,00',
-      `${l} (fictif)`, f, `${strip(f)}.${strip(l)}.${k}@exemple.org`, `06 00 00 ${String(k).padStart(2, '0').slice(-2)} ${String(k * 3).padStart(2, '0').slice(-2)}`,
+      l, f, `${strip(f)}.${strip(l)}.${k}@exemple.org`, `06 00 00 ${String(k).padStart(2, '0').slice(-2)} ${String(k * 3).padStart(2, '0').slice(-2)}`,
       FAC[k % FAC.length], ['DFASM1', 'DFASM2', 'DFASM2', 'DFASM3'][k % 4], PREPA[k % PREPA.length],
       k % 23 === 5 ? 'Je me déplace en fauteuil roulant' : k % 7 === 0 ? 'Non' : '', ['Instagram', 'Bouche-à-oreille', 'Tutorat', 'Instagram'][k % 4]]);
   }
