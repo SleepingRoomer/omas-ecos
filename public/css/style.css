@@ -74,7 +74,8 @@ p { margin: .5rem 0; }
 .brand-by b { display: block; font-weight: 800; color: var(--a); letter-spacing: .02em; }
 .brand-by b span { color: var(--b-ink); }
 #nav { margin-left: auto; display: flex; align-items: center; gap: 4px; height: 100%; }
-#nav a { height: 100%; display: flex; align-items: center; padding: 0 12px; color: var(--ink-2); text-decoration: none; border-bottom: 3px solid transparent; margin-bottom: -1px; }
+#nav a { height: 100%; display: flex; align-items: center; padding: 0 12px; color: var(--ink-2); text-decoration: none; border-bottom: 3px solid transparent; margin-bottom: -1px; white-space: nowrap; }
+#nav button { white-space: nowrap; }
 #nav a:hover { color: var(--ink); }
 #nav a.active { color: var(--ink); border-bottom-color: var(--a); font-weight: 700; }
 #nav .who { color: var(--ink-3); font-size: .85rem; padding: 0 8px 0 16px; border-left: 1px solid var(--line); margin-left: 8px; }
@@ -630,16 +631,6 @@ button.link { background: none; border: none; padding: 0 0 0 6px; min-height: 0;
 .cm-row { margin-bottom: 6px; flex-wrap: nowrap; }
 .cm-ev { border: 1px solid var(--line-2); border-radius: 10px; padding: 10px; margin-bottom: 8px; }
 @media (max-width: 960px) { .comms { grid-template-columns: 1fr; } }
-.cert-pick { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 4px 16px; }
-.cert { display: flex; flex-direction: column; justify-content: center; min-height: 297mm; padding: 28mm 24mm !important; text-align: center; }
-.cert-brand { display: flex; align-items: center; justify-content: center; gap: 10px; font: 800 14pt/1 var(--display); margin-bottom: 18mm; }
-.cert-brand img { height: 16mm; width: auto; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-.cert h1 { font-size: 26pt !important; margin-bottom: 14mm; }
-.cert-body { font-size: 13pt; line-height: 1.6; margin: 3mm 0; }
-.cert-name { font: 800 24pt/1.2 var(--display); margin: 6mm 0; color: #2e2c80; }
-.cert-thanks { margin: 14mm auto 0; max-width: 130mm; font-style: italic; color: #444; font-size: 11.5pt; }
-.cert-sign { display: flex; justify-content: space-between; margin-top: 26mm; text-align: left; font-size: 11pt; }
-.cert-line { width: 60mm; border-bottom: 1px solid #999; height: 18mm; }
 
 /* ---------- mode projection ---------- */
 body.kiosk .topbar { display: none; }
@@ -971,6 +962,8 @@ details.guide[open] > summary::after { content: "−"; }
 
 /* ---------- téléphone : une barre sur une ligne, moins de cadres dans les cadres, rien qui déborde ---------- */
 .l-short { display: none; }
+/* barre des organisateurs sur un écran moyen : libellés courts, pour rester sur une ligne */
+@media (max-width: 1440px) { #nav .l-long { display: none; } #nav .l-short { display: inline; } #nav .who { display: none; } }
 @media (max-width: 600px) {
   body { font-size: 16px; }
   .topbar { height: 56px; gap: 6px; padding: 0 0 0 14px; }

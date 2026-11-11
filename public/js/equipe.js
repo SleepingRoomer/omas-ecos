@@ -4,17 +4,17 @@ import { api, esc, toast, setTitle } from './ui.js';
 const when = (s) => (s ? new Date(`${s.replace(' ', 'T')}Z`).toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Paris' }) : 'jamais');
 
 export async function teamView(app) {
-  setTitle('Équipe et journal');
+  setTitle('Organisateurs et journal');
   const T = await api('/team');
   let q = '';
   const showCode = (name, code) => `<div class="alert ok"><strong>Code de ${esc(name)} : <span class="code" style="font-size:1.25em;letter-spacing:2px">${esc(code)}</span></strong>
-    <p class="small" style="margin:6px 0 0">Il ne sera plus jamais affiché : transmets-le maintenant, en main propre ou par message privé. Il se tape dans l'onglet Équipe de la page de connexion, à la place du mot de passe commun.</p>
+    <p class="small" style="margin:6px 0 0">Il ne sera plus jamais affiché : transmets-le maintenant, en main propre ou par message privé. Il se tape dans l'onglet Organisateurs de la page de connexion, à la place du mot de passe commun.</p>
     <button class="small" data-copycode="${esc(code)}">Copier le code</button></div>`;
   const draw = (flash = '') => {
     const log = T.log.filter((l) => !q || `${l.who} ${l.action}`.toLowerCase().includes(q));
     app.innerHTML = `
-      <h1>Équipe et journal</h1>
-      <p class="lede">Un code personnel par membre de l'équipe : on sait qui a fait quoi, et un départ se gère en désactivant un compte, sans changer le mot de passe de tout le monde.</p>
+      <h1>Organisateurs et journal</h1>
+      <p class="lede">Un code personnel par organisateur : on sait qui a fait quoi, et un départ se gère en désactivant un compte, sans changer le mot de passe de tout le monde.</p>
       ${T.ready ? '' : '<p class="alert warn">Colle d\'abord la migration 0014 dans la console D1 (voir État du système).</p>'}
       <div id="flash">${flash}</div>
       <div class="panel"><h2 style="margin-top:0">Comptes</h2>
@@ -29,10 +29,10 @@ export async function teamView(app) {
           <div style="flex:2;min-width:180px"><label for="t-e" style="margin-top:0">E-mail <span class="hint">(facultatif)</span></label><input id="t-e" name="email"></div>
           <button class="primary">Créer le compte</button></form>
         <label class="check" style="margin-top:16px"><input type="checkbox" id="only" ${T.team_only ? 'checked' : ''} ${T.me.member_id ? '' : 'disabled'}>
-          <span><strong>Refuser le mot de passe commun</strong><br><span class="small muted">${T.me.member_id ? 'Seuls les codes personnels ouvrent l\'espace de l\'équipe. Le mot de passe commun redevient valable si tous les comptes sont désactivés.' : 'Connecte-toi avec ton propre code pour pouvoir activer cette option (sinon tu risquerais de t\'enfermer dehors).'}</span></span></label>
+          <span><strong>Refuser le mot de passe commun</strong><br><span class="small muted">${T.me.member_id ? 'Seuls les codes personnels ouvrent l\'espace des organisateurs. Le mot de passe commun redevient valable si tous les comptes sont désactivés.' : 'Connecte-toi avec ton propre code pour pouvoir activer cette option (sinon tu risquerais de t\'enfermer dehors).'}</span></span></label>
         <p class="small muted">Connecté en ce moment : <strong>${esc(T.me.name)}</strong>${T.me.member_id ? '' : ' (mot de passe commun)'}.</p></div>
       <div class="panel"><div class="row between"><h2 style="margin:0">Journal</h2><input id="q" type="search" placeholder="Filtrer par nom ou action" value="${esc(q)}" style="max-width:260px"></div>
-        <p class="small muted">Connexions de l'équipe, suppressions, exports, anonymisations, réglages sensibles, réponses aux réclamations. Le contenu des actions n'est pas gardé, seulement qui, quoi et quand.</p>
+        <p class="small muted">Connexions des organisateurs, suppressions, exports, anonymisations, réglages sensibles, réponses aux réclamations. Le contenu des actions n'est pas gardé, seulement qui, quoi et quand.</p>
         ${log.length ? `<div class="table-wrap"><table><thead><tr><th>Quand</th><th>Qui</th><th>Action</th><th class="small">Détail</th></tr></thead><tbody>
           ${log.map((l) => `<tr><td class="small" style="white-space:nowrap">${esc(when(l.at))}</td><td>${esc(l.who)}</td><td>${esc(l.action)}</td><td class="small muted"><code>${esc(l.method || '')} ${esc(l.path || '')}</code></td></tr>`).join('')}</tbody></table></div>`
         : '<p class="small muted">Rien pour l\'instant.</p>'}</div>`;

@@ -6,8 +6,15 @@ import { examState, closedMessage } from './state.js';
 
 export const ROLES = { evaluateur: 'Évaluateur', ps: 'Patient standardisé', pss: 'Professionnel de santé standardisé', logistique: 'Accueil et logistique' };
 // Postes du planning : les rôles d'inscription, plus le PS ou PSS de réserve (prêt à remplacer un absent)
-export const POSTS = { ...ROLES, reserve: 'PS ou PSS de réserve' };
+export const POSTS = { ...ROLES, reserve: 'PS ou PSS de réserve', chrono: 'Chrono de la série' };
 const HALVES = { am: 'matin', pm: 'après-midi' };
+
+// Le bénévole connecté tient-il le chrono de cette session (poste « chrono » du planning des salles) ?
+export async function holdsChrono(db, s, examId) {
+  if (s?.kind !== 'benevole') return false;
+  const r = await db.prepare("SELECT 1 AS ok FROM assignments WHERE signup_id = ? AND exam_id = ? AND role = 'chrono' LIMIT 1").bind(s.subject_id, Number(examId)).first().catch(() => null);
+  return !!r;
+}
 
 export function registerBenevoles(app, h) {
   const { need, httpError, all, one, run, parse, freshCodes, batch, createSession } = h;
@@ -68,7 +75,7 @@ export function registerBenevoles(app, h) {
     const prefs = isEval ? {
       track: 'evaluateur',
       disciplines: (Array.isArray(b.disciplines) ? b.disciplines : []).map((x) => t(x, 60)).filter(Boolean).slice(0, 12),
-      attestation: !!b.attestation, first_time: !!b.first_time,
+      first_time: !!b.first_time,
     } : { track: 'benevole' };
     await run(db, `INSERT INTO volunteers (email, first_name, last_name, phone, status, specialty) VALUES (?,?,?,?,?,?)
       ON CONFLICT(email) DO UPDATE SET first_name = excluded.first_name, last_name = excluded.last_name, phone = COALESCE(excluded.phone, phone),

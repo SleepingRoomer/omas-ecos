@@ -109,7 +109,7 @@ export async function weeklyRecap(env, { now = Date.now(), force = false } = {})
       html: layout({
         title: 'Point du lundi sur la rédaction',
         intro: `${lateAll.length} station${lateAll.length > 1 ? 's ont' : ' a'} dépassé l'échéance de son étape. Les personnes concernées ont reçu leur récapitulatif.`,
-        rows: lateAll.sort((a, b) => b.dl.late - a.dl.late).map((r) => [`${r.exam_name}, ${r.slot}`, `${esc(STATUSES[r.status])} · ${esc(STEP_OWNER[r.status] === 'admin' ? 'équipe' : name(ownerId(r)))} · ${r.dl.late} j`]),
+        rows: lateAll.sort((a, b) => b.dl.late - a.dl.late).map((r) => [`${r.exam_name}, ${r.slot}`, `${esc(STATUSES[r.status])} · ${esc(STEP_OWNER[r.status] === 'admin' ? 'organisateurs' : name(ownerId(r)))} · ${r.dl.late} j`]),
         button: { url: `${url}/#/admin`, label: 'Ouvrir INES' },
       }),
     });

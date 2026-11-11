@@ -45,7 +45,7 @@ export async function myStations(app) {
         <div class="tags small" style="margin-top:2px">${a.discipline ? `<span>${disc(a.discipline)}</span>` : ''}<span class="faint">${esc(a.jp_name)}</span></div></div>
       <div style="text-align:right"><span class="pill ${a.status === 'validee' ? 'ok' : a.status === 'relecture' ? 'warn' : 's-redaction'}">${{ redaction: 'Rédaction', relecture: 'Relecture', validee: 'Validée' }[a.status]}</span>
         <div class="small muted" style="margin-top:4px">${a.author_id === me ? 'Référent' : 'Relecture'}</div></div></a>`; }).join('')}` : ''}
-    ${rows.length || ats.length ? '' : '<p class="alert info">Rien ne t\'est encore attribué. L\'équipe d\'organisation s\'en occupe.</p>'}</div>`;
+    ${rows.length || ats.length ? '' : '<p class="alert info">Rien ne t\'est encore attribué. Les organisateurs s\'en occupent.</p>'}</div>`;
 }
 
 // ---------- éditeur ----------
@@ -116,7 +116,7 @@ export async function stationEditor(app, id) {
         <div>${field('identite.item', 'Item de connaissance', { ph: '204' })}</div>
       </div>
       ${isPS ? field('identite.age', 'Tranche d\'âge du personnage', { ph: '50 à 65 ans' }) : ''}
-      <p class="small muted" style="margin-top:14px">Domaine et type sont fixés par l'équipe : <strong>${st.domain ? dom(st.domain) : 'non défini'}</strong>, ${esc(TYPES_SHORT[st.type] || '')}.</p>
+      <p class="small muted" style="margin-top:14px">Domaine et type sont fixés par les organisateurs : <strong>${st.domain ? dom(st.domain) : 'non défini'}</strong>, ${esc(TYPES_SHORT[st.type] || '')}.</p>
     </section>
 
     <section id="sec-vignette" class="panel">${head('vignette', 2, 'Vignette du candidat', 'Affichée sur la porte et posée sur la table. Elle doit se lire en une minute environ. Le candidat y est toujours interne.')}
@@ -153,7 +153,7 @@ export async function stationEditor(app, id) {
       ${strList('script.neutres', 'Réponses neutres aux questions imprévues', 'Je ne sais pas, docteur.', 'Ajouter une réponse')}` : '<p class="muted">Pas de PS ni de PSS dans cette station.</p>'}
     </section>
 
-    <section id="sec-documents" class="panel">${head('documents', 5, 'Documents', 'Imprimés recto et plastifiés. Le lien peut pointer vers le Drive de l\'équipe.')}
+    <section id="sec-documents" class="panel">${head('documents', 5, 'Documents', 'Imprimés recto et plastifiés. Le lien peut pointer vers le Drive des organisateurs.')}
       ${c.documents.map((d, i) => `<div class="item-row"><div class="grid cols-2" style="gap:8px">
         <input type="text" data-path="documents.${i}.nom" value="${esc(d.nom)}" placeholder="Nom du document" ${dis} aria-label="Nom du document">
         <select data-path="documents.${i}.remis_par" ${dis} aria-label="Remis par">${['Sur la table', "Remis par l'examinateur", 'Remis par le PS ou le PSS'].map((o) =>
@@ -205,7 +205,7 @@ export async function stationEditor(app, id) {
       ${GLOBAL_LEVELS.map((l, i) => `<label for="g${i}">${i}. ${l}</label><input id="g${i}" type="text" data-path="grille.global.${i}" value="${esc(c.grille.global[i])}" ${dis}>`).join('')}
     </section>
 
-    <section id="sec-pedago" class="panel">${head('pedago', 8, 'Fiche pédagogique', 'Visible par les candidats quand l\'équipe publie les corrections.')}
+    <section id="sec-pedago" class="panel">${head('pedago', 8, 'Fiche pédagogique', 'Visible par les candidats quand les organisateurs publient les corrections.')}
       ${field('pedago.correction', 'Correction commentée', { area: true, rows: 9, ph: 'Ce qui était attendu, les pièges, les points à retenir' })}
       ${field('pedago.references', 'Références', { area: true, rows: 2, ph: 'Recommandations, référentiel du collège' })}
     </section>`;
@@ -231,7 +231,7 @@ export async function stationEditor(app, id) {
     const whoName = { author: st.author_name, peer: st.peer_name, expert: st.expert_name }[step.who];
     return `<div class="panel">
       <div class="steps">${FLOW_SHORT.map((l, k) => `<div class="st ${st.status === 'validee' || k < idx ? 'done' : k === idx ? 'now' : ''}">${l}</div>`).join('')}</div>
-      <p style="margin:14px 0 0"><strong>${esc(step.what)}</strong>${whoName ? `, par ${esc(whoName)}` : step.who === 'admin' ? ", par l'équipe d'organisation" : ''}.
+      <p style="margin:14px 0 0"><strong>${esc(step.what)}</strong>${whoName ? `, par ${esc(whoName)}` : step.who === 'admin' ? ", par les organisateurs" : ''}.
         <span class="muted small">${st.author_name ? `Rédaction : ${esc(st.author_name)}.` : 'Rédacteur à attribuer.'}
         ${st.peer_name || st.expert_name ? `Relecture : ${esc(st.peer_name || 'pair à attribuer')}, puis ${esc(st.expert_name || 'expert à attribuer')}.` : 'Relecteurs à attribuer.'}</span></p>
       ${acts.length ? `<label for="wf-comment">Commentaire <span class="hint">(obligatoire pour renvoyer)</span></label>

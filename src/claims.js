@@ -89,7 +89,7 @@ export function registerClaims(app, h) {
       if (stmts.length) await db.batch(stmts);
       if (scores.length) newScore = Math.round((scores.reduce((x, y) => x + y, 0) / scores.length) * 100) / 100;
     }
-    const who = c.get('session').name || 'Équipe';
+    const who = c.get('session').name || 'Organisateurs';
     await run(db, "UPDATE claims SET status = ?, answer = ?, answered_by = ?, answered_at = datetime('now') WHERE id = ?", b.status, answer, who, k.id);
     // l'étudiant est prévenu
     const x = await one(db, `SELECT c.email, c.first_name, c.last_name, c.code, s.slot, s.title, e.name AS exam_name FROM candidates c JOIN stations s ON s.id = ? JOIN exams e ON e.id = c.exam_id WHERE c.id = ?`, k.station_id, k.candidate_id);
@@ -97,10 +97,10 @@ export function registerClaims(app, h) {
       const url = await siteUrl(c.env, db, c);
       const p = sendMails(c.env, db, [{
         kind: 'reclamation', exam_id: k.exam_id, ref: String(k.id), to: x.email, name: `${x.first_name} ${x.last_name}`,
-        subject: `Ta réclamation sur la station ${x.slot} : ${b.status === 'accepted' ? 'acceptée' : 'réponse de l\'équipe'}`,
+        subject: `Ta réclamation sur la station ${x.slot} : ${b.status === 'accepted' ? 'acceptée' : 'réponse des organisateurs'}`,
         html: layout({
           title: `Réponse à ta réclamation, ${x.first_name}`,
-          intro: `Station <b>${esc(x.slot)}${x.title ? `, ${esc(x.title)}` : ''}</b> des <b>${esc(x.exam_name)}</b>. ${b.status === 'accepted' ? 'L\'équipe a relu ta grille et te donne raison.' : 'L\'équipe a relu ta grille avec l\'évaluateur.'}`,
+          intro: `Station <b>${esc(x.slot)}${x.title ? `, ${esc(x.title)}` : ''}</b> des <b>${esc(x.exam_name)}</b>. ${b.status === 'accepted' ? 'Les organisateurs ont relu ta grille et te donnent raison.' : 'Les organisateurs ont relu ta grille avec l\'évaluateur.'}`,
           rows: [['Réponse', esc(answer).replace(/\n/g, '<br>')], ...(newScore !== null ? [['Nouvelle note', `${String(newScore).replace('.', ',')} / 20`]] : [])],
           button: { url: `${url}/#/?role=etudiant&code=${encodeURIComponent(x.code)}`, label: 'Voir mes résultats' },
         }),

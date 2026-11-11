@@ -40,7 +40,7 @@ function safeEqual(a, b) {
 // ---------- journal ----------
 // Libellés lisibles des actions de l'équipe. Le contenu des requêtes n'est jamais gardé (données personnelles).
 const ACTIONS = [
-  [/^POST \/login$/, 'Connexion de l\'équipe'],
+  [/^POST \/login$/, 'Connexion d\'un organisateur'],
   [/^DELETE \/exams\/\d+$/, 'Suppression d\'une session'],
   [/^POST \/exams$/, 'Création d\'une session'],
   [/^PATCH \/exams\/\d+$/, 'Réglages d\'une session'],
@@ -56,8 +56,8 @@ const ACTIONS = [
   [/^DELETE \/people\/\d+$/, 'Suppression d\'un rédacteur'],
   [/^DELETE \/signups\/\d+$/, 'Retrait d\'un bénévole'],
   [/^POST \/volunteers\/\d+\/erase$/, 'Effacement d\'un bénévole (RGPD)'],
-  [/^(POST|PATCH|DELETE) \/team/, 'Comptes de l\'équipe'],
-  [/^PUT \/team\/settings$/, 'Accès de l\'équipe'],
+  [/^(POST|PATCH|DELETE) \/team/, 'Comptes des organisateurs'],
+  [/^PUT \/team\/settings$/, 'Accès des organisateurs'],
   [/^PUT \/rgpd$/, 'Durées de conservation'],
   [/^POST \/rgpd\/purge$/, 'Purge des données personnelles'],
   [/^PATCH \/claims\/\d+$/, 'Réponse à une réclamation'],

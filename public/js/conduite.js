@@ -17,7 +17,7 @@ export async function conduiteView(app, exam) {
   const toM = (t) => { const [h, m] = String(t).split(':').map(Number); return h * 60 + m; };
   let busy = false;
   const draw = () => {
-    if (!location.hash.match(/conduite$/)) return;
+    if (!location.hash.match(/(conduite|chrono)$/)) return;
     const L = live.state;
     if (!day) { app.innerHTML = `<a class="back" href="${exam.back || `#/admin/session/${exam.id}/direct`}">Retour</a><h1>Chrono</h1><p class="alert info">Pas de série aujourd'hui pour cette session.</p>`; return; }
     if (L) chosen = L.series;
@@ -60,7 +60,7 @@ export async function conduiteView(app, exam) {
     });
     app.querySelector('#cd-restart')?.addEventListener('click', () => { if (window.confirm('Remettre ce chrono à zéro ?')) send({ phase: mine.phase, series: chosen, round: mine.round }); });
     app.querySelector('#cd-stop')?.addEventListener('click', () => { if (window.confirm('Arrêter le chrono ? Les écrans reviennent aux horaires du planning.')) send({ phase: 'stop' }); });
-    clearInterval(window.__cdTick); window.__cdTick = setInterval(() => { if (!location.hash.match(/conduite$/)) { clearInterval(window.__cdTick); return; } tick(); }, 1000);
+    clearInterval(window.__cdTick); window.__cdTick = setInterval(() => { if (!location.hash.match(/(conduite|chrono)$/)) { clearInterval(window.__cdTick); return; } tick(); }, 1000);
   };
   window.removeEventListener('ines-live', window.__cdLive || (() => {}));
   window.__cdLive = () => draw();

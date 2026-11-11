@@ -260,8 +260,8 @@ export function notifier(c) {
       return [{ kind: isEval ? 'evaluateur' : 'benevole', exam_id: x.exam_id, ref: String(signupId), to: x.email, name: `${x.first_name} ${x.last_name}`,
         subject: isEval ? `Merci : votre inscription comme évaluateur aux ${x.exam_name}` : `Merci ${x.first_name} : ton inscription de bénévole aux ${x.exam_name}`,
         html: layout({ title: `Merci, ${x.first_name} !`,
-          intro: vous ? 'Vos disponibilités sont bien notées. L\'équipe prépare le planning des salles : vous le retrouverez dans votre espace, avec la station qui vous est confiée. Rien à préparer : tout vous est présenté au briefing, une heure avant la première série.'
-            : 'On a bien noté tes disponibilités. L\'équipe prépare le planning des salles : tu le retrouveras dans ton espace bénévole. Tout t\'est expliqué au briefing, une heure avant la première série.',
+          intro: vous ? 'Vos disponibilités sont bien notées. Les organisateurs préparent le planning des salles : vous le retrouverez dans votre espace, avec la station qui vous est confiée. Rien à préparer : tout vous est présenté au briefing, une heure avant la première série.'
+            : 'On a bien noté tes disponibilités. Les organisateurs préparent le planning des salles : tu le retrouveras dans ton espace bénévole. Tout t\'est expliqué au briefing, une heure avant la première série.',
           rows: [[vous ? 'Votre code personnel' : 'Ton code personnel', `<span style="letter-spacing:2px">${esc(x.code)}</span>`]],
           button: { url: `${url}/#/?role=evaluateur&code=${encodeURIComponent(x.code)}`, label: vous ? 'Ouvrir mon espace évaluateur' : 'Ouvrir mon espace bénévole' },
           after: vous ? 'Le jour J, ce même code ouvre directement votre salle sur votre téléphone : la grille se remplit en deux minutes par candidat, même sans réseau.'
@@ -283,7 +283,7 @@ export async function dailyReminders(env) {
   const vols = (await db.prepare(`SELECT a.signup_id, a.half, a.role, st.slot, s.code, s.exam_id, v.email, v.first_name, v.last_name, e.name AS exam_name, e.planning, e.starts_on, e.ends_on
     FROM assignments a JOIN volunteer_signups s ON s.id = a.signup_id JOIN volunteers v ON v.id = s.volunteer_id JOIN exams e ON e.id = a.exam_id LEFT JOIN stations st ON st.id = a.station_id
     WHERE a.day = ? AND NOT EXISTS (SELECT 1 FROM mail_log m WHERE m.kind = 'rappel_benevole' AND m.ref = a.signup_id || '|' || a.day AND m.status IN ('sent', 'skipped'))`).bind(tomorrow).all().catch(() => ({ results: [] }))).results;
-  const ROLE = { evaluateur: 'évaluateur', ps: 'patient standardisé', pss: 'professionnel de santé standardisé', logistique: 'accueil et logistique', reserve: 'PS ou PSS de réserve, prêt à remplacer un absent' };
+  const ROLE = { evaluateur: 'évaluateur', ps: 'patient standardisé', pss: 'professionnel de santé standardisé', logistique: 'accueil et logistique', reserve: 'PS ou PSS de réserve, prêt à remplacer un absent', chrono: 'chrono de la série (tu lances chaque tour depuis ton espace)' };
   const msgs = [
     ...cands.map((x) => convocationMail(url, { id: x.exam_id, name: x.exam_name }, normalizePlanning(JSON.parse(x.planning || 'null'), x), x, 'rappel')),
     ...vols.map((x) => {
@@ -329,6 +329,7 @@ export async function teamThanks(env) {
     if (posts.some(([ro]) => ro === 'ps' || ro === 'pss')) did.push(`tu as joué le patient${rooms.length ? ` en salle ${rooms.join(', ')}` : ''}`);
     if (posts.some(([ro]) => ro === 'logistique')) did.push('tu as tenu l\'accueil et la logistique');
     if (posts.some(([ro]) => ro === 'reserve')) did.push('tu étais en réserve, prêt à remplacer un absent');
+    if (posts.some(([ro]) => ro === 'chrono')) did.push('tu as tenu le chrono de la série');
     const button = { url: `${url}/#/?role=evaluateur&code=${encodeURIComponent(r.code)}`, label: 'Donner mon avis' };
     return { kind: 'merci_benevole', exam_id: r.exam_id, ref: String(r.signup_id), to: r.email, name: `${r.first_name} ${r.last_name}`,
       subject: isEval ? `Merci pour votre aide aux ${r.exam_name}` : `Merci ${r.first_name} pour ton aide aux ${r.exam_name}`,

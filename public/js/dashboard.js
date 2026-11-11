@@ -40,10 +40,11 @@ export async function dashboardTab(box, exam) {
     </div>
 
     ${D.benevoles.length ? `<h2>Équipe de chaque demi-journée</h2>
-    <div class="table-wrap"><table><thead><tr><th>Demi-journée</th><th>Salles</th><th>PS / PSS de réserve</th><th>Accueil et logistique</th><th class="num">Disponibles</th></tr></thead><tbody>
+    <div class="table-wrap"><table><thead><tr><th>Demi-journée</th><th>Salles</th><th>PS / PSS de réserve</th><th>Chrono</th><th>Accueil et logistique</th><th class="num">Disponibles</th></tr></thead><tbody>
       ${D.benevoles.map((b) => `<tr><td><strong>${esc(b.label)}</strong></td>
         <td><div class="row" style="gap:8px;flex-wrap:nowrap">${bar(b.got, b.need)}<span class="small">${b.got} / ${b.need}</span></div>${b.missing.length ? `<div class="small" style="color:#b9770e">À pourvoir : ${b.missing.map(esc).join(', ')}</div>` : ''}</td>
         <td>${!b.need_reserve ? '<span class="small muted">Pas de station avec PS</span>' : b.reserve ? `<span class="pill ok">${b.reserve} en réserve</span>` : '<span class="pill warn">Manquant</span>'}</td>
+        <td>${b.chrono ? '<span class="pill ok">Oui</span>' : '<span class="pill warn">Personne</span>'}</td>
         <td>${b.accueil ? `<span class="pill ok">${b.accueil}</span>` : '<span class="pill warn">Personne</span>'}</td>
         <td class="num">${b.dispo}</td></tr>`).join('')}
     </tbody></table></div>

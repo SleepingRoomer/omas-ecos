@@ -2,6 +2,7 @@
 // le message s'affiche en bandeau chez les évaluateurs, à l'accueil, chez les bénévoles et sur l'écran de projection.
 // Gardés dans planning.broadcasts (20 derniers), visibles 45 minutes ou jusqu'à ce que l'équipe les retire.
 import { normalizePlanning, liveClock } from '../public/js/planning-shared.js';
+import { holdsChrono } from './benevoles.js';
 
 export const MESSAGE_MINUTES = 45;
 const live = (m, now = Date.now()) => m && !m.cleared_at && now - Date.parse(m.at) < MESSAGE_MINUTES * 60e3;
@@ -28,7 +29,7 @@ export function registerMessages(app, h) {
     const text = String(b.text || '').trim().replace(/\s+/g, ' ').slice(0, 200);
     if (!text) throw httpError(400, 'Écris le message.');
     const slot = b.slot ? String(b.slot).slice(0, 8) : null;
-    const msg = { id: Date.now(), text, slot, at: new Date().toISOString(), by: c.get('session').name || 'Équipe' };
+    const msg = { id: Date.now(), text, slot, at: new Date().toISOString(), by: c.get('session').name || 'Organisateurs' };
     planning.broadcasts = [...(planning.broadcasts || []), msg].slice(-20);
     await save(db, exam, planning);
     return c.json({ ok: true, message: msg });
@@ -70,9 +71,10 @@ export function registerMessages(app, h) {
     return { exam_id: Number(c.req.query('exam')) || null };
   };
 
-  app.post('/exams/:id/live', need('admin', 'accueil'), async (c) => {
+  app.post('/exams/:id/live', need('admin', 'accueil', 'benevole'), async (c) => {
     const db = c.env.DB; const s = c.get('session');
     if (s.kind === 'accueil' && Number(s.subject_id) !== Number(c.req.param('id'))) throw httpError(403, 'Accès refusé');
+    if (s.kind === 'benevole' && !(await holdsChrono(db, s, c.req.param('id')))) throw httpError(403, 'Seul le bénévole du chrono peut lancer les tours.');
     const { exam, planning } = await load(db, c.req.param('id'));
     const b = await c.req.json();
     const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Paris' });
@@ -81,7 +83,7 @@ export function registerMessages(app, h) {
       if (!['tour', 'pause', 'debrief'].includes(b.phase)) throw httpError(400, 'Étape inconnue');
       const series = Number(b.series); const round = Number(b.round) || 1;
       if (!planning.days.find((d) => d.date === today)?.series[series - 1]) throw httpError(400, 'Cette série n\'existe pas aujourd\'hui.');
-      planning.live = { day: today, series, round, phase: b.phase, started_at: new Date().toISOString(), by: s.name || 'Accueil' };
+      planning.live = { day: today, series, round, phase: b.phase, started_at: new Date().toISOString(), by: s.name || (s.kind === 'benevole' ? 'Chrono' : 'Accueil') };
     }
     await save(db, exam, planning);
     return c.json({ ok: true, live: planning.live, now: Date.now() });

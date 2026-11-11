@@ -58,7 +58,7 @@ export function registerBanque(app, h) {
     await db.batch([
       db.prepare(`UPDATE stations SET content = ?, title = ?, domain = ?, type = ?, discipline = ?, status = ?, origin_id = ?, updated_at = datetime('now') WHERE id = ?`)
         .bind(JSON.stringify(content), src.title, src.domain, src.type, src.discipline, status, src.origin_id || src.id, target.id),
-      db.prepare("INSERT INTO reviews (station_id, author_name, stage, action, comment) VALUES (?, 'Équipe', ?, 'comment', ?)")
+      db.prepare("INSERT INTO reviews (station_id, author_name, stage, action, comment) VALUES (?, 'Organisateurs', ?, 'comment', ?)")
         .bind(target.id, status, `Station reprise de la banque : ${src.slot}, ${src.exam_name}.`),
     ]);
     return c.json({ ok: true, status });

@@ -23,12 +23,12 @@ export async function loadExamState(db, examId) {
 
 // Message pour un évaluateur qui arrive hors des heures de saisie
 export function closedMessage(st) {
-  if (st.mode === 'closed') return 'La saisie est fermée par l\'équipe pour cette session.';
+  if (st.mode === 'closed') return 'La saisie est fermée par les organisateurs pour cette session.';
   if (st.opens_at) {
     const d = new Date(st.opens_at);
     const when = d.toLocaleString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Paris' });
     return `La saisie n'est pas encore ouverte : elle ouvre d'elle-même le ${when}, une heure avant la première convocation.`;
   }
-  if (st.no_planning) return 'La saisie ouvre d\'après les horaires du planning : l\'équipe doit d\'abord régler les jours de passage.';
+  if (st.no_planning) return 'La saisie ouvre d\'après les horaires du planning : les organisateurs doivent d\'abord régler les jours de passage.';
   return 'La saisie est fermée : la salle a fermé après la dernière série.';
 }

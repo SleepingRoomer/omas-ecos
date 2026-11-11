@@ -10,7 +10,7 @@ const KINDS = {
   signaletique: { title: 'Signalétique', help: 'Des panneaux A4 pour guider les candidats et les bénévoles dans les locaux.' },
 };
 const SIGNS = [['Accueil', 'ECOS blancs, émargement et petit déjeuner'], ['Salle d\'attente', 'Téléphones rangés, on ne parle pas des stations'], ['Circuit A', 'Stations A1 à A5'],
-  ['Circuit B', 'Stations B1 à B5'], ['Débrief', 'Correction des stations avec les évaluateurs'], ['Équipe', 'Une question ? C\'est ici'], ['Silence', 'Station en cours']];
+  ['Circuit B', 'Stations B1 à B5'], ['Débrief', 'Correction des stations avec les évaluateurs'], ['Organisateurs', 'Une question ? C\'est ici'], ['Silence', 'Station en cours']];
 
 export async function printView(app, exam, kind) {
   const K = KINDS[kind] || KINDS.vignettes;

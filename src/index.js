@@ -167,7 +167,7 @@ app.post('/login', async (c) => {
     if (who?.refused) throw httpError(403, 'Le mot de passe commun n\'est plus accepté : connecte-toi avec ton code personnel.');
     if (!who) throw await failed(c, 'admin', 'Mot de passe incorrect');
     await createSession(c, 'admin', who.member_id, who.name, 12);
-    await audit(c, { kind: 'admin', name: who.name, subject_id: who.member_id }, 'POST', '/login', who.member_id ? 'Connexion de l\'équipe' : 'Connexion avec le mot de passe commun');
+    await audit(c, { kind: 'admin', name: who.name, subject_id: who.member_id }, 'POST', '/login', who.member_id ? 'Connexion d\'un organisateur' : 'Connexion avec le mot de passe commun');
     // adresse du site, pour les liens des e-mails envoyés par la tâche planifiée
     await run(db, "INSERT INTO settings (key, value) VALUES ('site_url', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", new URL(c.req.url).origin).catch(() => {});
     return c.json({ kind: 'admin' });

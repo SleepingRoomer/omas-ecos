@@ -322,7 +322,7 @@ function feedbackHtml(F, S, nCands) {
   const clar = S.map((s) => { const v = F.map((f) => f.stations?.[s.slot]).filter((x) => typeof x === 'number'); return { s, n: v.length, m: mean(v) }; });
   const comments = F.filter((f) => f.comment);
   return `<h2>L'avis des étudiants</h2>
-    <p class="muted small">${F.length} réponse${F.length > 1 ? 's' : ''} sur ${nCands} candidats. Les réponses sont anonymes pour l'équipe.</p>
+    <p class="muted small">${F.length} réponse${F.length > 1 ? 's' : ''} sur ${nCands} candidats. Les réponses sont anonymes pour les organisateurs.</p>
     <div class="facts">
       <div><div class="v">${fmt(avg('global'), 1)}<span class="faint"> / 5</span></div><div class="l">utilité ressentie</div></div>
       <div><div class="v">${fmt(avg('organisation'), 1)}<span class="faint"> / 5</span></div><div class="l">accueil et organisation</div></div>
