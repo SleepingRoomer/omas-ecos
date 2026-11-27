@@ -33,7 +33,7 @@ export async function publicIntervenantForm(app, jpId) {
       <div class="grid cols-2" style="gap:10px"><div><label for="i-sp">Ta spécialité</label><select id="i-sp" name="specialty" required><option value="">Choisir</option>${SPECIALTIES.map((x) => `<option>${esc(x)}</option>`).join('')}<option value="_autre">Autre</option></select>
           <input id="i-sp2" name="specialty_other" placeholder="Laquelle ?" aria-label="Autre spécialité" hidden style="margin-top:6px"></div>
         <div><label for="i-st">Tu es</label><select id="i-st" name="status" required><option value="">Choisir</option>${J.statuses.map((x) => `<option>${esc(x)}</option>`).join('')}<option value="_autre">Autre</option></select>
-          <input id="i-st2" name="status_other" placeholder="Précise (FFI, assistant, PH…)" aria-label="Autre statut" hidden style="margin-top:6px"></div></div>
+          <input id="i-st2" name="status_other" placeholder="Précise (FFI, PH, MCU…)" aria-label="Autre statut" hidden style="margin-top:6px"></div></div>
       <fieldset><legend>Tes demi-journées</legend>
         <div class="vol-days">${Object.keys(byDay).map((d) => `<div class="vol-day"><strong>${esc(longDay(d))}</strong>
           <div class="seg small">${byDay[d].map((s) => `<label class="pick"><input type="checkbox" name="slots" value="${s.id}"><span>${s.half === 'matin' ? 'Matin' : 'Après-midi'}</span></label>`).join('')}</div></div>`).join('')}</div></fieldset>

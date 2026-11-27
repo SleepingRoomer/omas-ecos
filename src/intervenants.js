@@ -5,7 +5,7 @@
 import { layout, sendMails } from './mail.js';
 
 // 5e et 6e années d'internat : docteur junior (DJ1, DJ2). « Autre » est précisé à la main dans le formulaire.
-export const INTERVENANT_STATUS = ['1re année d\'internat', '2e année d\'internat', '3e année d\'internat', '4e année d\'internat', 'Docteur junior (DJ1, 5e année)', 'Docteur junior (DJ2, 6e année)', 'Chef'];
+export const INTERVENANT_STATUS = ['1re année d\'internat', '2e année d\'internat', '3e année d\'internat', '4e année d\'internat', 'Docteur junior (DJ1, 5e année)', 'Docteur junior (DJ2, 6e année)', 'CCA / Assistant'];
 const half = (t) => (String(t || '') < '12:00' ? 'matin' : 'après-midi');
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
 const longDay = (d) => new Date(`${d}T12:00:00Z`).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Europe/Paris' });
@@ -44,7 +44,7 @@ export function registerIntervenants(app, h) {
     if (!t(b.first_name) || !t(b.last_name)) throw httpError(400, 'Indique ton nom et ton prénom.');
     if (!t(b.specialty)) throw httpError(400, 'Indique ta spécialité.');
     const status = t(b.status, 60);
-    if (!status) throw httpError(400, 'Indique où tu en es (année d\'internat, docteur junior, chef ou autre).');
+    if (!status) throw httpError(400, 'Indique où tu en es (année d\'internat, docteur junior, CCA ou assistant, ou autre).');
     const okSlots = new Set(slots.map((s) => s.id));
     const chosen = [...new Set((Array.isArray(b.slots) ? b.slots : []).map(Number).filter((x) => okSlots.has(x)))];
     if (!chosen.length) throw httpError(400, 'Coche au moins une demi-journée.');
