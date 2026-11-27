@@ -13,7 +13,7 @@ INES (Interface numérique d'ECOS et de simulation) est la plateforme des ECOS b
 ## Technique
 - Cloudflare Workers + Hono (`src/`) + D1 (SQLite), interface en modules JS sans compilation (`public/js/`), routes en `#/...`. Logique partagée serveur et navigateur : `public/js/shared.js` (notes, contrôles qualité), `planning-shared.js` (planning, rotation, vœux), `jp-shared.js` (journées procédure).
 - Formule gratuite : 50 requêtes D1 et 50 appels sortants par exécution, 100 paramètres par requête (utiliser `multiInsert` et `batch` de `src/index.js`). Les calculs lourds (onglet Analyse) se font dans le navigateur.
-- Migrations : `migrations/00xx_*.sql`. En production, elles sont collées à la main dans la console D1 (une instruction par ligne, sans commentaires), donc la table `d1_migrations` de production est vide. Dernière migration : 0014. Le code tolère l'absence des tables récentes (`.catch`).
+- Migrations : `migrations/00xx_*.sql`. En production, elles sont collées à la main dans la console D1 (une instruction par ligne, sans commentaires), donc la table `d1_migrations` de production est vide. Dernière migration : 0015. Le code tolère l'absence des tables récentes (`.catch`).
 - Secrets du Worker : `ADMIN_PASSWORD`, `BREVO_API_KEY`, `MAIL_FROM`, `MAIL_FROM_NAME` (facultatif, par défaut « INES · OMAS Externat »). `keep_vars` est activé dans `wrangler.jsonc`.
 - Tâches planifiées : `0 16 * * *` (UTC), soit 17 h l'hiver et 18 h l'été à Paris : rappels de la veille, liste d'attente, puis purge des connexions expirées (`src/system.js`, `nightly`) ; `30 * * * *` : offres de la liste d'attente arrivées à échéance (`hourly`). En local : `npx wrangler dev --test-scheduled`, puis POST sur `/cdn-cgi/local/explorer/api/local/scheduled?worker=omas-ecos` avec `{"cron": "30 * * * *"}`.
 - Liste d'attente automatique (`src/waitlist.js`) : une place libérée part au premier de la liste avec un délai (24 h, coupé à 3 h avant la convocation, rien en dessous de 2 h de délai). Le délai est dans `candidates.extra.offer_expires_at`.
@@ -22,7 +22,7 @@ INES (Interface numérique d'ECOS et de simulation) est la plateforme des ECOS b
 - Relances de rédaction (`src/writing.js`) : échéance par étape dans `planning.writing_deadlines`, e-mail à la personne qui reçoit une station, récapitulatif le lundi (tâche du soir) aux rédacteurs et relecteurs, et à l'adresse de réponse des e-mails pour l'équipe.
 - Saisie des grilles : ouverte d'après le planning (une heure avant la première convocation du jour, trois quarts d'heure après le dernier tour), ou forcée par `planning.eval_mode` ('auto', 'open', 'closed'). Détail des grilles retenu jusqu'à la fin de la dernière série (`planning.details_embargo`). Tout passe par `src/state.js` (`examState`, `loadExamState`) : ne plus lire `exams.eval_open` directement.
 - E-mails : Brevo, un appel pour 200 destinataires, journal dans `mail_log`. Sans clé, rien ne part et le site fonctionne quand même.
-- Hors connexion : `public/sw.js`. Changer le nom du cache (`ines-v20` aujourd'hui) quand les fichiers du front changent beaucoup.
+- Hors connexion : `public/sw.js`. Changer le nom du cache (`ines-v21` aujourd'hui) quand les fichiers du front changent beaucoup.
 - Sécurité : `public/_headers` (CSP stricte : pas de script ni de police externes, pas de gestionnaire `onclick` en ligne).
 
 ## Identité (charte complète dans le projet claude.ai « OMAS », document `claude/INES_charte.md`)
@@ -96,7 +96,11 @@ Pour repartir d'une base vide : arrêter le serveur, supprimer `.wrangler/state`
 - Une même table (`volunteers`, `volunteer_signups`) et deux liens publics : `#/benevole/:id` (externes : PS, PSS, logistique, évaluateur ; une demi-journée par jour) et `#/evaluateur/:id` (médecins et internes : disciplines préférées, journée entière possible). Pas d'attestation pour l'instant (retirée du formulaire, du matériel et des réglages). La piste est dans `volunteer_signups.prefs` (JSON, migration 0013) ; sans la colonne, l'inscription passe quand même.
 - Les évaluateurs sont vouvoyés dans les e-mails et le formulaire ; les bénévoles tutoyés.
 
-## Règles métier à ne pas casser
+## Intervenants des journées procédure
+- Recrutement dans INES, à la place du Google Form (`src/intervenants.js`, `public/js/intervenants.js`, table `jp_intervenants`, migration 0015) : lien public `#/intervenant/:id`, ouvert par la case « Inscriptions ouvertes » de l'onglet Intervenants (`jp_days.intervenants_open`). Chacun donne spécialité, année d'internat ou chef, demi-journées (les créneaux de la journée) et gestes souhaités (codes d'ateliers ou `any`). Renvoyer le formulaire avec la même adresse met à jour sa réponse. Tutoiement.
+- Onglet Intervenants : un atelier, un intervenant, créneau par créneau (★ = a demandé ce geste), « Compléter automatiquement », export CSV, « Prévenir les intervenants placés » (e-mail `intervenant_planning`). L'affectation est gardée dans `jp_slots.animators` (`{code: "Prénom Nom", _ids: {code: id}}`) : les plannings imprimés reprennent les noms ; un nom tapé à la main dans Groupes et rotations retire le lien avec l'inscrit.
+- RGPD : effacés avec la durée des bénévoles (`volunteer_years`) après la dernière journée.
+
 - Grille : chaque item d'aptitude vaut 1 point (observé ou non, jamais de demi-point) ; la communication se note par quart de point (0, 0,25, 0,5, 0,75, 1). L'éditeur ne propose plus de choisir les points, le serveur les remet à 1 tant qu'aucune grille n'est saisie.
 - Pas de calibration par station : tout est expliqué au briefing, une heure avant la première série (textes des formulaires et e-mails). La vue de calibration reste dans le code mais n'est plus proposée.
 - Note d'une station = (points des aptitudes + communication) ÷ maximum × 20. La performance globale ne compte pas. En binôme, moyenne des grilles ; l'étudiant voit « ½ » pour un item coché par un seul des deux évaluateurs, avec la légende au-dessus des items. Rang provisoire entre candidats complets, ex aequo au même rang.

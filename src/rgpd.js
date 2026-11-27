@@ -68,6 +68,9 @@ export async function rgpdPurge(env, { now = Date.now() } = {}) {
     db.prepare(`DELETE FROM waitlist WHERE exam_id IN (SELECT id FROM exams WHERE COALESCE(ends_on, starts_on) < date('now', ?))`).bind(`-${S.waitlist_days} days`),
   ]).catch(() => [{ meta: {} }, { meta: {} }]);
   out.mail_log = m.meta?.changes ?? 0; out.waitlist = w.meta?.changes ?? 0;
+  // intervenants des journées procédure : effacés avec la même durée que les bénévoles, après la dernière journée
+  const iv = await db.prepare('DELETE FROM jp_intervenants WHERE jp_id IN (SELECT id FROM jp_days WHERE COALESCE(ends_on, starts_on) < ?)').bind(cutoff).run().catch(() => null);
+  out.intervenants = iv?.meta?.changes ?? 0;
   return out;
 }
 

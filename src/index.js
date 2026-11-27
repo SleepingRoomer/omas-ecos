@@ -24,6 +24,7 @@ import { registerDemo } from './demo.js';
 import { registerDashboard } from './dashboard.js';
 import { registerMessages } from './messages.js';
 import { registerRedaction, leadIds } from './redaction.js';
+import { registerIntervenants } from './intervenants.js';
 
 const app = new Hono().basePath('/api');
 const COOKIE = 'omas_s';
@@ -1061,6 +1062,7 @@ registerTeam(app, { need, httpError, all, one, run });
 registerClaims(app, { need, httpError, all, one, run });
 registerDemo(app, { need, httpError, all, one, run, freshCodes, multiInsert, batch });
 registerRedaction(app, { need, httpError, all, one, run, uniqueCode });
+registerIntervenants(app, { need, httpError, all, one, run, parse });
 
 app.all('*', () => { throw httpError(404, 'Route inconnue'); });
 
