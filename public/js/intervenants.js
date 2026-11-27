@@ -32,7 +32,8 @@ export async function publicIntervenantForm(app, jpId) {
         <div><label for="i-ph">Téléphone <span class="hint">(facultatif)</span></label><input id="i-ph" name="phone" autocomplete="tel"></div></div>
       <div class="grid cols-2" style="gap:10px"><div><label for="i-sp">Ta spécialité</label><select id="i-sp" name="specialty" required><option value="">Choisir</option>${SPECIALTIES.map((x) => `<option>${esc(x)}</option>`).join('')}<option value="_autre">Autre</option></select>
           <input id="i-sp2" name="specialty_other" placeholder="Laquelle ?" aria-label="Autre spécialité" hidden style="margin-top:6px"></div>
-        <div><label for="i-st">Tu es</label><select id="i-st" name="status" required><option value="">Choisir</option>${J.statuses.map((x) => `<option>${esc(x)}</option>`).join('')}</select></div></div>
+        <div><label for="i-st">Tu es</label><select id="i-st" name="status" required><option value="">Choisir</option>${J.statuses.map((x) => `<option>${esc(x)}</option>`).join('')}<option value="_autre">Autre</option></select>
+          <input id="i-st2" name="status_other" placeholder="Précise (FFI, assistant, PH…)" aria-label="Autre statut" hidden style="margin-top:6px"></div></div>
       <fieldset><legend>Tes demi-journées</legend>
         <div class="vol-days">${Object.keys(byDay).map((d) => `<div class="vol-day"><strong>${esc(longDay(d))}</strong>
           <div class="seg small">${byDay[d].map((s) => `<label class="pick"><input type="checkbox" name="slots" value="${s.id}"><span>${s.half === 'matin' ? 'Matin' : 'Après-midi'}</span></label>`).join('')}</div></div>`).join('')}</div></fieldset>
@@ -41,16 +42,19 @@ export async function publicIntervenantForm(app, jpId) {
           <label class="pick"><input type="checkbox" name="ateliers" value="any"><span>Peu importe</span></label></div></fieldset>
       <label for="i-no">Des remarques ou des questions ? <span class="hint">(facultatif)</span></label><textarea id="i-no" name="note" rows="3" placeholder="Je ne peux venir qu'à partir de 10 h…"></textarea>
       <p class="small muted">Tes coordonnées servent uniquement à organiser les journées procédure d'OMAS Externat et à te recontacter pour les prochaines. <a href="#/confidentialite" target="_blank">En savoir plus</a>.</p>
-      <button class="primary" style="margin-top:6px">Je propose d'intervenir</button>
+      <div class="form-send"><button class="primary">Je propose d'intervenir</button></div>
     </form><div id="if-out"></div></div>`;
   const sp = app.querySelector('#i-sp'); const sp2 = app.querySelector('#i-sp2');
   sp.addEventListener('change', () => { sp2.hidden = sp.value !== '_autre'; sp2.required = !sp2.hidden; if (!sp2.hidden) sp2.focus(); });
+  const st = app.querySelector('#i-st'); const st2 = app.querySelector('#i-st2');
+  st.addEventListener('change', () => { st2.hidden = st.value !== '_autre'; st2.required = !st2.hidden; if (!st2.hidden) st2.focus(); });
   app.querySelector('#if').addEventListener('submit', async (e) => {
     e.preventDefault();
     const fd = new FormData(e.target);
     const body = Object.fromEntries(fd); body.slots = fd.getAll('slots').map(Number); body.ateliers = fd.getAll('ateliers');
     if (body.specialty === '_autre') body.specialty = (body.specialty_other || '').trim();
-    delete body.specialty_other;
+    if (body.status === '_autre') body.status = (body.status_other || '').trim();
+    delete body.specialty_other; delete body.status_other;
     if (!body.slots.length) { toast('Coche au moins une demi-journée.', 'error'); return; }
     if (!body.ateliers.length) { toast('Coche au moins un geste, ou « Peu importe ».', 'error'); return; }
     try {
