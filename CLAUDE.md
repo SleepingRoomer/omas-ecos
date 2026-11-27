@@ -22,7 +22,7 @@ INES (Interface numérique d'ECOS et de simulation) est la plateforme des ECOS b
 - Relances de rédaction (`src/writing.js`) : échéance par étape dans `planning.writing_deadlines`, e-mail à la personne qui reçoit une station, récapitulatif le lundi (tâche du soir) aux rédacteurs et relecteurs, et à l'adresse de réponse des e-mails pour l'équipe.
 - Saisie des grilles : ouverte d'après le planning (une heure avant la première convocation du jour, trois quarts d'heure après le dernier tour), ou forcée par `planning.eval_mode` ('auto', 'open', 'closed'). Détail des grilles retenu jusqu'à la fin de la dernière série (`planning.details_embargo`). Tout passe par `src/state.js` (`examState`, `loadExamState`) : ne plus lire `exams.eval_open` directement.
 - E-mails : Brevo, un appel pour 200 destinataires, journal dans `mail_log`. Sans clé, rien ne part et le site fonctionne quand même.
-- Hors connexion : `public/sw.js`. Changer le nom du cache (`ines-v21` aujourd'hui) quand les fichiers du front changent beaucoup.
+- Hors connexion : `public/sw.js`. Changer le nom du cache (`ines-v23` aujourd'hui) quand les fichiers du front changent beaucoup.
 - Sécurité : `public/_headers` (CSP stricte : pas de script ni de police externes, pas de gestionnaire `onclick` en ligne).
 
 ## Identité (charte complète dans le projet claude.ai « OMAS », document `claude/INES_charte.md`)
@@ -97,7 +97,7 @@ Pour repartir d'une base vide : arrêter le serveur, supprimer `.wrangler/state`
 - Les évaluateurs sont vouvoyés dans les e-mails et le formulaire ; les bénévoles tutoyés.
 
 ## Intervenants des journées procédure
-- Recrutement dans INES, à la place du Google Form (`src/intervenants.js`, `public/js/intervenants.js`, table `jp_intervenants`, migration 0015) : lien public `#/intervenant/:id`, ouvert par la case « Inscriptions ouvertes » de l'onglet Intervenants (`jp_days.intervenants_open`). Chacun donne spécialité, année d'internat ou chef, demi-journées (les créneaux de la journée) et gestes souhaités (codes d'ateliers ou `any`). Renvoyer le formulaire avec la même adresse met à jour sa réponse. Tutoiement.
+- Recrutement dans INES, à la place du Google Form (`src/intervenants.js`, `public/js/intervenants.js`, table `jp_intervenants`, migration 0015) : lien public `#/intervenant/:id`, ouvert par la case « Inscriptions ouvertes » de l'onglet Intervenants (`jp_days.intervenants_open`). Chacun donne spécialité (liste des DES de `SPECIALTIES` dans shared.js, ou « Autre » à préciser), statut (1re à 4e année d'internat, docteur junior DJ1 ou DJ2 pour les 5e et 6e années, CCA / Assistant, ou « Autre » à préciser), demi-journées (les créneaux de la journée) et gestes souhaités (codes d'ateliers ou `any`). Renvoyer le formulaire avec la même adresse met à jour sa réponse. Tutoiement.
 - Onglet Intervenants : un atelier, un intervenant, créneau par créneau (★ = a demandé ce geste), « Compléter automatiquement », export CSV, « Prévenir les intervenants placés » (e-mail `intervenant_planning`). L'affectation est gardée dans `jp_slots.animators` (`{code: "Prénom Nom", _ids: {code: id}}`) : les plannings imprimés reprennent les noms ; un nom tapé à la main dans Groupes et rotations retire le lien avec l'inscrit.
 - RGPD : effacés avec la durée des bénévoles (`volunteer_years`) après la dernière journée.
 
