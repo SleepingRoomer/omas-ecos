@@ -2,6 +2,7 @@
 // où l'on place chacun sur un atelier, créneau par créneau.
 import { api, esc, toast, setTitle, downloadCsv, confirmBox, atelierPlate } from './ui.js';
 import { atelierNo } from './jp-shared.js';
+import { SPECIALTIES } from './shared.js';
 
 const longDay = (d) => new Date(`${d}T12:00:00`).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
 const shortDay = (d) => new Date(`${d}T12:00:00`).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' });
@@ -29,7 +30,8 @@ export async function publicIntervenantForm(app, jpId) {
         <div><label for="i-fn" style="margin-top:0">Prénom</label><input id="i-fn" name="first_name" required autocomplete="given-name"></div></div>
       <div class="grid cols-2" style="gap:10px"><div><label for="i-em">E-mail</label><input id="i-em" name="email" type="email" required autocomplete="email"></div>
         <div><label for="i-ph">Téléphone <span class="hint">(facultatif)</span></label><input id="i-ph" name="phone" autocomplete="tel"></div></div>
-      <div class="grid cols-2" style="gap:10px"><div><label for="i-sp">Ta spécialité</label><input id="i-sp" name="specialty" required placeholder="Urologie, médecine générale…"></div>
+      <div class="grid cols-2" style="gap:10px"><div><label for="i-sp">Ta spécialité</label><select id="i-sp" name="specialty" required><option value="">Choisir</option>${SPECIALTIES.map((x) => `<option>${esc(x)}</option>`).join('')}<option value="_autre">Autre</option></select>
+          <input id="i-sp2" name="specialty_other" placeholder="Laquelle ?" aria-label="Autre spécialité" hidden style="margin-top:6px"></div>
         <div><label for="i-st">Tu es</label><select id="i-st" name="status" required><option value="">Choisir</option>${J.statuses.map((x) => `<option>${esc(x)}</option>`).join('')}</select></div></div>
       <fieldset><legend>Tes demi-journées</legend>
         <div class="vol-days">${Object.keys(byDay).map((d) => `<div class="vol-day"><strong>${esc(longDay(d))}</strong>
@@ -41,10 +43,14 @@ export async function publicIntervenantForm(app, jpId) {
       <p class="small muted">Tes coordonnées servent uniquement à organiser les journées procédure d'OMAS Externat et à te recontacter pour les prochaines. <a href="#/confidentialite" target="_blank">En savoir plus</a>.</p>
       <button class="primary" style="margin-top:6px">Je propose d'intervenir</button>
     </form><div id="if-out"></div></div>`;
+  const sp = app.querySelector('#i-sp'); const sp2 = app.querySelector('#i-sp2');
+  sp.addEventListener('change', () => { sp2.hidden = sp.value !== '_autre'; sp2.required = !sp2.hidden; if (!sp2.hidden) sp2.focus(); });
   app.querySelector('#if').addEventListener('submit', async (e) => {
     e.preventDefault();
     const fd = new FormData(e.target);
     const body = Object.fromEntries(fd); body.slots = fd.getAll('slots').map(Number); body.ateliers = fd.getAll('ateliers');
+    if (body.specialty === '_autre') body.specialty = (body.specialty_other || '').trim();
+    delete body.specialty_other;
     if (!body.slots.length) { toast('Coche au moins une demi-journée.', 'error'); return; }
     if (!body.ateliers.length) { toast('Coche au moins un geste, ou « Peu importe ».', 'error'); return; }
     try {
