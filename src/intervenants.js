@@ -4,7 +4,8 @@
 // { <code de l'atelier>: "Prénom Nom", _ids: { <code>: id de l'intervenant } }, ce qui garde les impressions telles quelles.
 import { layout, sendMails } from './mail.js';
 
-export const INTERVENANT_STATUS = ['1re année d\'internat', '2e année d\'internat', '3e année d\'internat', '4e année d\'internat', '5e année d\'internat', '6e année d\'internat', 'Docteur junior', 'Chef'];
+// 5e et 6e années d'internat : docteur junior (DJ1, DJ2). « Autre » est précisé à la main dans le formulaire.
+export const INTERVENANT_STATUS = ['1re année d\'internat', '2e année d\'internat', '3e année d\'internat', '4e année d\'internat', 'Docteur junior (DJ1, 5e année)', 'Docteur junior (DJ2, 6e année)', 'Chef'];
 const half = (t) => (String(t || '') < '12:00' ? 'matin' : 'après-midi');
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
 const longDay = (d) => new Date(`${d}T12:00:00Z`).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Europe/Paris' });
@@ -42,7 +43,8 @@ export function registerIntervenants(app, h) {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw httpError(400, 'Adresse e-mail invalide.');
     if (!t(b.first_name) || !t(b.last_name)) throw httpError(400, 'Indique ton nom et ton prénom.');
     if (!t(b.specialty)) throw httpError(400, 'Indique ta spécialité.');
-    if (!INTERVENANT_STATUS.includes(b.status)) throw httpError(400, 'Indique où tu en es (année d\'internat ou chef).');
+    const status = t(b.status, 60);
+    if (!status) throw httpError(400, 'Indique où tu en es (année d\'internat, docteur junior, chef ou autre).');
     const okSlots = new Set(slots.map((s) => s.id));
     const chosen = [...new Set((Array.isArray(b.slots) ? b.slots : []).map(Number).filter((x) => okSlots.has(x)))];
     if (!chosen.length) throw httpError(400, 'Coche au moins une demi-journée.');
@@ -54,7 +56,7 @@ export function registerIntervenants(app, h) {
       db.prepare(`INSERT INTO jp_intervenants (jp_id, email, first_name, last_name, phone, specialty, status, slots, ateliers, note) VALUES (?,?,?,?,?,?,?,?,?,?)
         ON CONFLICT(jp_id, email) DO UPDATE SET first_name = excluded.first_name, last_name = excluded.last_name, phone = COALESCE(excluded.phone, phone),
         specialty = excluded.specialty, status = excluded.status, slots = excluded.slots, ateliers = excluded.ateliers, note = excluded.note, updated_at = datetime('now')`)
-        .bind(jp.id, email, t(b.first_name), t(b.last_name), t(b.phone, 30) || null, t(b.specialty, 80), b.status, JSON.stringify(chosen), JSON.stringify(gestes), t(b.note, 600) || null),
+        .bind(jp.id, email, t(b.first_name), t(b.last_name), t(b.phone, 30) || null, t(b.specialty, 80), status, JSON.stringify(chosen), JSON.stringify(gestes), t(b.note, 600) || null),
       db.prepare("INSERT INTO login_failures (ip, role) VALUES (?, 'intervenant')").bind(ip(c)),
     ]);
     // confirmation par e-mail, sans attendre
