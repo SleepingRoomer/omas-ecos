@@ -59,7 +59,7 @@ export async function jpSection(box) {
 
 // ---------- une journée ----------
 
-const TABS = [['ateliers', 'Ateliers'], ['intervenants', 'Intervenants'], ['inscrits', 'Créneaux et inscrits'], ['planning', 'Groupes et rotations'], ['materiel', 'Matériel'], ['reglages', 'Réglages']];
+const TABS = [['ateliers', 'Ateliers'], ['inscrits', 'Créneaux et inscrits'], ['planning', 'Groupes et rotations'], ['materiel', 'Matériel'], ['reglages', 'Réglages']];
 
 export async function jpView(app, id, tab) {
   const jp = await api(`/jp/${id}`);
@@ -73,7 +73,6 @@ export async function jpView(app, id, tab) {
     <nav class="tabs">${TABS.map(([k, l]) => `<a href="#/admin/jp/${id}/${k}" class="${k === tab ? 'active' : ''}">${l}</a>`).join('')}</nav>
     <div id="tab"></div>`;
   const box = app.querySelector('#tab');
-  if (tab === 'intervenants') { (await import('./intervenants.js')).intervenantsTab(box, jp); return; }
   ({ ateliers: ateliersTab, inscrits: inscritsTab, planning: planningTab, materiel: materielTab, reglages: reglagesTab }[tab] || ateliersTab)(box, jp);
 }
 
@@ -231,7 +230,6 @@ async function planningTab(box, jp) {
   box.querySelectorAll('[data-anim]').forEach((i) => i.addEventListener('change', async () => {
     const s = P.slots.find((x) => String(x.id) === i.dataset.slot);
     s.animators[i.dataset.anim] = i.value.trim();
-    if (s.animators._ids) delete s.animators._ids[i.dataset.anim]; // saisi à la main : ce n'est plus un intervenant inscrit
     await api(`/slots/${s.id}`, { method: 'PATCH', body: { animators: s.animators } });
     toast('Animateur enregistré');
   }));
