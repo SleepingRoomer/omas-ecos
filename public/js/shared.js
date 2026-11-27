@@ -43,6 +43,19 @@ export const DISCIPLINES = [
 ];
 const DISC_ICON = Object.fromEntries(DISCIPLINES);
 
+// Spécialités des internes et des médecins : les DES (réforme du troisième cycle de 2017), par ordre alphabétique
+export const SPECIALTIES = [
+  'Allergologie', 'Anatomie et cytologie pathologiques', 'Anesthésie-réanimation', 'Biologie médicale', 'Chirurgie maxillo-faciale',
+  'Chirurgie orale', 'Chirurgie orthopédique et traumatologique', 'Chirurgie pédiatrique', 'Chirurgie plastique, reconstructrice et esthétique',
+  'Chirurgie thoracique et cardiovasculaire', 'Chirurgie vasculaire', 'Chirurgie viscérale et digestive', 'Dermatologie et vénéréologie',
+  'Endocrinologie, diabétologie, nutrition', 'Génétique médicale', 'Gériatrie', 'Gynécologie médicale', 'Gynécologie obstétrique', 'Hématologie',
+  'Hépato-gastro-entérologie', 'Maladies infectieuses et tropicales', 'Médecine cardiovasculaire', 'Médecine d\'urgence', 'Médecine et santé au travail',
+  'Médecine générale', 'Médecine intensive-réanimation', 'Médecine interne et immunologie clinique', 'Médecine légale et expertises médicales',
+  'Médecine nucléaire', 'Médecine physique et de réadaptation', 'Médecine vasculaire', 'Néphrologie', 'Neurochirurgie', 'Neurologie', 'Oncologie',
+  'Ophtalmologie', 'ORL et chirurgie cervico-faciale', 'Pédiatrie', 'Pneumologie', 'Psychiatrie', 'Radiologie et imagerie médicale', 'Rhumatologie',
+  'Santé publique', 'Urologie',
+];
+
 export const domainIcon = (d) => DOMAIN_ICONS[d] || '';
 export const disciplineIcon = (d) => DISC_ICON[d] || (d ? '➕' : '');
 

@@ -72,7 +72,7 @@ export function registerJp(app, h) {
   app.patch('/jp/:id', need('admin'), async (c) => {
     const b = await c.req.json();
     const sets = []; const vals = [];
-    for (const f of ['name', 'starts_on', 'ends_on', 'atelier_minutes', 'transition_minutes', 'show_planning', 'keypoints_published']) {
+    for (const f of ['name', 'starts_on', 'ends_on', 'atelier_minutes', 'transition_minutes', 'show_planning', 'keypoints_published', 'intervenants_open']) {
       if (f in b) { sets.push(`${f} = ?`); vals.push(b[f]); }
     }
     if (sets.length) await run(c.env.DB, `UPDATE jp_days SET ${sets.join(', ')} WHERE id = ?`, ...vals, c.req.param('id'));

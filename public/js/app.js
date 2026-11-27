@@ -119,6 +119,7 @@ const routes = [
   [/^#\/attente\/(\d+)$/, [null, 'admin', 'etudiant', 'evaluateur', 'auteur', 'participant'], async (m) => (await import('./waitlist.js')).publicWaitlist(app, m[1])],
   [/^#\/benevole\/(\d+)$/, [null, 'admin', 'etudiant', 'evaluateur', 'auteur', 'participant', 'benevole'], async (m) => (await import('./benevoles.js')).publicSignup(app, m[1])],
   [/^#\/evaluateur\/(\d+)$/, [null, 'admin', 'etudiant', 'evaluateur', 'auteur', 'participant', 'benevole'], async (m) => (await import('./benevoles.js')).publicEvaluatorSignup(app, m[1])],
+  [/^#\/intervenant\/(\d+)$/, [null, 'admin', 'etudiant', 'evaluateur', 'auteur', 'participant', 'benevole', 'accueil'], async (m) => (await import('./intervenants.js')).publicIntervenantForm(app, m[1])],
   [/^#\/benevole$/, 'benevole', async () => (await import('./benevoles.js')).volunteerSpace(app)],
   [/^#\/calibration\/(\d+)$/, ['admin', 'benevole'], async (m) => (await import('./benevoles.js')).calibrationView(app, m[1], state.me.kind)],
   [/^#\/fiches$/, ['etudiant', 'participant', 'admin', 'benevole', 'auteur'], async () => (await import('./fiches.js')).fichesView(app)],
