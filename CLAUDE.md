@@ -101,6 +101,7 @@ Pour repartir d'une base vide : arrêter le serveur, supprimer `.wrangler/state`
 - Onglet Intervenants : un atelier, un intervenant, créneau par créneau (★ = a demandé ce geste), « Compléter automatiquement », export CSV, « Prévenir les intervenants placés » (e-mail `intervenant_planning`). L'affectation est gardée dans `jp_slots.animators` (`{code: "Prénom Nom", _ids: {code: id}}`) : les plannings imprimés reprennent les noms ; un nom tapé à la main dans Groupes et rotations retire le lien avec l'inscrit.
 - RGPD : effacés avec la durée des bénévoles (`volunteer_years`) après la dernière journée.
 
+## Règles métier à ne pas casser
 - Grille : chaque item d'aptitude vaut 1 point (observé ou non, jamais de demi-point) ; la communication se note par quart de point (0, 0,25, 0,5, 0,75, 1). L'éditeur ne propose plus de choisir les points, le serveur les remet à 1 tant qu'aucune grille n'est saisie.
 - Pas de calibration par station : tout est expliqué au briefing, une heure avant la première série (textes des formulaires et e-mails). La vue de calibration reste dans le code mais n'est plus proposée.
 - Note d'une station = (points des aptitudes + communication) ÷ maximum × 20. La performance globale ne compte pas. En binôme, moyenne des grilles ; l'étudiant voit « ½ » pour un item coché par un seul des deux évaluateurs, avec la légende au-dessus des items. Rang provisoire entre candidats complets, ex aequo au même rang.
