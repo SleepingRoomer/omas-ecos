@@ -53,7 +53,7 @@ npx wrangler secret put ADMIN_PASSWORD  # saisir un mot de passe long, différen
 npm run deploy
 ```
 
-Le site est alors en ligne à une adresse du type `https://omas-ecos.<compte>.workers.dev`. Pour le brancher sur `ecosblancsomas.com`, aller dans Cloudflare, puis Workers & Pages, puis omas-ecos, puis Settings, puis Domains & Routes. Le domaine doit être géré par Cloudflare.
+Le site est alors en ligne à une adresse du type `https://omas-ecos.<compte>.workers.dev`. Pour le brancher sur `inesomas.fr`, aller dans Cloudflare, puis Workers & Pages, puis omas-ecos, puis Settings, puis Domains & Routes. Le domaine doit être géré par Cloudflare. Ensuite, régler la variable `SITE_URL` (`https://inesomas.fr`) dans Variables and Secrets : les liens des e-mails l'utilisent et l'ancienne adresse renvoie vers elle.
 
 Pour les mises à jour suivantes, il suffit de lancer `npm run deploy`. On peut aussi relier le dépôt GitHub dans Cloudflare (Workers & Pages, puis Create, puis Import a repository) pour que chaque modification soit déployée automatiquement.
 

@@ -25,6 +25,7 @@ import { registerDashboard } from './dashboard.js';
 import { registerMessages } from './messages.js';
 import { registerRedaction, leadIds } from './redaction.js';
 import { registerIntervenants } from './intervenants.js';
+import { canonicalRedirect } from './domain.js';
 
 const app = new Hono().basePath('/api');
 const COOKIE = 'omas_s';
@@ -1068,7 +1069,12 @@ app.all('*', () => { throw httpError(404, 'Route inconnue'); });
 
 // la tâche planifiée (tous les jours en fin d'après-midi) : rappels de la veille, purge des connexions expirées
 export default {
-  fetch: app.fetch,
+  // le Worker ne voit que /api/* et la page d'accueil « / » (run_worker_first dans wrangler.jsonc) : le reste part des fichiers
+  fetch: (request, env, ctx) => {
+    const url = new URL(request.url);
+    if (url.pathname.startsWith('/api/')) return app.fetch(request, env, ctx);
+    return canonicalRedirect(request, env) || env.ASSETS.fetch(request);
+  },
   // deux déclencheurs : 16 h UTC pour la tâche du soir, toutes les heures pour la liste d'attente
   scheduled: (event, env, ctx) => ctx.waitUntil(event.cron === '0 16 * * *' ? nightly(env) : hourly(env)),
 };
